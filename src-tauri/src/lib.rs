@@ -59,6 +59,12 @@ async fn list_sessions(app: AppHandle, host_id: String) -> Result<Vec<sessions::
     tauri::async_runtime::spawn_blocking(move || sessions::list(&host)).await.map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn delete_sessions(app: AppHandle, host_id: String, paths: Vec<String>) -> Result<usize, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || sessions::delete(&host, &paths)).await.map_err(|e| e.to_string())?
+}
+
 // ---------- Pi processes ----------
 
 #[tauri::command]
@@ -274,6 +280,7 @@ pub fn run() {
             save_config,
             test_host,
             list_sessions,
+            delete_sessions,
             list_models,
             pi_open,
             pi_send,

@@ -1,6 +1,6 @@
 [package]
 name = "pibar"
-version = "0.1.0"
+version = "0.2.0"
 description = "Desktop GUI for the Pi coding agent"
 license = "MIT"
 repository = "https://github.com/DJ-Soft-creator/pibar"

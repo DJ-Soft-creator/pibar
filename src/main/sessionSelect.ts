@@ -3,8 +3,16 @@
 import { $, h } from "../shared/dom";
 import { icon } from "../shared/icons";
 import { t } from "../shared/i18n";
-import { colorMenu, groupPickerMenu, metaOf, newGroupDialog, setMetaMany } from "./sessionGroups";
-import { closeSession, renderHosts } from "./sessions";
+import {
+  closeSessionsDialog,
+  colorMenu,
+  deleteSessionsDialog,
+  groupPickerMenu,
+  metaOf,
+  newGroupDialog,
+  setMetaMany,
+} from "./sessionGroups";
+import { renderHosts } from "./sessions";
 import { state } from "./state";
 
 const MIME = "application/x-pibar-sessions";
@@ -144,7 +152,12 @@ export function renderSelectionBar() {
       btn(t("Group …"), (e) => groupPickerMenu(e.currentTarget as HTMLElement, keys)),
       btn(t("Colour …"), (e) => colorMenu(e.currentTarget as HTMLElement, keys)),
       btn(allPinned ? t("Unpin") : t("Pin to top"), () => setMetaMany(keys, { pinned: !allPinned })),
-      open.length ? btn(t("Close"), () => open.forEach((tab) => tab && closeSession(tab))) : null,
+      open.length ? btn(t("Close"), () => closeSessionsDialog(keys)) : null,
+      h(
+        "button",
+        { class: "ghost small danger-text", type: "button", onclick: () => deleteSessionsDialog(keys) },
+        t("Delete …"),
+      ),
     ),
   );
 }
@@ -160,6 +173,18 @@ export function wireSessionSelect() {
   );
   document.addEventListener("dragend", dragEnd);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && selection.size && !document.querySelector(".modal-backdrop, .menu")) clearSelection();
+    const busy = !!document.querySelector(".modal-backdrop, .menu");
+    if (e.key === "Escape" && selection.size && !busy) clearSelection();
+    // ⌫ / Delete: delete the selection (or the focused session row) – not while typing somewhere
+    if ((e.key === "Backspace" || e.key === "Delete") && !busy) {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable);
+      const focused = el?.dataset?.key;
+      const keys = typing ? [] : selection.size ? [...selection] : focused ? [focused] : [];
+      if (keys.length) {
+        e.preventDefault();
+        deleteSessionsDialog(keys);
+      }
+    }
   });
 }

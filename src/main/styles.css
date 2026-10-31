@@ -2077,3 +2077,29 @@ body.dragging-sess .empty-group {
   font-size: 12px;
   font-weight: 600;
 }
+
+/* ---------- Destructive actions, confirmations ---------- */
+.menu-item.danger .mi-label {
+  color: var(--danger);
+}
+button.danger-solid {
+  background: var(--danger);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 550;
+}
+button.ghost.danger-text {
+  color: var(--danger);
+}
+.confirm-list {
+  margin: 0 0 4px;
+  padding-left: 20px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+.confirm-list li {
+  margin: 2px 0;
+}

@@ -2,13 +2,14 @@
 // of sessions, groups and a multi-selection (src/main/sessionSelect.ts). Stored in AppConfig.sessionMeta (key "<hostId>|<sessionPath>") and AppConfig.groups.
 import { api, SessionGroup, SessionMeta } from "../shared/api";
 import { h, errMsg, openModal, toast } from "../shared/dom";
+import { cleanTitle } from "../shared/format";
 import { Msg, t } from "../shared/i18n";
 import { renderToolbar } from "./chatView";
 import { COLORS, MenuEntry, openMenu } from "./menu";
 import { reminderDialog, reminderFor } from "./reminders";
 import type { SessionTab } from "./sessionTab";
 import { selection } from "./sessionSelect";
-import { closeSession, renderHosts } from "./sessions";
+import { closeSession, loadSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 
 const COLOR_NAMES: Record<string, Msg> = {
@@ -176,6 +177,115 @@ export function colorMenu(anchor: HTMLElement, keys: string[]) {
   ]);
 }
 
+// ---------- Close and delete several sessions ----------
+
+function splitKey(key: string): { hostId: string; path: string } {
+  const i = key.indexOf("|");
+  return { hostId: key.slice(0, i), path: key.slice(i + 1) };
+}
+
+/** Title for confirmations: own name, Pi's name or first message */
+function titleOf(key: string): string {
+  const { hostId, path } = splitKey(key);
+  const s = state.sessionsByHost.get(hostId)?.find((x) => x.path === path);
+  return cleanTitle(
+    displayTitle(key, s?.name || s?.title || state.tabs.get(key)?.title || path.split("/").pop() || path),
+  );
+}
+
+/** Confirmation with a short list of the affected sessions */
+function confirmDialog(title: string, text: string, keys: string[], okLabel: string, ok: () => void) {
+  const max = 8;
+  const close = openModal(
+    title,
+    h(
+      "div",
+      {},
+      h("p", {}, text),
+      h(
+        "ul",
+        { class: "confirm-list" },
+        ...keys.slice(0, max).map((k) => h("li", {}, titleOf(k))),
+        keys.length > max ? h("li", { class: "muted" }, t("… and {n} more", { n: keys.length - max })) : null,
+      ),
+    ),
+    [
+      h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
+      h(
+        "button",
+        {
+          class: "danger-solid",
+          onclick: () => {
+            close();
+            ok();
+          },
+        },
+        okLabel,
+      ),
+    ],
+  );
+}
+
+/** Close the open sessions among `keys`; asks first when it is more than one */
+export function closeSessionsDialog(keys: string[]) {
+  const open = keys.filter((k) => state.tabs.get(k)?.alive);
+  const run = () => open.forEach((k) => closeSession(state.tabs.get(k)!));
+  if (open.length <= 1) return run();
+  confirmDialog(
+    t("Close {n} sessions?", { n: open.length }),
+    t("The Pi processes end; the sessions stay in the list and can be reopened."),
+    open,
+    t("Close {n} sessions", { n: open.length }),
+    run,
+  );
+}
+
+/** Delete sessions for good (session files on the host), after asking */
+export function deleteSessionsDialog(keys: string[]) {
+  keys = keys.filter((k) => splitKey(k).path);
+  if (!keys.length) return;
+  const n = keys.length;
+  confirmDialog(
+    n === 1 ? t("Delete session?") : t("Delete {n} sessions?", { n }),
+    t("The session files are deleted on the host. This cannot be undone."),
+    keys,
+    n === 1 ? t("Delete") : t("Delete {n} sessions", { n }),
+    () => deleteSessions(keys),
+  );
+}
+
+async function deleteSessions(keys: string[]) {
+  // stop running Pi processes first, they would write the file again
+  for (const k of keys) {
+    const tab = state.tabs.get(k);
+    if (tab) closeSession(tab);
+  }
+  const byHost = new Map<string, string[]>();
+  for (const k of keys) {
+    const { hostId, path } = splitKey(k);
+    byHost.set(hostId, [...(byHost.get(hostId) ?? []), path]);
+  }
+  let deleted = 0;
+  for (const [hostId, paths] of byHost) {
+    try {
+      deleted += await api.deleteSessions(hostId, paths);
+      // forget names, groups, reminders and extra folders of the deleted sessions
+      for (const p of paths) {
+        const key = `${hostId}|${p}`;
+        delete state.config.sessionMeta?.[key];
+        delete state.config.sessionFolders[key];
+        selection.delete(key);
+      }
+      state.config.reminders = state.config.reminders.filter((r) => !(r.hostId === hostId && paths.includes(r.path)));
+    } catch (e) {
+      toast(`${t("Delete")}: ${errMsg(e)}`, "err");
+    }
+    loadSessions(hostId);
+  }
+  saveConfig();
+  if (deleted) toast(deleted === 1 ? t("Session deleted") : t("{n} sessions deleted", { n: deleted }));
+}
+
 /** Context menu for several selected sessions */
 export function bulkMenu(keys: string[]): MenuEntry[] {
   const allPinned = keys.every((k) => metaOf(k).pinned);
@@ -194,10 +304,12 @@ export function bulkMenu(keys: string[]): MenuEntry[] {
       ? [
           {
             label: t("Close {n} open sessions", { n: open.length }),
-            onSelect: () => open.forEach((x) => x && closeSession(x)),
+            onSelect: () => closeSessionsDialog(keys),
           },
         ]
       : []),
+    { label: t("Delete {n} sessions …", { n: keys.length }), danger: true, onSelect: () => deleteSessionsDialog(keys) },
+    { separator: true },
     {
       label: t("Clear selection (Esc)"),
       onSelect: () => {
@@ -236,6 +348,11 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
     );
   }
   if (s.tab?.alive) entries.push({ label: t("Close session (⌘W)"), onSelect: () => closeSession(s.tab!) });
+  if (saved)
+    entries.push(
+      { separator: true },
+      { label: t("Delete …"), danger: true, onSelect: () => deleteSessionsDialog([key]) },
+    );
   openMenu(anchor, entries, "right", at);
 }
 
