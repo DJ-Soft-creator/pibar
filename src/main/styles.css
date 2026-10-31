@@ -2162,3 +2162,21 @@ button.ghost.danger-text {
   background: var(--warn);
   opacity: 0.8;
 }
+.ginline {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 55%;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+  overflow: hidden;
+}
+.ginline .gbranch {
+  color: var(--muted);
+  max-width: 90px;
+}
+.ginline.dirty .gicon {
+  color: var(--warn);
+}

@@ -57,8 +57,8 @@ Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 - Right column: the session's folders as a tree; create files and folders (`+`), read, edit, preview and save `.md`
   files (⌘S)
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
-- Optional **Git status** (Settings → General): branch, commits not pushed (↑) or to pull (↓), number of changes, and
-  a small letter at changed files (M, A, U, D)
+- Optional **Git status** (Settings → General): for the session folder and for repositories in its subfolders the
+  branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)
 
 ### Layout
 

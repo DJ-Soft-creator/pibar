@@ -102,7 +102,7 @@ flowchart LR
 | [`shared/format.ts`](../src/shared/format.ts) | Pure formatters, tested in `format.test.ts` | [`shortModel`](../src/shared/format.ts), [`cleanTitle`](../src/shared/format.ts), [`withScreenText`](../src/shared/format.ts), [`withAnswerStyle`](../src/shared/format.ts), [`stripAnswerStyle`](../src/shared/format.ts), [`tokensPerSecond`](../src/shared/format.ts), [`relTime`](../src/shared/format.ts) |
 | [`shared/tree.ts`](../src/shared/tree.ts) | Relative paths → folder tree, tested in `tree.test.ts` | [`buildTree`](../src/shared/tree.ts), [`countFiles`](../src/shared/tree.ts) |
 | [`shared/voice.ts`](../src/shared/voice.ts) | Microphone recording, mic and improve buttons for both windows, read aloud; tested in `voice.test.ts` | [`wireVoice`](../src/shared/voice.ts), [`startRecording`](../src/shared/voice.ts), [`stopRecording`](../src/shared/voice.ts), [`speak`](../src/shared/voice.ts), [`improve`](../src/shared/voice.ts), [`DEFAULT_IMPROVE_PROMPT`](../src/shared/voice.ts) |
-| [`shared/git.ts`](../src/shared/git.ts) | Git status line and file letters in the tree; tested in `git.test.ts` | [`gitLine`](../src/shared/git.ts), [`gitMark`](../src/shared/git.ts), [`gitStatusFor`](../src/shared/git.ts) |
+| [`shared/git.ts`](../src/shared/git.ts) | Git status line and file letters in the tree; tested in `git.test.ts` | [`gitLine`](../src/shared/git.ts), [`gitInline`](../src/shared/git.ts), [`gitMark`](../src/shared/git.ts), [`gitStatusFor`](../src/shared/git.ts) |
 | [`shared/icons.ts`](../src/shared/icons.ts) | Line icons (SVG) instead of emoji: reminder, gear, check, more, close | [`icon`](../src/shared/icons.ts), [`iconSvg`](../src/shared/icons.ts) |
 | [`shared/theme.ts`](../src/shared/theme.ts) | Colour scheme for both windows (auto / light / dark) | [`applyTheme`](../src/shared/theme.ts), [`nextTheme`](../src/shared/theme.ts) |
 
@@ -174,8 +174,10 @@ into folders; [`renderTree`](../src/main/files.ts) draws them (open folders live
 A folder that does not exist on the host comes back with `missing: true` ([`parse_listing`](../src-tauri/src/files.rs))
 and can be created ([`create_dir`](../src-tauri/src/files.rs)) or removed from the session.
 With `ui.showGit` the same script also runs `git status --porcelain --branch` ([`parse_git`](../src-tauri/src/files.rs));
-the tree shows a quiet line per folder ([`gitLine`](../src/shared/git.ts): branch, ↑ not pushed, ↓ to pull, changes)
-and a letter per changed file ([`gitMark`](../src/shared/git.ts)). Ahead/behind are as of the last fetch. Reading and writing use `cat` through
+for the session folder's own repository and for repositories in subfolders (up to 30, depth 5). The tree shows a quiet
+line under a session folder that is a repository ([`gitLine`](../src/shared/git.ts): branch, ↑ not pushed, ↓ to pull,
+changes), branch and ↑/↓ next to repository folders inside the tree ([`gitInline`](../src/shared/git.ts)) and a letter
+per changed file ([`gitMark`](../src/shared/git.ts)). Ahead/behind are as of the last fetch. Reading and writing use `cat` through
 [`run_shell`](../src-tauri/src/hostexec.rs), locally and over SSH; [`files::write`](../src-tauri/src/files.rs) writes to a
 temp file first and then renames.
 

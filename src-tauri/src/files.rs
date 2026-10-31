@@ -17,8 +17,8 @@ pub struct FolderListing {
     /// The folder does not exist on the host
     pub missing: bool,
     pub error: Option<String>,
-    /// Git status when asked for and the folder is in a repository
-    pub git: Option<GitInfo>,
+    /// Git status when asked for: the repository containing the folder and repositories in subfolders
+    pub git: Vec<GitInfo>,
 }
 
 /// Branch, sync state with the upstream and changed files (from `git status --porcelain --branch`).
@@ -26,6 +26,8 @@ pub struct FolderListing {
 #[derive(Serialize, Debug, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GitInfo {
+    /// Repository folder relative to the listed folder; "" = the listed folder itself (or a parent of it)
+    pub dir: String,
     pub branch: String,
     pub upstream: Option<String>,
     /// Commits not pushed yet
@@ -55,12 +57,19 @@ find . -mindepth 1 -maxdepth 4 \( -name node_modules -o -name target -o -name '.
 /// Marks the start of the Git part of the output
 const GIT_MARK: &str = "__PIBAR_GIT__";
 
-/// Appended when the Git status is wanted: prefix of the folder inside the repository, then the status
+/// Appended when the Git status is wanted. One block per repository: marker, folder (relative, "" = listed folder),
+/// prefix of the listed folder inside that repository, then `git status`. First the repository the folder is in,
+/// then repositories in subfolders (up to 30, depth 5).
 const GIT: &str = r#"
 if p=$(git rev-parse --show-prefix 2>/dev/null); then
-  echo __PIBAR_GIT__; echo "$p"
+  echo __PIBAR_GIT__; echo ""; echo "$p"
   git status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 2000
-fi"#;
+fi
+find . -mindepth 2 -maxdepth 5 \( -name node_modules -o -name target \) -prune -o -name .git -prune -print 2>/dev/null | head -n 30 | while IFS= read -r g; do
+  d=$(dirname "$g"); d=${d#./}
+  echo __PIBAR_GIT__; echo "$d"; echo ""
+  git -C "$d" status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 500
+done"#;
 
 /// "## main...origin/main [ahead 2, behind 1]" → branch, upstream, ahead, behind
 pub fn parse_branch(line: &str) -> (String, Option<String>, u32, u32) {
@@ -87,11 +96,13 @@ pub fn parse_branch(line: &str) -> (String, Option<String>, u32, u32) {
     (branch, upstream, ahead, behind)
 }
 
-/// Git part: prefix line, branch line, then "XY path" lines (paths relative to the repository root)
+/// One Git block: folder line, prefix line, branch line, then "XY path" lines (paths relative to the repository
+/// root). Paths in the result are relative to the listed folder.
 pub fn parse_git(lines: &[&str]) -> Option<GitInfo> {
-    let prefix = lines.first()?.trim();
-    let mut info = GitInfo::default();
-    for line in &lines[1..] {
+    let dir = lines.first()?.trim();
+    let prefix = lines.get(1)?.trim();
+    let mut info = GitInfo { dir: dir.to_string(), ..Default::default() };
+    for line in &lines[2..] {
         if line.starts_with("## ") {
             (info.branch, info.upstream, info.ahead, info.behind) = parse_branch(line);
         } else if line.len() > 3 {
@@ -103,7 +114,8 @@ pub fn parse_git(lines: &[&str]) -> Option<GitInfo> {
             }
             let path = path.trim_matches('"');
             if let Some(rel) = path.strip_prefix(prefix) {
-                info.changes.push(GitChange { path: rel.to_string(), code });
+                let path = if dir.is_empty() { rel.to_string() } else { format!("{dir}/{rel}") };
+                info.changes.push(GitChange { path, code });
             }
         }
     }
@@ -113,10 +125,9 @@ pub fn parse_git(lines: &[&str]) -> Option<GitInfo> {
 /// Turn the output of the list script into a listing
 fn parse_listing(folder: &str, out: &str) -> FolderListing {
     let all: Vec<&str> = out.lines().collect();
-    let (main, git) = match all.iter().position(|l| *l == GIT_MARK) {
-        Some(i) => (&all[..i], parse_git(&all[i + 1..])),
-        None => (&all[..], None),
-    };
+    let mut blocks = all.split(|l| *l == GIT_MARK);
+    let main = blocks.next().unwrap_or_default();
+    let git: Vec<GitInfo> = blocks.filter_map(parse_git).collect();
     let first = main.first().map(|s| s.trim().to_string()).unwrap_or_default();
     if first == MISSING {
         return FolderListing {
@@ -125,7 +136,7 @@ fn parse_listing(folder: &str, out: &str) -> FolderListing {
             files: vec![],
             missing: true,
             error: None,
-            git: None,
+            git: vec![],
         };
     }
     let files = main.iter().skip(1).map(|l| l.to_string()).filter(|l| !l.is_empty()).collect();
@@ -147,7 +158,7 @@ pub fn list(host: &HostCfg, folders: &[String], with_git: bool) -> Vec<FolderLis
                     files: vec![],
                     missing: false,
                     error: Some(e),
-                    git: None,
+                    git: vec![],
                 },
             }
         })
@@ -190,10 +201,11 @@ mod tests {
 
     #[test]
     fn parses_git_status() {
-        let out = "/repo/docs\na.md\n__PIBAR_GIT__\ndocs/\n## main...origin/main [ahead 2, behind 1]\n M docs/a.md\n?? docs/new/\n M src/x.rs\nR  docs/old.md -> docs/b.md\n";
+        let out = "/repo/docs\na.md\n__PIBAR_GIT__\n\ndocs/\n## main...origin/main [ahead 2, behind 1]\n M docs/a.md\n?? docs/new/\n M src/x.rs\nR  docs/old.md -> docs/b.md\n";
         let l = parse_listing("~/repo/docs", out);
         assert_eq!(l.files, vec!["a.md"]);
-        let g = l.git.unwrap();
+        let g = &l.git[0];
+        assert_eq!(g.dir, "");
         assert_eq!((g.branch.as_str(), g.upstream.as_deref(), g.ahead, g.behind), ("main", Some("origin/main"), 2, 1));
         let paths: Vec<_> = g.changes.iter().map(|c| (c.code.as_str(), c.path.as_str())).collect();
         assert_eq!(paths, vec![(" M", "a.md"), ("??", "new/"), ("R ", "b.md")]);
@@ -208,7 +220,18 @@ mod tests {
 
     #[test]
     fn no_git_part_means_none() {
-        assert!(parse_listing("~/x", "/x\na.md\n").git.is_none());
+        assert!(parse_listing("~/x", "/x\na.md\n").git.is_empty());
+    }
+
+    #[test]
+    fn finds_repositories_in_subfolders() {
+        let out = "/home/u\nnotes/a.md\n__PIBAR_GIT__\nprojects/app\n\n## dev...origin/dev [ahead 1]\n M README.md\n__PIBAR_GIT__\nnotes\n\n## main\n";
+        let l = parse_listing("~", out);
+        assert_eq!(l.files, vec!["notes/a.md"]);
+        assert_eq!(l.git.len(), 2);
+        assert_eq!((l.git[0].dir.as_str(), l.git[0].ahead), ("projects/app", 1));
+        assert_eq!(l.git[0].changes[0].path, "projects/app/README.md");
+        assert_eq!(l.git[1].branch, "main");
     }
 
     #[test]
