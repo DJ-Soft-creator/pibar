@@ -1,0 +1,28 @@
+[package]
+name = "pibar"
+version = "0.1.0"
+description = "Desktop GUI for the Pi coding agent"
+license = "MIT"
+repository = "https://github.com/DJ-Soft-creator/pibar"
+edition = "2021"
+
+[lib]
+name = "pibar_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-notification = "2"
+sys-locale = "0.3"
+base64 = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.24"
+core-foundation = "0.10"

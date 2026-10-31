@@ -1,0 +1,51 @@
+{
+  "name": "pibar",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop GUI for the Pi coding agent",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DJ-Soft-creator/pibar.git"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "tauri": "tauri",
+    "dev:app": "tauri dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "check:codemap": "node scripts/check-codemap.mjs",
+    "check:web": "tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-codemap.mjs",
+    "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml",
+    "check": "npm run check:web && vite build && npm run check:rust"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-notification": "^2.8.0",
+    "dompurify": "^3",
+    "highlight.js": "^11",
+    "marked": "^15"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2",
+    "eslint": "^10.14.0",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^6",
+    "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "minimatch": "^11.0.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
