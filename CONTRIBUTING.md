@@ -32,6 +32,7 @@ npm run check
 | Tests | `npm test`, `cargo test` | Vitest for `src/shared`, Rust unit tests |
 | Rust lint | `cargo clippy -- -D warnings` | no warnings |
 | Codemap | `npm run check:codemap` | code references in the docs are valid |
+| Version | `npm run check:version` | same version in `package.json`, lock file, Tauri, Cargo and both READMEs |
 
 ## Workflow
 
@@ -42,6 +43,9 @@ npm run check
 4. **Pull request** with the template; `npm run check` must be green.
 5. **Docs in the same PR**: new file, new module or changed flow → update the [Codemap](docs/CODEMAP.md).
    Fundamental decision → new [ADR](docs/adr/README.md).
+6. **The README always matches the version.** A release bumps the version in `package.json`, `package-lock.json`,
+   `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` and the "Version x.y.z" line of `README.md` and `README.de.md`,
+   and the READMEs describe what that version does. `npm run check:version` enforces the numbers.
 
 ## Code rules
 

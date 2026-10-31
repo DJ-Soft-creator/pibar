@@ -4,7 +4,8 @@ Desktop-Oberfläche für den [Pi Coding Agent](https://pi.dev): Sessions links, 
 rechts, dazu eine Quick-Leiste, die man von überall per Doppeltipp öffnet.
 Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Windows.
 
-[English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT-Lizenz
+**Version 1.4.0** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
+MIT-Lizenz
 
 > Stand: Prototyp. Hauptziel ist macOS; Linux und Windows bauen, Doppeltipp, Bereichs-Screenshot und OCR gibt es bisher
 > nur auf macOS.

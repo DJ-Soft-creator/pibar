@@ -1,7 +1,7 @@
 {
   "name": "pibar",
   "private": true,
-  "version": "0.2.0",
+  "version": "1.4.0",
   "description": "Desktop GUI for the Pi coding agent",
   "license": "MIT",
   "repository": {
@@ -22,7 +22,8 @@
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "check:codemap": "node scripts/check-codemap.mjs",
-    "check:web": "tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-codemap.mjs",
+    "check:version": "node scripts/check-version.mjs",
+    "check:web": "tsc --noEmit && eslint . && prettier --check . && vitest run && node scripts/check-codemap.mjs && node scripts/check-version.mjs",
     "check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "npm run check:web && vite build && npm run check:rust"
   },
