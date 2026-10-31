@@ -4,7 +4,7 @@ import { $, h, errMsg, openModal, renderMarkdown, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
 import { buildTree, countFiles, TreeDir } from "../shared/tree";
-import { gitLine, gitMark, gitStatusFor } from "../shared/git";
+import { allChanges, gitInline, gitLine, gitMark, gitStatusFor } from "../shared/git";
 import { openMenu } from "./menu";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
@@ -43,8 +43,16 @@ function chev(open: boolean): HTMLElement {
 }
 
 /** Rows of a folder's content, indented by depth */
-/** Git status of the folder being rendered (null = off or no repository) */
-let git: GitInfo | null = null;
+/** Git repositories of the folder being rendered and all their changes (empty = off or none) */
+let repos: GitInfo[] = [];
+let changes: ReturnType<typeof allChanges> = [];
+
+/** Repository folder: branch and ↑/↓; other folders with changes: a dot */
+function dirGit(path: string): HTMLElement[] {
+  const repo = repos.find((r) => r.dir === path);
+  if (repo) return [gitInline(repo)];
+  return gitStatusFor(changes, `${path}/`) ? [h("span", { class: "gdot", title: t("Contains changes") })] : [];
+}
 
 function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): HTMLElement[] {
   const rows: HTMLElement[] = [];
@@ -73,7 +81,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
           chev(open),
           icon(ICON_DIR),
           h("span", { class: "tname" }, d.name),
-          git && gitStatusFor(git, `${d.path}/`) ? h("span", { class: "gdot", title: t("Contains changes") }) : null,
+          ...dirGit(d.path),
           n ? h("span", { class: "tcount" }, String(n)) : null,
         ),
         h(
@@ -107,7 +115,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
         },
         icon(ICON_FILE),
         h("span", { class: "tname" }, f.name),
-        git ? gitMark(gitStatusFor(git, f.path)) : null,
+        changes.length ? gitMark(gitStatusFor(changes, f.path)) : null,
       ),
     );
   }
@@ -173,7 +181,8 @@ function renderTree() {
             : null,
         ),
       );
-      git = l.git ?? null;
+      repos = l.git ?? [];
+      changes = allChanges(repos);
       let body: (HTMLElement | null)[] = [];
       if (open) {
         if (l.missing)
@@ -206,7 +215,8 @@ function renderTree() {
               : [h("div", { class: "hint-line" }, t("No .md files"))];
         }
       }
-      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, l.git ? gitLine(l.git) : null, ...body);
+      const own = repos.find((r) => r.dir === "");
+      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, own ? gitLine(own) : null, ...body);
     }),
   );
 }

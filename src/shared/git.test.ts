@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { GitInfo } from "./api";
-import { gitLetter, gitStatusFor } from "./git";
+import { allChanges, gitLetter, gitStatusFor } from "./git";
 
 const git: GitInfo = {
+  dir: "",
   branch: "main",
   upstream: "origin/main",
   ahead: 1,
@@ -15,10 +16,11 @@ const git: GitInfo = {
 
 describe("git status in the tree", () => {
   it("finds files and folders with changes", () => {
-    expect(gitStatusFor(git, "docs/a.md")).toBe(" M");
-    expect(gitStatusFor(git, "docs/")).toBe(" M");
-    expect(gitStatusFor(git, "new/x.md")).toBe("??");
-    expect(gitStatusFor(git, "other.md")).toBe("");
+    const ch = allChanges([git]);
+    expect(gitStatusFor(ch, "docs/a.md")).toBe(" M");
+    expect(gitStatusFor(ch, "docs/")).toBe(" M");
+    expect(gitStatusFor(ch, "new/x.md")).toBe("??");
+    expect(gitStatusFor(ch, "other.md")).toBe("");
   });
   it("maps porcelain codes to letters", () => {
     expect(gitLetter(" M")?.letter).toBe("M");

@@ -146,12 +146,14 @@ export interface FolderListing {
   /** The folder does not exist on the host */
   missing: boolean;
   error: string | null;
-  /** Git status (only with ui.showGit and inside a repository) */
-  git?: GitInfo | null;
+  /** Git status (only with ui.showGit): the repository of the folder ("" dir) and repositories in subfolders */
+  git?: GitInfo[];
 }
 
 /** Branch, sync state with the upstream (as of the last fetch) and changed files */
 export interface GitInfo {
+  /** Repository folder relative to the listed folder, "" = the listed folder itself */
+  dir: string;
   branch: string;
   upstream: string | null;
   /** Commits not pushed yet */
