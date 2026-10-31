@@ -191,6 +191,22 @@ into the card. The answer style is a short hint that [`SessionTab.send`](../src/
 [`withAnswerStyle`](../src/shared/format.ts) (not for `/` commands); [`stripAnswerStyle`](../src/shared/format.ts) and
 [`cleanTitle`](../src/shared/format.ts) remove it again for display.
 
+### Earlier messages: edit, run again, reuse
+
+Each user bubble ([`SessionTab`](../src/main/sessionTab.ts)) gets buttons that call
+[`onUserAction`](../src/main/sessions.ts). "Edit" and "run again" ask Pi for the fork points
+([`SessionTab.forkPoints`](../src/main/sessionTab.ts), RPC `get_fork_messages`), match the message by position or text
+and fork there ([`SessionTab.forkAt`](../src/main/sessionTab.ts), RPC `fork`): Pi writes a new session file with the
+history up to that message; the original file stays. [`rekey`](../src/main/sessions.ts) moves the tab to the new key
+and keeps group and colour. "Edit" puts the text into the input ([`fillInput`](../src/main/chatView.ts)), "run again"
+sends it right away.
+
+### Default model for new sessions
+
+`ui.defaultPreset` or `ui.defaultModel` + `ui.defaultThinking`, set with the star in the header
+([`renderToolbar`](../src/main/chatView.ts)) or in the settings. [`openSession`](../src/main/sessions.ts) applies it to
+new sessions ([`applyDefaults`](../src/main/sessions.ts)); the quick bar shows it as "Model: default (…)".
+
 ### Skills ("/" menu)
 
 [`SessionTab.refreshModels`](../src/main/sessionTab.ts) also loads Pi's `get_commands`. Typing `/` in the input opens

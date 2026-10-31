@@ -118,6 +118,13 @@ pub struct UiPrefs {
     /// Show the Git status (branch, unpushed commits, changed files) in the file tree
     #[serde(default)]
     pub show_git: bool,
+    /// Default for new sessions: a preset id, or a model "<provider>/<id>" with a thinking level; empty = Pi's default
+    #[serde(default)]
+    pub default_preset: String,
+    #[serde(default)]
+    pub default_model: String,
+    #[serde(default)]
+    pub default_thinking: String,
 }
 
 pub fn default_chat_mode() -> String {
@@ -168,6 +175,9 @@ impl Default for UiPrefs {
             right_width: None,
             files_split: None,
             show_git: false,
+            default_preset: String::new(),
+            default_model: String::new(),
+            default_thinking: String::new(),
         }
     }
 }

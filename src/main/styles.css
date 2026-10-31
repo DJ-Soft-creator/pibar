@@ -119,6 +119,7 @@ button {
   display: none;
 }
 .panel-btn,
+#btn-default,
 #btn-theme {
   display: inline-grid;
   place-items: center;
@@ -2185,4 +2186,23 @@ button.ghost.danger-text {
   font-size: 11.5px;
   color: var(--muted);
   text-align: right;
+}
+#btn-default.on {
+  color: var(--warn);
+}
+#btn-default.on svg path {
+  fill: currentColor;
+}
+
+/* ---------- Actions under own messages (edit, run again, reuse, copy) ---------- */
+.msg.user {
+  flex-direction: column;
+  align-items: flex-end;
+}
+.user-acts {
+  justify-content: flex-end;
+}
+.msg.user:hover .user-acts,
+.user-acts:focus-within {
+  opacity: 1;
 }

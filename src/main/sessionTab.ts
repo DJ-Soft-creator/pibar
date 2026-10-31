@@ -4,6 +4,7 @@ import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
 import { splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } from "../shared/format";
 import { getLang, t } from "../shared/i18n";
 import { speak, stopSpeaking } from "../shared/voice";
+import { icon, IconName } from "../shared/icons";
 import { state } from "./state";
 
 type PartKind = "text" | "thinking" | "tool";
@@ -25,10 +26,15 @@ interface ToolCard {
   argsRaw: string;
 }
 
+/** What to do with an earlier own message (buttons under a user bubble) */
+export type UserAction = "edit" | "rerun" | "reuse" | "copy";
+
 export interface TabCallbacks {
   onHandle: (tab: SessionTab) => void;
   onStateChange: (tab: SessionTab) => void;
   onSettled: (tab: SessionTab) => void;
+  /** Button under an own message; `index` = position among the user messages of this chat */
+  onUserAction: (tab: SessionTab, index: number, action: UserAction, text: string) => void;
 }
 
 const MAX_RESULT = 20000;
@@ -135,6 +141,8 @@ export class SessionTab {
   /** Live timing: request start and first token of the current answer */
   private reqStart = 0;
   private firstToken = 0;
+  /** Number of user messages shown (index for the message actions) */
+  private userCount = 0;
 
   constructor(hostId: string, cwd: string, sessionPath: string | null, title: string, cb: TabCallbacks) {
     this.hostId = hostId;
@@ -165,11 +173,41 @@ export class SessionTab {
 
   async restart() {
     if (this.alive) await api.piClose(this.handle).catch(() => {});
+    this.clearView();
+    await this.start(this.cb.onHandle);
+  }
+
+  private clearView() {
     this.el.innerHTML = "";
     this.stats = emptyStats();
     this.tools.clear();
     this.cur = null;
-    await this.start(this.cb.onHandle);
+    this.userCount = 0;
+  }
+
+  // ---------- Branching (Pi RPC fork) ----------
+
+  /** User messages of the current branch that can be forked from */
+  async forkPoints(): Promise<{ entryId: string; text: string }[]> {
+    const r = await api.pi(this.handle, { type: "get_fork_messages" });
+    return r?.messages ?? [];
+  }
+
+  /**
+   * Fork before a user message: Pi writes a new session file with the history up to that message and continues
+   * there; the original session stays unchanged. Shows the new branch and returns the message text.
+   */
+  async forkAt(entryId: string): Promise<string | null> {
+    const r = await api.pi(this.handle, { type: "fork", entryId });
+    if (r?.cancelled) return null;
+    const st = await api.pi(this.handle, { type: "get_state" });
+    this.sessionPath = st.messageCount > 0 ? (st.sessionFile ?? null) : null;
+    this.model = st.model ?? this.model;
+    this.thinkingLevel = st.thinkingLevel ?? this.thinkingLevel;
+    this.clearView();
+    if (this.sessionPath) await this.loadHistory();
+    this.cb.onStateChange(this);
+    return r?.text ?? "";
   }
 
   /** Stop the Pi process. The session file stays and can be reopened. */
@@ -410,7 +448,32 @@ export class SessionTab {
         h("div", { class: "body" }, h("pre", {}, ocr)),
       );
     }
-    this.el.append(h("div", { class: "msg user" }, h("div", { class: "bubble" }, ...imgs, text, ocrCard)));
+    const index = this.userCount++;
+    const act = (name: IconName, title: string, action: UserAction) => {
+      const b = h("button", {
+        class: "msg-act",
+        title,
+        "aria-label": title,
+        onclick: () => this.cb.onUserAction(this, index, action, text),
+      });
+      b.append(icon(name, 13));
+      return b;
+    };
+    this.el.append(
+      h(
+        "div",
+        { class: "msg user" },
+        h("div", { class: "bubble" }, ...imgs, text, ocrCard),
+        h(
+          "div",
+          { class: "msg-acts user-acts" },
+          act("edit", t("Edit and resend (new branch from here)"), "edit"),
+          act("redo", t("Run again from here (new branch)"), "rerun"),
+          act("insert", t("Use as new message"), "reuse"),
+          act("copy", t("Copy"), "copy"),
+        ),
+      ),
+    );
   }
 
   private beginAssistant() {

@@ -7,6 +7,7 @@ import { cleanTitle, shortPath, thinkingLabel } from "../shared/format";
 import { Msg, t } from "../shared/i18n";
 import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
+import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
 import { isEditorOpen, saveEditor } from "./files";
 import { applyLayout, togglePanel } from "./layout";
@@ -35,6 +36,7 @@ const elSlash = $("btn-slash") as HTMLButtonElement;
 const elMic = $("btn-mic") as HTMLButtonElement;
 const elImprove = $("btn-improve") as HTMLButtonElement;
 const elUsage = $("usage");
+const elDefault = $("btn-default") as HTMLButtonElement;
 const elTbSession = $("tb-session");
 const elAddFolder = $("btn-add-folder") as HTMLButtonElement;
 
@@ -200,11 +202,67 @@ export function renderToolbar() {
   $("fld-thinking").hidden = !individual;
 
   elUsage.textContent = usageSummary(tab);
+
+  // Star: model/preset of this session as default for new sessions
+  const isDefault = !!tab && isSessionDefault(tab.presetId ?? choice, cur, tab.thinkingLevel);
+  elDefault.disabled = !ready;
+  elDefault.classList.toggle("on", isDefault);
+  elDefault.title = isDefault
+    ? t("Default for new sessions – click to remove")
+    : t("Use this model and thinking level as default for new sessions");
+}
+
+/** Does the session's preset or model/thinking equal the default for new sessions? */
+function isSessionDefault(presetId: string, model: string, thinking: string): boolean {
+  const ui = state.config.ui;
+  if (ui.defaultPreset) return presetId === ui.defaultPreset;
+  return !!ui.defaultModel && ui.defaultModel === model && (ui.defaultThinking || "") === (thinking || "");
+}
+
+/** Label of the default for new sessions (settings, tooltips) */
+export function defaultLabel(): string {
+  const ui = state.config.ui;
+  const preset = (state.config.presets ?? []).find((p) => p.id === ui.defaultPreset);
+  if (preset) return `${t("Preset")}: ${preset.name}`;
+  if (ui.defaultModel)
+    return [ui.defaultModel, ui.defaultThinking ? `${t("Thinking")}: ${thinkingLabel(ui.defaultThinking)}` : ""]
+      .filter(Boolean)
+      .join(" · ");
+  return t("Pi's default");
+}
+
+function toggleDefault() {
+  const tab = state.active;
+  if (!tab?.model) return;
+  const ui = state.config.ui;
+  const model = `${tab.model.provider}/${tab.model.id}`;
+  const presets = state.config.presets ?? [];
+  const presetId = tab.presetId ?? matchPreset(presets, model, tab.thinkingLevel)?.id ?? "";
+  if (isSessionDefault(presetId, model, tab.thinkingLevel)) {
+    ui.defaultPreset = ui.defaultModel = ui.defaultThinking = "";
+    toast(t("Default removed – new sessions use Pi's default."));
+  } else {
+    const preset = presets.find((p) => p.id === presetId);
+    ui.defaultPreset = preset?.id ?? "";
+    ui.defaultModel = preset ? "" : model;
+    ui.defaultThinking = preset ? "" : tab.thinkingLevel;
+    toast(t("Default for new sessions: {name}", { name: defaultLabel() }));
+  }
+  saveConfig();
+  renderToolbar();
 }
 
 function autoGrow() {
   elInput.style.height = "auto";
   elInput.style.height = `${Math.min(elInput.scrollHeight, 240)}px`;
+}
+
+/** Put a text into the input (earlier message to edit or reuse) */
+export function fillInput(text: string) {
+  elInput.value = text;
+  autoGrow();
+  elInput.focus();
+  elInput.setSelectionRange(text.length, text.length);
 }
 
 async function sendInput() {
@@ -286,6 +344,8 @@ export function wireChatView() {
     }),
   );
   elTheme.addEventListener("click", () => setTheme(nextTheme(state.config.ui.theme)));
+  elDefault.innerHTML = iconSvg("star", 15);
+  elDefault.addEventListener("click", toggleDefault);
   wireSlashMenu(elInput, $("slash-menu"), elSlash);
   wireVoice({
     input: elInput,
