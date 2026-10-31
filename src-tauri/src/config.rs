@@ -54,6 +54,21 @@ pub struct Reminder {
     pub fired: bool,
 }
 
+/// Saved combination of model and thinking level for quick selection (managed by the UI,
+/// src/main/settings.ts). Empty fields keep the session's current value.
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPreset {
+    pub id: String,
+    pub name: String,
+    /// "<provider>/<model id>"
+    #[serde(default)]
+    pub model: String,
+    /// Pi thinking level, e.g. "high"
+    #[serde(default)]
+    pub thinking: String,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPrefs {
@@ -83,6 +98,31 @@ pub struct UiPrefs {
     /// Remembered position of the quick bar (physical pixels), None = default spot
     #[serde(default)]
     pub quick_pos: Option<[i32; 2]>,
+    /// Colour scheme: "auto" (follow the system), "light" or "dark"
+    #[serde(default = "auto")]
+    pub theme: String,
+    /// Chat view: "natural" (text only), "technical" (collapsed thinking/tool cards) or "debug" (cards open live)
+    #[serde(default = "default_chat_mode")]
+    pub chat_mode: String,
+    /// Answer style hint sent with each message: "short", "normal" or "technical"
+    #[serde(default = "default_answer_mode")]
+    pub answer_mode: String,
+    /// Width of the left and right panel in pixels, None = default
+    #[serde(default)]
+    pub left_width: Option<u32>,
+    #[serde(default)]
+    pub right_width: Option<u32>,
+    /// Height of the file tree above the editor, in percent of the right panel; None = default
+    #[serde(default)]
+    pub files_split: Option<f64>,
+}
+
+pub fn default_chat_mode() -> String {
+    "technical".into()
+}
+
+pub fn default_answer_mode() -> String {
+    "normal".into()
 }
 
 pub fn default_double_tap() -> String {
@@ -118,8 +158,131 @@ impl Default for UiPrefs {
             quick_hotkey: default_hotkey(),
             double_tap: default_double_tap(),
             quick_pos: None,
+            theme: auto(),
+            chat_mode: default_chat_mode(),
+            answer_mode: default_answer_mode(),
+            left_width: None,
+            right_width: None,
+            files_split: None,
         }
     }
+}
+
+/// Name, pin, colour and group of a session (managed by the UI, src/main/sessionGroups.ts)
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SessionMeta {
+    /// Own name; empty = Pi's name or first message
+    pub name: String,
+    pub pinned: bool,
+    /// Colour name such as "blue", empty = none
+    pub color: String,
+    /// Id of a SessionGroup, empty = none
+    pub group: String,
+}
+
+/// User-defined group of sessions with a colour
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SessionGroup {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub collapsed: bool,
+}
+
+/// Speech to text (dictation). Used by src-tauri/src/voice.rs.
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SttCfg {
+    /// "off", "api" (OpenAI-compatible /audio/transcriptions) or "command" (local program)
+    pub provider: String,
+    /// API base URL, e.g. "https://api.openai.com/v1"; empty = OpenAI
+    pub base_url: String,
+    pub api_key: String,
+    /// e.g. "whisper-1", "gpt-4o-transcribe", "whisper-large-v3"
+    pub model: String,
+    /// Language hint such as "de"; empty = detect
+    pub language: String,
+    /// Local command; {file} is replaced by the recording, stdout is the text
+    pub command: String,
+}
+
+impl Default for SttCfg {
+    fn default() -> Self {
+        SttCfg {
+            provider: "off".into(),
+            base_url: String::new(),
+            api_key: String::new(),
+            model: "whisper-1".into(),
+            language: String::new(),
+            command: String::new(),
+        }
+    }
+}
+
+/// Text to speech (read answers aloud)
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TtsCfg {
+    /// "system" (voice of the operating system) or "api" (OpenAI-compatible /audio/speech)
+    pub provider: String,
+    pub base_url: String,
+    pub api_key: String,
+    /// e.g. "gpt-4o-mini-tts", "tts-1"
+    pub model: String,
+    /// e.g. "alloy"; for "system" the name of a system voice (empty = default)
+    pub voice: String,
+    /// Read answers aloud automatically: "off", "quick" (answers to quick bar messages) or "all"
+    pub auto_read: String,
+}
+
+impl Default for TtsCfg {
+    fn default() -> Self {
+        TtsCfg {
+            provider: "system".into(),
+            base_url: String::new(),
+            api_key: String::new(),
+            model: "gpt-4o-mini-tts".into(),
+            voice: String::new(),
+            auto_read: "off".into(),
+        }
+    }
+}
+
+/// Second pass over a text by another LLM (OpenAI-compatible /chat/completions) with its own prompt
+#[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ImproveCfg {
+    pub enabled: bool,
+    /// Improve dictated text automatically before it lands in the input
+    pub after_dictation: bool,
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+    /// System prompt; empty = built-in default (see src/shared/voice.ts)
+    pub prompt: String,
+}
+
+impl Default for ImproveCfg {
+    fn default() -> Self {
+        ImproveCfg {
+            enabled: false,
+            after_dictation: false,
+            base_url: String::new(),
+            api_key: String::new(),
+            model: "gpt-4o-mini".into(),
+            prompt: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct VoiceCfg {
+    pub stt: SttCfg,
+    pub tts: TtsCfg,
+    pub improve: ImproveCfg,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -131,8 +294,19 @@ pub struct AppConfig {
     pub session_folders: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub reminders: Vec<Reminder>,
+    /// Presets for model and thinking level
+    #[serde(default)]
+    pub presets: Vec<ModelPreset>,
     #[serde(default)]
     pub ui: UiPrefs,
+    /// Dictation, read aloud and text improvement
+    #[serde(default)]
+    pub voice: VoiceCfg,
+    /// Name, pin, colour and group per session. Key: "<hostId>|<sessionPath>"
+    #[serde(default)]
+    pub session_meta: HashMap<String, SessionMeta>,
+    #[serde(default)]
+    pub groups: Vec<SessionGroup>,
 }
 
 impl Default for AppConfig {
@@ -151,7 +325,11 @@ impl Default for AppConfig {
             }],
             session_folders: HashMap::new(),
             reminders: vec![],
+            presets: vec![],
             ui: UiPrefs::default(),
+            voice: VoiceCfg::default(),
+            session_meta: HashMap::new(),
+            groups: vec![],
         }
     }
 }
@@ -196,6 +374,42 @@ mod tests {
         assert!(!cfg.ui.show_tools);
         assert_eq!(cfg.ui.language, "auto");
         assert!(cfg.reminders.is_empty());
+        assert!(cfg.presets.is_empty());
+        assert_eq!(cfg.ui.theme, "auto");
+        assert_eq!(cfg.ui.chat_mode, "technical");
+        assert_eq!(cfg.ui.answer_mode, "normal");
+        assert!(cfg.ui.left_width.is_none());
+        assert_eq!(cfg.voice.stt.provider, "off");
+        assert_eq!(cfg.voice.tts.provider, "system");
+        assert!(!cfg.voice.improve.enabled);
+        assert!(cfg.session_meta.is_empty() && cfg.groups.is_empty());
+    }
+
+    #[test]
+    fn session_meta_loads_partially() {
+        let json =
+            r#"{"hosts":[],"sessionMeta":{"local|/s.jsonl":{"pinned":true}},"groups":[{"id":"g1","name":"Work"}]}"#;
+        let cfg: AppConfig = serde_json::from_str(json).unwrap();
+        let m = &cfg.session_meta["local|/s.jsonl"];
+        assert!(m.pinned && m.name.is_empty() && m.group.is_empty());
+        assert_eq!(cfg.groups[0].color, "");
+    }
+
+    #[test]
+    fn partial_voice_config_loads() {
+        let json = r#"{"hosts":[],"voice":{"stt":{"provider":"api","model":"gpt-4o-transcribe"}}}"#;
+        let cfg: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.voice.stt.provider, "api");
+        assert_eq!(cfg.voice.stt.language, "");
+        assert_eq!(cfg.voice.tts.auto_read, "off");
+    }
+
+    #[test]
+    fn preset_without_thinking_loads() {
+        let json = r#"{"id":"p1","name":"Fast","model":"openai/gpt-5-mini"}"#;
+        let p: ModelPreset = serde_json::from_str(json).unwrap();
+        assert_eq!(p.model, "openai/gpt-5-mini");
+        assert_eq!(p.thinking, "");
     }
 
     #[test]

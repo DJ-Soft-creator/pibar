@@ -9,7 +9,7 @@
     <div id="app">
       <header class="toolbar">
         <div class="brand">
-          <span class="logo">π</span> PiBar
+          <span class="logo">π</span> <span class="brand-name">PiBar</span>
           <button
             class="icon-btn panel-btn"
             id="tg-left"
@@ -24,30 +24,65 @@
         </div>
         <div class="tb-session" id="tb-session" data-i18n="No session">No session</div>
         <div class="tb-controls">
-          <label class="tb-field" data-i18n-title="Model of this session" title="Model of this session">
+          <label
+            class="tb-field"
+            id="fld-preset"
+            data-i18n-title="Preset: model and thinking level"
+            title="Preset: model and thinking level"
+            hidden
+          >
+            <span data-i18n="Preset">Preset</span>
+            <select id="sel-preset" disabled></select>
+          </label>
+          <label class="tb-field" id="fld-model" data-i18n-title="Model of this session" title="Model of this session">
             <span data-i18n="Model">Model</span>
             <select id="sel-model" disabled></select>
           </label>
           <label
             class="tb-field"
+            id="fld-thinking"
             data-i18n-title="Thinking level of this session"
             title="Thinking level of this session"
           >
             <span data-i18n="Thinking">Thinking</span>
             <select id="sel-thinking" disabled></select>
           </label>
-          <button class="toggle" id="tg-tools" data-i18n-title="Show/hide tool calls" data-i18n="Tools">Tools</button>
-          <button class="toggle" id="tg-thinking" data-i18n-title="Show/hide thinking" data-i18n="Thoughts">
-            Thoughts
-          </button>
-          <span class="usage" id="usage" data-i18n-title="Tokens / cost of this session"></span>
+          <div class="tb-field" id="fld-view">
+            <span data-i18n="View">View</span>
+            <button type="button" class="dd-btn" id="sel-view" aria-haspopup="menu"></button>
+          </div>
+          <div class="tb-field" id="fld-answer">
+            <span data-i18n="Answers">Answers</span>
+            <button type="button" class="dd-btn" id="sel-answer" aria-haspopup="menu"></button>
+          </div>
+          <span class="usage-wrap" id="usage-wrap">
+            <span class="usage" id="usage"></span>
+            <div class="usage-pop" id="usage-pop"></div>
+          </span>
           <button class="icon-btn panel-btn" id="tg-right" data-i18n-title="Show/hide folders and files (⌥⌘B)">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
               <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
               <line x1="10" y1="2.5" x2="10" y2="13.5" />
             </svg>
           </button>
-          <button class="icon-btn" id="btn-settings" data-i18n-title="Settings">⚙</button>
+          <button class="icon-btn" id="btn-theme" data-i18n-title="Colour scheme: automatic / light / dark"></button>
+          <button class="icon-btn" id="btn-settings" data-i18n-title="Settings">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.3"
+              stroke-linecap="round"
+            >
+              <circle cx="8" cy="8" r="2.2" />
+              <circle cx="8" cy="8" r="4.6" />
+              <path
+                d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+              />
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -62,6 +97,7 @@
         <div id="host-tabs" class="host-tabs"></div>
         <div id="reminders" class="reminders" hidden></div>
         <div id="host-list" class="host-list"></div>
+        <div class="resizer" id="rs-left" data-i18n-title="Drag to resize"></div>
       </aside>
 
       <main class="chat">
@@ -75,7 +111,18 @@
             <button class="primary" id="btn-new-empty" data-i18n="New session">New session</button>
           </div>
         </div>
+        <div id="activity" class="activity" hidden></div>
         <form id="composer" class="composer">
+          <div id="slash-menu" class="slash-menu" hidden></div>
+          <button
+            type="button"
+            id="btn-slash"
+            class="icon-btn slash-btn"
+            data-i18n-title="Skills and commands (type /)"
+            disabled
+          >
+            /
+          </button>
           <textarea
             id="input"
             rows="1"
@@ -83,6 +130,31 @@
             disabled
           ></textarea>
           <div class="composer-actions">
+            <button
+              type="button"
+              id="btn-improve"
+              class="icon-btn voice-btn"
+              data-i18n-title="Improve the text with the second LLM"
+              hidden
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                <path
+                  d="M7 1.5l1.3 3.7L12 6.5 8.3 7.8 7 11.5 5.7 7.8 2 6.5l3.7-1.3zM12.5 10l.6 1.6 1.4.4-1.4.5-.6 1.5-.5-1.5-1.5-.5 1.5-.4z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              id="btn-mic"
+              class="icon-btn voice-btn"
+              data-i18n-title="Dictate (click to start and stop, Esc cancels)"
+              hidden
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" />
+                <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+              </svg>
+            </button>
             <button type="button" id="btn-stop" class="danger" hidden data-i18n="Stop">Stop</button>
             <button type="submit" id="btn-send" class="primary" disabled data-i18n="Send">Send</button>
           </div>
@@ -90,13 +162,15 @@
       </main>
 
       <aside class="files">
+        <div class="resizer left" id="rs-right" data-i18n-title="Drag to resize"></div>
         <div class="pane-head">
           <span data-i18n="Session folders">Session folders</span>
-          <button class="icon-btn" id="btn-add-folder" data-i18n-title="Add folder" disabled>＋</button>
+          <button class="icon-btn" id="btn-add-folder" data-i18n-title="New file or folder" disabled>＋</button>
         </div>
         <div id="file-tree" class="file-tree">
           <p class="muted pad" data-i18n="No session open.">No session open.</p>
         </div>
+        <div class="hsplit" id="rs-files" hidden data-i18n-title="Drag to resize"></div>
         <div id="editor" class="editor" hidden>
           <div class="editor-head">
             <span id="editor-name" class="editor-name"></span>

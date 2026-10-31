@@ -1,12 +1,23 @@
-// Left column: hosts and sessions; open, activate, close and create sessions.
+// Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
 import { api } from "../shared/api";
 import { $, h, errMsg, openModal } from "../shared/dom";
+import { icon, IconName } from "../shared/icons";
 import { cleanTitle, relTime, shortPath } from "../shared/format";
 import { t } from "../shared/i18n";
 import { renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, renderFiles } from "./files";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
+import {
+  displayTitle,
+  groupMenu,
+  groups,
+  metaOf,
+  renameDialog as renameDialogFor,
+  SessionRef,
+  sessionMenu,
+  toggleGroup,
+} from "./sessionGroups";
 import { SessionTab, TabCallbacks } from "./sessionTab";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
@@ -140,19 +151,22 @@ export function renderHosts() {
         !isCollapsed && st?.state === "err" ? h("div", { class: "host-err" }, st.error ?? "") : null,
         ...(isCollapsed
           ? []
-          : [
-              ...openNew.map((x) => sessionItem(host.id, x.sessionPath ?? "", x.title, x.cwd, "", x)),
-              ...list.map((s) =>
-                sessionItem(
-                  host.id,
-                  s.path,
-                  s.name || s.title,
-                  s.cwd,
-                  s.timestamp,
-                  state.tabs.get(`${host.id}|${s.path}`),
-                ),
-              ),
-            ]),
+          : sessionSections([
+              ...openNew.map((x) => ({
+                ref: { hostId: host.id, path: x.sessionPath ?? "", title: x.title, cwd: x.cwd, tab: x },
+                ts: "",
+              })),
+              ...list.map((s) => ({
+                ref: {
+                  hostId: host.id,
+                  path: s.path,
+                  title: s.name || s.title,
+                  cwd: s.cwd,
+                  tab: state.tabs.get(`${host.id}|${s.path}`),
+                },
+                ts: s.timestamp,
+              })),
+            ])),
         !isCollapsed && list.length === 0 && openNew.length === 0 && st?.state === "ok"
           ? h("div", { class: "hint-line" }, t("No sessions yet"))
           : null,
@@ -161,13 +175,69 @@ export function renderHosts() {
   );
 }
 
-/** One row in the session list, with "remind" and "close" actions on hover */
-function sessionItem(hostId: string, path: string, title: string, cwd: string, ts: string, tab?: SessionTab) {
+const ICON_PIN =
+  '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-2.6 2.6.3 3.3-1.2 1.2-2.9-2.9-3.6 3.6-.7-.7 3.6-3.6L3.1 7.3l1.2-1.2 3.3.3 2.6-2.6z"/></svg>';
+
+/** Pinned sessions first, then each group (coloured header, collapsible), then the rest */
+function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[] {
+  const meta = (r: SessionRef) => (r.path ? metaOf(`${r.hostId}|${r.path}`) : {});
+  const pinned = rows.filter((r) => meta(r.ref).pinned);
+  const rest = rows.filter((r) => !meta(r.ref).pinned);
+  const out: HTMLElement[] = [];
+  if (pinned.length) {
+    const head = h("div", { class: "sec-head" }, h("span", { class: "sec-icon" }), t("Pinned"));
+    head.querySelector(".sec-icon")!.innerHTML = ICON_PIN;
+    out.push(head, ...pinned.map((r) => sessionItem(r.ref, r.ts)));
+  }
+  const ids = new Set(groups().map((g) => g.id));
+  for (const g of groups()) {
+    const inGroup = rest.filter((r) => meta(r.ref).group === g.id);
+    if (!inGroup.length) continue;
+    const menu = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      groupMenu(
+        e.currentTarget as HTMLElement,
+        g,
+        e.type === "contextmenu" ? { x: e.clientX, y: e.clientY } : undefined,
+      );
+    };
+    out.push(
+      h(
+        "div",
+        {
+          class: `group ${g.color ? `c-${g.color}` : ""} ${g.collapsed ? "collapsed" : ""}`,
+          oncontextmenu: menu,
+        },
+        h(
+          "div",
+          { class: "group-head", role: "button", tabindex: 0, onclick: () => toggleGroup(g) },
+          h("span", { class: "chev" }, "▾"),
+          h("span", { class: "cdot" }),
+          h("span", { class: "group-name" }, g.name),
+          h("span", { class: "count" }, String(inGroup.length)),
+          h("button", { class: "sess-act group-more", title: t("More …"), onclick: menu }, icon("more", 13)),
+        ),
+        ...(g.collapsed ? [] : inGroup.map((r) => sessionItem(r.ref, r.ts))),
+      ),
+    );
+  }
+  out.push(...rest.filter((r) => !ids.has(meta(r.ref).group ?? "")).map((r) => sessionItem(r.ref, r.ts)));
+  return out;
+}
+
+/** One row in the session list: colour, pin, "remind", "⋯" (context menu) and "close" on hover */
+function sessionItem(ref: SessionRef, ts: string) {
+  const { hostId, path, cwd, tab } = ref;
+  const key = `${hostId}|${path}`;
+  const m = path ? metaOf(key) : {};
+  const title = path ? displayTitle(key, ref.title) : ref.title;
   const a = state.active;
   const isActive = !!a && ((tab && tab === a) || (a.hostId === hostId && a.sessionPath === path && !!path));
-  const reminder = path ? reminderFor(`${hostId}|${path}`) : undefined;
+  const reminder = path ? reminderFor(key) : undefined;
   const open = () => (tab ? activate(tab) : openSession(hostId, path, cwd, title));
-  const action = (label: string, icon: string, fn: () => void, extra = "") =>
+  const menuRef = { ...ref, title };
+  const action = (label: string, ic: IconName, fn: (e: MouseEvent) => void, extra = "") =>
     h(
       "button",
       {
@@ -176,23 +246,36 @@ function sessionItem(hostId: string, path: string, title: string, cwd: string, t
         "aria-label": label,
         onclick: (e: MouseEvent) => {
           e.stopPropagation();
-          fn();
+          fn(e);
         },
       },
-      icon,
+      icon(ic, 13),
     );
+  const titleEl = h("span", { class: "sess-title" }, cleanTitle(title) || t("New session"));
+  if (m.pinned) {
+    const pin = h("span", { class: "pin" });
+    pin.innerHTML = ICON_PIN;
+    titleEl.prepend(pin);
+  }
   return h(
     "div",
     {
-      class: `sess ${isActive ? "active" : ""}`,
+      class: `sess ${isActive ? "active" : ""} ${m.color ? `colored c-${m.color}` : ""}`,
       role: "button",
       tabindex: 0,
       title: `${cleanTitle(title)}\n${cwd}`,
       onclick: open,
-      onkeydown: (e: KeyboardEvent) => e.key === "Enter" && open(),
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key === "Enter") open();
+        else if (e.key === "F2") renameDialogFor(menuRef);
+      },
+      oncontextmenu: (e: MouseEvent) => {
+        e.preventDefault();
+        sessionMenu(e.currentTarget as HTMLElement, menuRef, { x: e.clientX, y: e.clientY });
+      },
     },
     tab?.alive ? h("span", { class: `live ${tab.streaming ? "busy" : ""}` }) : null,
-    h("span", { class: "sess-title" }, cleanTitle(title) || t("New session")),
+    titleEl,
     h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
     h(
       "span",
@@ -200,12 +283,13 @@ function sessionItem(hostId: string, path: string, title: string, cwd: string, t
       path
         ? action(
             reminder ? t("Change reminder") : t("Remind me later"),
-            "⏰",
+            "clock",
             () => reminderDialog({ hostId, path, cwd, title: cleanTitle(title) }),
             reminder ? "on" : "",
           )
         : null,
-      tab?.alive ? action(t("Close session (⌘W)"), "×", () => closeSession(tab)) : null,
+      action(t("More …"), "more", (e) => sessionMenu(e.currentTarget as HTMLElement, menuRef)),
+      tab?.alive ? action(t("Close session (⌘W)"), "close", () => closeSession(tab)) : null,
     ),
   );
 }

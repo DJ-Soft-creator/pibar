@@ -16,14 +16,14 @@
         "title": "PiBar",
         "width": 1320,
         "height": 840,
-        "minWidth": 960,
+        "minWidth": 620,
         "minHeight": 600
       },
       {
         "label": "quick",
         "url": "quick.html",
         "title": "PiBar Quick",
-        "width": 800,
+        "width": 920,
         "height": 120,
         "decorations": false,
         "transparent": true,

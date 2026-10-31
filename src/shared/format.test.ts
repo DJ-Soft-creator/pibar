@@ -7,7 +7,10 @@ import {
   shortModel,
   shortPath,
   splitScreenText,
+  stripAnswerStyle,
   thinkingLabel,
+  tokensPerSecond,
+  withAnswerStyle,
   withScreenText,
 } from "./format";
 import { setLang } from "./i18n";
@@ -74,5 +77,25 @@ describe("paths and numbers", () => {
     setLang("de");
     expect(relTime("2026-10-31T09:00:00Z", now)).toBe("vor 3 Std.");
     expect(relTime("broken", now)).toBe("");
+  });
+});
+
+describe("answer style", () => {
+  it("adds a hint for short answers and strips it again", () => {
+    const msg = withAnswerStyle("Why?", "short");
+    expect(msg).toContain("<response-style>");
+    expect(stripAnswerStyle(msg)).toBe("Why?");
+  });
+  it("leaves normal mode and slash commands alone", () => {
+    expect(withAnswerStyle("Why?", "normal")).toBe("Why?");
+    expect(withAnswerStyle("/skill:deploy now", "short")).toBe("/skill:deploy now");
+  });
+  it("removes the hint from titles, also when cut off", () => {
+    expect(cleanTitle(withAnswerStyle("Fix the bug", "technical"))).toBe("Fix the bug");
+    expect(cleanTitle("Fix the bug <respon")).toBe("Fix the bug");
+  });
+  it("computes tokens per second", () => {
+    expect(tokensPerSecond(100, 2000)).toBe(50);
+    expect(tokensPerSecond(0, 2000)).toBeNull();
   });
 });

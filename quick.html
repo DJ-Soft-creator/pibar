@@ -9,6 +9,24 @@
       <div class="qrow" data-tauri-drag-region>
         <span class="qlogo" data-tauri-drag-region data-i18n-title="Drag at π or the edge to move">π</span>
         <textarea id="q-input" rows="1" data-i18n-placeholder="What should Pi do?"></textarea>
+        <button id="q-improve" class="qicon voice-btn" data-i18n-title="Improve the text with the second LLM" hidden>
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+            <path
+              d="M7 1.5l1.3 3.7L12 6.5 8.3 7.8 7 11.5 5.7 7.8 2 6.5l3.7-1.3zM12.5 10l.6 1.6 1.4.4-1.4.5-.6 1.5-.5-1.5-1.5-.5 1.5-.4z"
+            />
+          </svg>
+        </button>
+        <button
+          id="q-mic"
+          class="qicon voice-btn"
+          data-i18n-title="Dictate (click to start and stop, Esc cancels)"
+          hidden
+        >
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" />
+            <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" />
+          </svg>
+        </button>
         <button id="q-shot" class="qicon" data-i18n-title="Screenshot: drag an area (⌘⇧2) · ⇧-click: whole screen">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4">
             <path
@@ -17,7 +35,6 @@
             <circle cx="9" cy="9" r="2.6" />
           </svg>
         </button>
-        <select id="q-target" class="qtarget" data-i18n-title="Where does the message go?"></select>
         <button id="q-send" class="qsend" data-i18n-title="Send (Enter)">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 15V3M4 8l5-5 5 5" />
@@ -46,11 +63,13 @@
         <button id="q-remove" class="qicon" data-i18n-title="Remove screenshot">×</button>
       </div>
       <div class="qfoot" data-tauri-drag-region data-i18n-title="Drag at π or the edge to move">
+        <select id="q-target" class="qtarget" data-i18n-title="Where does the message go?"></select>
         <span
           class="qhint"
           data-tauri-drag-region
           data-i18n="Enter send · ⇧Enter new line · Esc close · ⌘⇧2 screenshot"
         ></span>
+        <select id="q-preset" class="qmini" data-i18n-title="Preset: model and thinking level" hidden></select>
         <select id="q-model" class="qmini" data-i18n-title="Model"></select>
         <select id="q-effort" class="qmini" data-i18n-title="Thinking level"></select>
       </div>

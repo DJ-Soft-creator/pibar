@@ -9,34 +9,89 @@ Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Wi
 > Stand: Prototyp. Hauptziel ist macOS; Linux und Windows bauen, Doppeltipp, Bereichs-Screenshot und OCR gibt es bisher
 > nur auf macOS.
 
+## Screenshots
+
+![Hauptfenster: Sessions in farbigen Gruppen, Chat, Dateibaum mit Editor](docs/screenshots/main-window.jpg)
+
+![Quick-Leiste: per Doppeltipp von überall](docs/screenshots/quick-bar.jpg)
+
 ## Funktionen
 
-- Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung
-- Modell und Denkaufwand wählen (Pi speichert beides pro Session)
-- Toolaufrufe und Denken als einklappbare Karten, oben ausblendbar
-- Stoppen und Nachsteuern, während Pi arbeitet
-- Sessions links, nach Host gruppiert: starten, öffnen, Verlauf laden, mehrere parallel
-- **Sessions schließen** (× beim Überfahren oder ⌘W); der Pi-Prozess endet, die Session-Datei bleibt
-- **Erinnerungen**: ⏰ an einer Session → in 1 Std., 3 Std., heute Abend, morgen, nächste Woche oder eigene Zeit, mit
-  Notiz. Fällige Erinnerungen stehen oben links und kommen als Systemmitteilung; ein Klick öffnet die Session wieder
-- Hosts: lokal und per SSH (nutzt `~/.ssh/config` und den ssh-agent)
-- Rechts: Ordner der Session; `.md`-Dateien anlegen, lesen, bearbeiten, Vorschau, speichern (⌘S)
-- Tokens und Kosten je Session in der Kopfzeile
-- Seitenleisten einklappbar: Buttons in der Kopfzeile, ⌘B (links), ⌥⌘B (rechts)
-- Host-Umschalter oben links: „Alle / Lokal / weitere Hosts“; Hosts in „Alle“ zuklappbar
-- **Quick-Leiste**: Doppeltipp ⌥⌥ (macOS, Taste wählbar) oder ⌥⇧Leertaste (änderbar unter ⚙), schwebende Leiste
-  - Ziel: aktuelle Session, neue Session auf einem Host oder eine der letzten Sessions
-  - Modell und Denkaufwand, minimalistisch
-  - Screenshot: Kamera-Symbol oder ⌘⇧2 = Bereich ziehen, ⇧-Klick = ganzer Bildschirm
-  - Screenshot als **Bild**, als **Text (OCR)** oder **beides** senden
-  - Verschiebbar; die Position wird gemerkt
-- Menüleisten-Symbol: PiBar öffnen, Quick-Leiste, Beenden. Fenster schließen = ausblenden, der Hotkey bleibt aktiv
-- **Sprachen**: Englisch und Deutsch, automatisch nach Systemsprache oder fest unter ⚙
+### Chat
+
+- Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; stoppen und nachsteuern, während Pi arbeitet
+- Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides
+- **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
+  Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
+- **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
+- **Skills und Befehle**: `/` in der Eingabe tippen (oder auf `/` klicken) zeigt Skills, Prompt-Vorlagen und
+  Erweiterungsbefehle der Session
+- **Token-Statistik**: Tokens, Kosten und Geschwindigkeit in der Kopfzeile; beim Überfahren Ein-/Ausgabe-/Cache-Tokens,
+  Tokens pro Sekunde, Zeit bis zum ersten Token und Kontextbelegung
+
+### Sprache
+
+- **Diktieren** mit dem Mikrofon-Knopf im Hauptfenster und in der Quick-Leiste: OpenAI-kompatible API (OpenAI, Groq,
+  lokale Whisper-Server) oder ein lokaler Befehl wie whisper.cpp
+- **Text verbessern** mit einem zweiten LLM und eigenem Prompt (OpenAI-kompatibel: OpenAI, Ollama, LM Studio …), per
+  Knopf oder automatisch nach dem Diktat
+- **Vorlesen**: Lautsprecher-Knopf an jeder Antwort, Systemstimme oder API; auf Wunsch automatisch für alle Antworten
+  oder nur für Antworten auf Nachrichten aus der Quick-Leiste
+
+### Sessions
+
+- Linke Spalte nach Host gruppiert (lokal und SSH); starten, öffnen, Verlauf laden, mehrere Sessions parallel
+- **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
+  Gruppen verschieben
+- **Erinnerungen**: in 1 Std., 3 Std., heute Abend, morgen, nächste Woche oder eigene Zeit, mit Notiz; fällige
+  Erinnerungen stehen oben links und kommen als Systemmitteilung
+- **Schließen** (× beim Überfahren oder ⌘W): der Pi-Prozess endet, die Session-Datei bleibt
+- Host-Umschalter „Alle / Lokal / weitere Hosts“
+
+### Dateien
+
+- Rechte Spalte: Ordner der Session als Baum; Dateien und Ordner anlegen (`+`), `.md`-Dateien lesen, bearbeiten,
+  Vorschau, speichern (⌘S)
+- Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
+  anlegen
+
+### Layout
+
+- Helles, dunkles oder automatisches Farbschema
+- Seitenleisten: am Rand in der Breite ziehen (Doppelklick: Standardbreite), mit ⌘B / ⌥⌘B ausblenden
+- Funktioniert auf halbem Bildschirm: in schmalen Fenstern schweben die Seitenleisten über dem Chat
+- Menüleisten-Symbol: PiBar öffnen, Quick-Leiste, Beenden; Fenster schließen = ausblenden, der Hotkey bleibt aktiv
+- Englisch und Deutsch, automatisch nach Systemsprache oder fest in den Einstellungen
+
+### Quick-Leiste
+
+- Doppeltipp ⌥⌥ (macOS, Taste wählbar) oder ⌥⇧Leertaste (änderbar in den Einstellungen)
+- Breite Eingabezeile; Ziel darunter: aktuelle Session, neue Session auf einem Host, angepinnte oder letzte Sessions
+- Preset oder Modell und Denkaufwand, minimalistisch
+- Mikrofon- und Verbessern-Knopf (wenn in den Einstellungen eingerichtet)
+- Screenshot: Kamera-Symbol oder ⌘⇧2 = Bereich ziehen, ⇧-Klick = ganzer Bildschirm; senden als **Bild**, **Text (OCR)**
+  oder **beides**
+- Verschiebbar; die Position wird gemerkt
 
 Noch nicht drin: Kurzantwort direkt in der Leiste, J-Tracker, herdr.
 
-### macOS-Rechte für die Quick-Leiste
+## Spracheinstellungen
 
+Zahnrad → **Sprache & Audio**. Jeder Teil ist optional.
+
+| Teil | Auswahl |
+| --- | --- |
+| Diktieren | Aus · OpenAI-kompatible API (Basis-URL, Schlüssel, Modell z. B. `whisper-1`, Sprache) · lokaler Befehl mit `{file}` |
+| Vorlesen | Systemstimme (optional Stimmenname) · OpenAI-kompatible API (Modell z. B. `gpt-4o-mini-tts`, Stimme) |
+| Textverbesserung | Basis-URL, Schlüssel, Modell und Prompt (leer = eingebauter Prompt); „automatisch nach dem Diktat verbessern“ |
+
+API-Schlüssel liegen nur in der lokalen Einstellungsdatei der App, nie im Repository. Anfragen laufen über `curl`; der
+Schlüssel wird über stdin übergeben, nicht auf der Kommandozeile.
+
+## macOS-Rechte
+
+- **Mikrofon** (Diktieren): macOS fragt bei der ersten Aufnahme. Systemeinstellungen → Datenschutz & Sicherheit →
+  Mikrofon.
 - **Bildschirmaufnahme**: macOS fragt beim ersten Screenshot. Im Entwicklungsmodus gilt die Freigabe für das Terminal,
   aus dem du `npm run dev:app` startest. Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme.
 - **Eingabeüberwachung** (für den Doppeltipp): macOS fragt beim ersten Start. Im Entwicklungsmodus gilt sie für das

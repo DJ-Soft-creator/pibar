@@ -30,9 +30,35 @@ const SCREEN_TAG = "screen-text";
 /** Older sessions used a German tag name; still recognised */
 const SCREEN_RE = /<(screen-text|bildschirmtext)[^>]*>([\s\S]*?)<\/\1>/;
 
-/** Session title without appended screen text */
+/** Session title without appended screen text or answer style hint */
 export function cleanTitle(title: string): string {
-  return (title || "").replace(/<(screen-text|bildschirmtext)[\s\S]*/i, "").trim() || title;
+  return (
+    (title || "")
+      .replace(/<(screen-text|bildschirmtext|response-style)[\s\S]*/i, "")
+      // titles are cut after ~120 characters: drop a half tag at the end
+      .replace(/\s*<[a-z-]*$/i, "")
+      .trim() || title
+  );
+}
+
+/** Answer style hints (src/main/sessionTab.ts appends them to each message) */
+const ANSWER_HINTS: Record<string, string> = {
+  short: "Answer briefly and to the point, without long explanations.",
+  technical:
+    "Answer as briefly as possible, but keep the technical details (commands, paths, values, code). No filler text.",
+};
+const STYLE_RE = /\s*<response-style>[\s\S]*?<\/response-style>\s*/;
+
+/** Append the answer style hint; "normal" and slash commands (/skill:…) stay unchanged */
+export function withAnswerStyle(text: string, mode: string | undefined): string {
+  const hint = mode ? ANSWER_HINTS[mode] : undefined;
+  if (!hint || text.trimStart().startsWith("/")) return text;
+  return `${text}\n\n<response-style>${hint}</response-style>`;
+}
+
+/** Counterpart of withAnswerStyle: the message without the hint */
+export function stripAnswerStyle(text: string): string {
+  return text.replace(STYLE_RE, "\n").trim();
 }
 
 /** Append OCR text to a message as a tagged block */
@@ -94,4 +120,10 @@ export function dateTime(ts: number): string {
 
 export function fmtTokens(n: number): string {
   return n >= 1000 ? t("{n}k tok.", { n: (n / 1000).toFixed(1) }) : t("{n} tok.", { n });
+}
+
+/** Tokens per second, rounded; null without a measurable duration */
+export function tokensPerSecond(tokens: number, ms: number): number | null {
+  if (!tokens || ms < 50) return null;
+  return Math.round((tokens / ms) * 1000 * 10) / 10;
 }

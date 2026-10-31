@@ -1,8 +1,10 @@
-// Right column: folders of the active session, Markdown file list and editor.
+// Right column: folders of the active session as a tree of Markdown files, and the editor.
 import { api, FolderListing } from "../shared/api";
 import { $, h, errMsg, openModal, renderMarkdown, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
+import { buildTree, countFiles, TreeDir } from "../shared/tree";
+import { openMenu } from "./menu";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
 
@@ -20,42 +22,139 @@ function sessionFolders(tab: SessionTab): string[] {
   return [tab.cwd, ...(state.config.sessionFolders[tab.key] ?? [])];
 }
 
-export async function renderFiles() {
-  const tab = state.active;
-  if (!tab) {
-    elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("No session open.")));
-    return;
-  }
-  elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("Loading files …")));
-  let listings: FolderListing[];
-  try {
-    listings = await api.listFiles(tab.hostId, sessionFolders(tab));
-  } catch (e) {
-    elFileTree.replaceChildren(h("p", { class: "pad host-err" }, errMsg(e)));
-    return;
-  }
-  if (tab !== state.active) return; // another session was selected meanwhile
-  const extra = state.config.sessionFolders[tab.key] ?? [];
-  elFileTree.replaceChildren(
-    ...listings.map((l, i) =>
+/** Open/closed folders in the tree: key "<root>|<relative path>" ("" = the session folder itself) */
+const openDirs = new Set<string>();
+const closedRoots = new Set<string>();
+
+const ICON_DIR =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.5h5.6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>';
+const ICON_FILE =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3M6 8.5h4M6 11h4"/></svg>';
+
+function icon(svg: string): HTMLElement {
+  const el = h("span", { class: "ti" });
+  el.innerHTML = svg;
+  return el;
+}
+
+function chev(open: boolean): HTMLElement {
+  return h("span", { class: `tchev ${open ? "open" : ""}` }, "›");
+}
+
+/** Rows of a folder's content, indented by depth */
+function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): HTMLElement[] {
+  const rows: HTMLElement[] = [];
+  const pad = `padding-left:${8 + depth * 14}px`;
+  for (const d of dir.dirs) {
+    const key = `${root}|${d.path}`;
+    const open = openDirs.has(key);
+    const n = countFiles(d);
+    const full = `${root}/${d.path}`;
+    rows.push(
       h(
         "div",
-        { class: "folder" },
+        { class: "tline" },
         h(
-          "div",
-          { class: "folder-head" },
-          h(
-            "span",
-            { class: "fname", title: l.root || l.folder },
-            i === 0 ? `${baseName(l.root || l.folder)} (${t("working folder")})` : baseName(l.root || l.folder),
-          ),
+          "button",
+          {
+            class: "trow tdir",
+            style: pad,
+            title: full,
+            onclick: () => {
+              if (open) openDirs.delete(key);
+              else openDirs.add(key);
+              renderTree();
+            },
+          },
+          chev(open),
+          icon(ICON_DIR),
+          h("span", { class: "tname" }, d.name),
+          n ? h("span", { class: "tcount" }, String(n)) : null,
+        ),
+        h(
+          "span",
+          { class: "folder-acts" },
           h(
             "button",
-            { class: "icon-btn", title: t("New Markdown file"), onclick: () => newFileDialog(tab, l.root) },
+            {
+              class: "icon-btn",
+              title: t("New file or folder"),
+              onclick: (e: MouseEvent) => createMenu(e.currentTarget as HTMLElement, tab, full),
+            },
             "＋",
           ),
+        ),
+      ),
+    );
+    if (open) rows.push(...treeRows(tab, root, d, depth + 1));
+  }
+  for (const f of dir.files) {
+    const full = `${root}/${f.path}`;
+    rows.push(
+      h(
+        "button",
+        {
+          class: `trow file ${editor.path === full ? "active" : ""}`,
+          style: `padding-left:${8 + depth * 14 + 16}px`,
+          title: full,
+          "data-path": full,
+          onclick: () => openFile(tab.hostId, full),
+        },
+        icon(ICON_FILE),
+        h("span", { class: "tname" }, f.name),
+      ),
+    );
+  }
+  return rows;
+}
+
+/** Last listings, so opening/closing folders does not reload from the host */
+let last: { tab: SessionTab; listings: FolderListing[] } | null = null;
+
+function renderTree() {
+  if (!last || last.tab !== state.active) return;
+  const { tab, listings } = last;
+  const extra = state.config.sessionFolders[tab.key] ?? [];
+  elFileTree.replaceChildren(
+    ...listings.map((l, i) => {
+      const root = l.root || l.folder;
+      const open = !closedRoots.has(root);
+      const removable = i > 0;
+      const head = h(
+        "div",
+        { class: "folder-head" },
+        h(
+          "button",
+          {
+            class: "trow troot",
+            title: root,
+            onclick: () => {
+              if (open) closedRoots.add(root);
+              else closedRoots.delete(root);
+              renderTree();
+            },
+          },
+          chev(open),
+          icon(ICON_DIR),
+          h("span", { class: "tname" }, baseName(root)),
+          i === 0 ? h("span", { class: "tbadge" }, t("working folder")) : null,
+        ),
+        h(
+          "span",
+          { class: "folder-acts" },
+          l.missing || l.error
+            ? null
+            : h(
+                "button",
+                {
+                  class: "icon-btn",
+                  title: t("New file or folder"),
+                  onclick: (e: MouseEvent) => createMenu(e.currentTarget as HTMLElement, tab, l.root),
+                },
+                "＋",
+              ),
           h("button", { class: "icon-btn", title: t("Reload"), onclick: () => renderFiles() }, "↻"),
-          i > 0
+          removable
             ? h(
                 "button",
                 {
@@ -67,23 +166,147 @@ export async function renderFiles() {
               )
             : null,
         ),
-        h("div", { class: "folder-root" }, l.root || l.folder),
-        l.error ? h("div", { class: "host-err" }, l.error) : null,
-        !l.error && l.files.length === 0 ? h("div", { class: "hint-line" }, t("No .md files")) : null,
-        ...l.files.map((f) => {
-          const full = `${l.root}/${f}`;
-          return h(
-            "button",
-            {
-              class: `file ${editor.path === full ? "active" : ""}`,
-              title: full,
-              onclick: () => openFile(tab.hostId, full),
-            },
-            f,
-          );
-        }),
-      ),
-    ),
+      );
+      let body: (HTMLElement | null)[] = [];
+      if (open) {
+        if (l.missing)
+          body = [
+            h(
+              "div",
+              { class: "folder-missing" },
+              h("div", {}, t("This folder does not exist on {host}.", { host: hostName(tab.hostId) })),
+              h("code", {}, l.folder),
+              h(
+                "div",
+                { class: "fm-acts" },
+                h("button", { class: "ghost small", onclick: () => createFolder(tab, l.folder) }, t("Create folder")),
+                removable
+                  ? h(
+                      "button",
+                      { class: "ghost small", onclick: () => removeFolder(tab, extra[i - 1]) },
+                      t("Remove from session"),
+                    )
+                  : null,
+              ),
+            ),
+          ];
+        else if (l.error) body = [h("div", { class: "host-err" }, l.error)];
+        else {
+          const tree = buildTree(l.files);
+          body =
+            tree.dirs.length || tree.files.length
+              ? treeRows(tab, l.root, tree, 1)
+              : [h("div", { class: "hint-line" }, t("No .md files"))];
+        }
+      }
+      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, ...body);
+    }),
+  );
+}
+
+function hostName(hostId: string): string {
+  return state.config.hosts.find((x) => x.id === hostId)?.name ?? hostId;
+}
+
+async function createFolder(tab: SessionTab, folder: string) {
+  try {
+    await api.createDir(tab.hostId, folder);
+    await renderFiles();
+  } catch (e) {
+    toast(`${t("Create folder")}: ${errMsg(e)}`, "err");
+  }
+}
+
+export async function renderFiles() {
+  const tab = state.active;
+  if (!tab) {
+    last = null;
+    elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("No session open.")));
+    return;
+  }
+  if (last?.tab !== tab) elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("Loading files …")));
+  let listings: FolderListing[];
+  try {
+    listings = await api.listFiles(tab.hostId, sessionFolders(tab));
+  } catch (e) {
+    elFileTree.replaceChildren(h("p", { class: "pad host-err" }, errMsg(e)));
+    return;
+  }
+  if (tab !== state.active) return; // another session was selected meanwhile
+  last = { tab, listings };
+  renderTree();
+}
+
+// ---------- Create menus ----------
+
+/** "+" in a folder row: new Markdown file or new folder inside `base` (absolute path) */
+function createMenu(anchor: HTMLElement, tab: SessionTab, base: string) {
+  const where = t("in {folder}", { folder: baseName(base) });
+  openMenu(
+    anchor,
+    [
+      { label: t("New Markdown file"), desc: where, onSelect: () => newFileDialog(tab, base) },
+      { label: t("New folder"), desc: where, onSelect: () => newFolderDialog(tab, base) },
+    ],
+    "right",
+  );
+}
+
+/** "+" in the panel head: file or folder in the working folder, or add another folder to the session */
+function headMenu(anchor: HTMLElement) {
+  const tab = state.active;
+  if (!tab) return;
+  const work = (last?.tab === tab && last.listings[0]?.root) || tab.cwd;
+  const where = t("in {folder}", { folder: baseName(work) });
+  openMenu(
+    anchor,
+    [
+      { label: t("New Markdown file"), desc: where, onSelect: () => newFileDialog(tab, work) },
+      { label: t("New folder"), desc: where, onSelect: () => newFolderDialog(tab, work) },
+      {
+        label: t("Add folder to session"),
+        desc: t("Show another folder of the host here"),
+        onSelect: addFolderDialog,
+      },
+    ],
+    "right",
+  );
+}
+
+/** Open the tree down to `full` (a file or folder just created) */
+function reveal(full: string, isDir: boolean) {
+  for (const l of last?.listings ?? []) {
+    if (!l.root || !full.startsWith(`${l.root}/`)) continue;
+    closedRoots.delete(l.root);
+    const parts = full.slice(l.root.length + 1).split("/");
+    const upto = isDir ? parts.length : parts.length - 1;
+    for (let i = 1; i <= upto; i++) openDirs.add(`${l.root}|${parts.slice(0, i).join("/")}`);
+  }
+}
+
+function newFolderDialog(tab: SessionTab, base: string) {
+  const input = h("input", { type: "text", placeholder: t("new-folder") }) as HTMLInputElement;
+  const create = async () => {
+    const name = input.value.trim().replace(/^\/+|\/+$/g, "");
+    if (!name) return;
+    const path = `${base}/${name}`;
+    try {
+      await api.createDir(tab.hostId, path);
+      close();
+      reveal(path, true);
+      await renderFiles();
+    } catch (e) {
+      toast(`${t("Create folder")}: ${errMsg(e)}`, "err");
+    }
+  };
+  input.addEventListener("keydown", (e) => e.key === "Enter" && create());
+  const close = openModal(
+    t("New folder"),
+    h("div", {}, h("div", { class: "row" }, h("label", {}, t("Name")), input), h("p", { class: "hint" }, base)),
+    [
+      h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
+      h("button", { class: "primary", onclick: create }, t("Create")),
+    ],
   );
 }
 
@@ -137,6 +360,7 @@ function newFileDialog(tab: SessionTab, root: string) {
     try {
       await api.createFile(tab.hostId, path);
       close();
+      reveal(path, false);
       await renderFiles();
       openFile(tab.hostId, path);
     } catch (e) {
@@ -163,17 +387,24 @@ async function openFile(hostId: string, path: string) {
     $("editor-name").textContent = baseName(path);
     $("editor-name").title = path;
     elEdSave.disabled = true;
-    elEditor.hidden = false;
+    showEditor(true);
     setPreview(editor.preview);
     elFileTree
-      .querySelectorAll(".file")
-      .forEach((b) => b.classList.toggle("active", (b as HTMLElement).title === path));
+      .querySelectorAll<HTMLElement>(".file")
+      .forEach((b) => b.classList.toggle("active", b.dataset.path === path));
   } catch (e) {
     toast(`${t("Read file")}: ${errMsg(e)}`, "err");
   }
 }
 
 // ---------- Editor ----------
+
+/** Editor below the tree, with the draggable divider in between */
+function showEditor(on: boolean) {
+  elEditor.hidden = !on;
+  $("rs-files").hidden = !on;
+  elEditor.parentElement?.classList.toggle("has-editor", on);
+}
 
 export function isEditorOpen(): boolean {
   return !elEditor.hidden;
@@ -186,7 +417,7 @@ function confirmDiscard(): boolean {
 
 export function closeEditor() {
   if (!confirmDiscard()) return;
-  elEditor.hidden = true;
+  showEditor(false);
   editor.path = "";
   elFileTree.querySelectorAll(".file.active").forEach((b) => b.classList.remove("active"));
 }
@@ -215,7 +446,7 @@ export async function saveEditor() {
 }
 
 export function wireFiles() {
-  $("btn-add-folder").addEventListener("click", addFolderDialog);
+  $("btn-add-folder").addEventListener("click", (e) => headMenu(e.currentTarget as HTMLElement));
   $("ed-edit").addEventListener("click", () => setPreview(false));
   $("ed-preview").addEventListener("click", () => setPreview(true));
   $("ed-close").addEventListener("click", closeEditor);

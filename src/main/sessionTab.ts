@@ -1,8 +1,10 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
-import { api, PiModel } from "../shared/api";
+import { api, PiCommand, PiModel } from "../shared/api";
 import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
-import { splitScreenText } from "../shared/format";
-import { t } from "../shared/i18n";
+import { splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } from "../shared/format";
+import { getLang, t } from "../shared/i18n";
+import { speak, stopSpeaking } from "../shared/voice";
+import { state } from "./state";
 
 type PartKind = "text" | "thinking" | "tool";
 
@@ -31,6 +33,76 @@ export interface TabCallbacks {
 
 const MAX_RESULT = 20000;
 
+/** Token counters of a session (shown in the header, see usageStats.ts) */
+export interface TabStats {
+  responses: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  total: number;
+  cost: number;
+  /** Tokens in the context after the last answer */
+  lastContext: number;
+  /** Output tokens of the last answer */
+  lastOutput: number;
+  /** Output tokens per second of the last live answer */
+  lastTps: number | null;
+  /** Time to first token of the last live answer (ms) */
+  lastTtft: number | null;
+  /** Sum of live generation time (ms) and its output tokens, for the average speed */
+  genMs: number;
+  genTokens: number;
+}
+
+function emptyStats(): TabStats {
+  return {
+    responses: 0,
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    total: 0,
+    cost: 0,
+    lastContext: 0,
+    lastOutput: 0,
+    lastTps: null,
+    lastTtft: null,
+    genMs: 0,
+    genTokens: 0,
+  };
+}
+
+const ICON_SPEAK =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9"/></svg>';
+
+/** Button that is reading aloud right now */
+let speakingBtn: HTMLElement | null = null;
+
+/** Read a text aloud (second click stops); errors as toast */
+export function readAloud(text: string, btn: HTMLElement | null = null) {
+  const again = !!btn && speakingBtn === btn;
+  stopSpeaking();
+  speakingBtn?.classList.remove("on");
+  speakingBtn = null;
+  if (again) return;
+  speakingBtn = btn;
+  btn?.classList.add("on");
+  speak(state.config.voice, text, getLang())
+    .catch((e) => toast(`${t("Read aloud")}: ${errMsg(e)}`, "err"))
+    .finally(() => {
+      if (speakingBtn === btn) {
+        btn?.classList.remove("on");
+        speakingBtn = null;
+      }
+    });
+}
+
+/** Cards open live in the "debug" chat view */
+function debugView(): boolean {
+  return state.config?.ui.chatMode === "debug";
+}
+
 export class SessionTab {
   readonly hostId: string;
   sessionPath: string | null;
@@ -43,13 +115,26 @@ export class SessionTab {
   thinkingLevel = "";
   models: PiModel[] = [];
   levels: string[] = [];
-  usage: { tokens: number; cost: number } = { tokens: 0, cost: 0 };
+  /** Preset chosen in the toolbar or quick bar: id, "" = individual choice, null = derive from model/thinking */
+  presetId: string | null = null;
+  stats: TabStats = emptyStats();
+  /** Skills, prompt templates and extension commands (for the "/" menu) */
+  commands: PiCommand[] = [];
+  /** Name of the tool that is running right now ("" = none) */
+  activity = "";
+  /** Read the next answer aloud (message came from the quick bar) */
+  readNext = false;
+  /** Text of the last answer of the current run (for auto read) */
+  private lastText = "";
 
   readonly el: HTMLElement;
   private cur: { el: HTMLElement; parts: Map<number, Part> } | null = null;
   private tools = new Map<string, ToolCard>();
   private raf = 0;
   private cb: TabCallbacks;
+  /** Live timing: request start and first token of the current answer */
+  private reqStart = 0;
+  private firstToken = 0;
 
   constructor(hostId: string, cwd: string, sessionPath: string | null, title: string, cb: TabCallbacks) {
     this.hostId = hostId;
@@ -81,6 +166,7 @@ export class SessionTab {
   async restart() {
     if (this.alive) await api.piClose(this.handle).catch(() => {});
     this.el.innerHTML = "";
+    this.stats = emptyStats();
     this.tools.clear();
     this.cur = null;
     await this.start(this.cb.onHandle);
@@ -116,12 +202,23 @@ export class SessionTab {
     } catch {
       this.levels = [];
     }
+    try {
+      const c = await api.pi(this.handle, { type: "get_commands" });
+      this.commands = c.commands ?? [];
+    } catch {
+      this.commands = []; // older Pi versions
+    }
+  }
+
+  /** Pi's statistics for the whole session (get_session_stats) */
+  sessionStats(): Promise<any> {
+    return api.pi(this.handle, { type: "get_session_stats" });
   }
 
   // ---------- Actions ----------
 
   async send(text: string, images: { data: string; mimeType: string }[] = []) {
-    const cmd: Record<string, unknown> = { type: "prompt", message: text };
+    const cmd: Record<string, unknown> = { type: "prompt", message: withAnswerStyle(text, state.config.ui.answerMode) };
     if (images.length) cmd.images = images.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
     if (this.streaming) cmd.streamingBehavior = "steer";
     const res = await api.pi(this.handle, cmd);
@@ -186,11 +283,18 @@ export class SessionTab {
   onEvent(ev: any) {
     switch (ev.type) {
       case "agent_start":
+      case "turn_start":
+        this.reqStart = performance.now();
+        this.firstToken = 0;
+        if (ev.type === "turn_start") break;
+        this.lastText = "";
         this.streaming = true;
         this.cb.onStateChange(this);
         break;
       case "agent_settled":
         this.streaming = false;
+        this.activity = "";
+        this.autoRead();
         this.flush();
         this.cb.onSettled(this);
         break;
@@ -201,6 +305,7 @@ export class SessionTab {
       case "message_update": {
         const a = ev.assistantMessageEvent ?? {};
         if (!this.cur) this.beginAssistant();
+        if (!this.firstToken && /_(delta|start)$/.test(a.type ?? "")) this.firstToken = performance.now();
         if (a.type === "text_delta") this.appendPart(a.contentIndex, "text", a.delta);
         else if (a.type === "thinking_delta") this.appendPart(a.contentIndex, "thinking", a.delta);
         else if (a.type === "toolcall_start") this.toolStart(a.contentIndex, a.id, a.toolName);
@@ -210,6 +315,7 @@ export class SessionTab {
       }
       case "message_end":
         if (ev.message?.role === "assistant") {
+          this.measure(ev.message);
           this.endAssistant(ev.message);
         }
         break;
@@ -220,9 +326,19 @@ export class SessionTab {
           this.toolArgs(ev.toolCallId, ev.args);
         }
         this.setToolStatus(ev.toolCallId, "run", t("running …"));
+        this.activity = ev.toolName || "Tool";
+        this.cb.onStateChange(this);
+        break;
+      case "tool_execution_update":
+        // partial output of a running tool, shown live in the debug view
+        if (debugView()) this.toolResult(ev.toolCallId, ev.partialResult?.content, false, undefined, true);
         break;
       case "tool_execution_end":
         this.toolResult(ev.toolCallId, ev.result?.content, !!ev.isError, ev.durationMs);
+        this.activity = "";
+        this.reqStart = performance.now(); // the next model call starts now
+        this.firstToken = 0;
+        this.cb.onStateChange(this);
         break;
       default:
         break;
@@ -275,6 +391,7 @@ export class SessionTab {
       }
     }
     this.cur = null;
+    text = stripAnswerStyle(text);
     // Screen text (OCR) as a collapsible card instead of a long text
     let ocrCard: HTMLElement | null = null;
     const split = splitScreenText(text);
@@ -316,7 +433,30 @@ export class SessionTab {
     }
     this.flush();
     cur.el.querySelectorAll(".cursor").forEach((c) => c.classList.remove("cursor"));
+    const text = [...cur.parts.values()]
+      .filter((p) => p.kind === "text")
+      .map((p) => p.text)
+      .join("\n\n")
+      .trim();
+    if (text) {
+      this.lastText = text;
+      const btn: HTMLElement = h("button", {
+        class: "msg-act",
+        title: t("Read aloud"),
+        onclick: () => readAloud(text, btn),
+      });
+      btn.innerHTML = ICON_SPEAK;
+      cur.el.append(h("div", { class: "msg-acts" }, btn));
+    }
     this.cur = null;
+  }
+
+  /** Settings → Voice → "Read answers aloud" */
+  private autoRead() {
+    const mode = state.config.voice?.tts.autoRead ?? "off";
+    const read = mode === "all" || (mode === "quick" && this.readNext);
+    this.readNext = false;
+    if (read && this.lastText) readAloud(this.lastText);
   }
 
   private getPart(index: number, kind: PartKind): Part {
@@ -333,7 +473,7 @@ export class SessionTab {
         { class: "part thinking" },
         h(
           "details",
-          { class: "card" },
+          { class: "card", open: debugView() },
           h("summary", {}, h("span", { class: "label" }, t("Thinking")), h("span", { class: "preview" }, "")),
           body,
         ),
@@ -392,7 +532,7 @@ export class SessionTab {
     const result = h("div", {});
     const card = h(
       "details",
-      { class: "card" },
+      { class: "card", open: debugView() },
       h("summary", {}, h("span", { class: "label" }, name || "Tool"), preview, status),
       h("div", { class: "body" }, h("div", { class: "sub" }, t("Input")), args, result),
     ) as HTMLDetailsElement;
@@ -408,6 +548,7 @@ export class SessionTab {
     if (!card) return;
     card.argsRaw += delta;
     card.args.textContent = card.argsRaw;
+    if (debugView()) this.schedule();
   }
 
   private toolArgs(id: string, args: any) {
@@ -424,7 +565,7 @@ export class SessionTab {
     card.status.textContent = text;
   }
 
-  private toolResult(id: string, content: any, isError: boolean, durationMs?: number) {
+  private toolResult(id: string, content: any, isError: boolean, durationMs?: number, partial = false) {
     const card = this.tools.get(id);
     if (!card) return;
     let text = "";
@@ -436,15 +577,45 @@ export class SessionTab {
       h("div", { class: "sub" }, isError ? t("Error") : t("Result")),
       h("pre", {}, text || t("(empty)")),
     );
+    if (partial) return this.schedule();
     const dur = durationMs !== undefined ? ` · ${(durationMs / 1000).toFixed(1)} s` : "";
     this.setToolStatus(id, isError ? "err" : "ok", (isError ? t("Error") : t("done")) + dur);
+    if (debugView()) this.schedule();
   }
 
   private addUsage(u: any) {
-    const tokens = u.totalTokens ?? (u.input ?? 0) + (u.output ?? 0);
+    const s = this.stats;
+    const input = u.input ?? 0;
+    const output = u.output ?? 0;
+    const cacheRead = u.cacheRead ?? 0;
+    const cacheWrite = u.cacheWrite ?? 0;
+    const tokens = u.totalTokens ?? input + output + cacheRead + cacheWrite;
     const cost = typeof u.cost === "object" ? (u.cost?.total ?? 0) : (u.cost ?? 0);
-    this.usage = { tokens: this.usage.tokens + (tokens || 0), cost: this.usage.cost + (cost || 0) };
+    s.responses += 1;
+    s.input += input;
+    s.output += output;
+    s.cacheRead += cacheRead;
+    s.cacheWrite += cacheWrite;
+    s.total += tokens || 0;
+    s.cost += cost || 0;
+    s.lastOutput = output;
+    s.lastContext = input + cacheRead + cacheWrite + output;
     this.cb.onStateChange(this);
+  }
+
+  /** Speed of a live answer: output tokens from the first token to message_end */
+  measure(msg: any) {
+    const output = msg?.usage?.output ?? 0;
+    if (!this.firstToken || !output) return;
+    const now = performance.now();
+    const ms = now - this.firstToken;
+    const s = this.stats;
+    s.lastTps = tokensPerSecond(output, ms);
+    s.lastTtft = this.reqStart ? this.firstToken - this.reqStart : null;
+    s.genMs += ms;
+    s.genTokens += output;
+    this.firstToken = 0;
+    this.reqStart = now;
   }
 }
 

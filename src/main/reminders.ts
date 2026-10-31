@@ -1,5 +1,6 @@
 // Reminders on sessions: set ("remind me later"), list at the top of the left column,
 // and notify when due (system notification + highlighted entry).
+import { icon } from "../shared/icons";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { Reminder } from "../shared/api";
 import { $, h, openModal, toast } from "../shared/dom";
@@ -134,7 +135,7 @@ export function renderReminders() {
           title: r.note || r.title,
           onclick: () => openReminder(r),
         },
-        h("span", { class: "rem-icon" }, r.at <= now ? "🔔" : "⏰"),
+        icon(r.at <= now ? "bell" : "clock", 14, "rem-icon"),
         h(
           "span",
           { class: "rem-text" },
@@ -155,7 +156,7 @@ export function renderReminders() {
               removeReminder(r.key);
             },
           },
-          "×",
+          icon("close", 13),
         ),
       ),
     ),
@@ -167,13 +168,13 @@ async function notify(r: Reminder) {
     let ok = await isPermissionGranted();
     if (!ok) ok = (await requestPermission()) === "granted";
     if (ok) {
-      sendNotification({ title: `⏰ ${r.title || "PiBar"}`, body: r.note || t("Reminder for this session is due.") });
+      sendNotification({ title: r.title || "PiBar", body: r.note || t("Reminder for this session is due.") });
       return;
     }
   } catch {
     /* notifications unavailable: fall back to a toast */
   }
-  toast(`⏰ ${r.title}${r.note ? ` – ${r.note}` : ""}`, "info", 15000);
+  toast(`${t("Reminder")}: ${r.title}${r.note ? ` – ${r.note}` : ""}`, "info", 15000);
 }
 
 /** Check every 30 s for due reminders (also runs while the window is hidden) */

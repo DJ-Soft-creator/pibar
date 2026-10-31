@@ -1,10 +1,14 @@
-// Settings dialog (⚙): language, quick launcher (double tap, shortcut, position) and hosts.
+// Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets and hosts.
 import { emit } from "@tauri-apps/api/event";
-import { api, DoubleTapStatus, HostCfg } from "../shared/api";
+import { api, DoubleTapStatus, HostCfg, ModelPreset, Theme } from "../shared/api";
 import { h, errMsg, openModal, toast } from "../shared/dom";
+import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t } from "../shared/i18n";
+import { cleanPresets } from "../shared/presets";
+import { applyUiPrefs, renderToolbar, setTheme } from "./chatView";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
+import { voiceEditor } from "./voiceSettings";
 
 function tapOptions(): [string, string][] {
   return [
@@ -34,6 +38,88 @@ function tapStatusText(choice: string, st: DoubleTapStatus | ""): string {
     default:
       return "";
   }
+}
+
+/** Editor for model presets; returns the element and a getter for the cleaned list */
+function presetEditor(): { el: HTMLElement; get: () => ModelPreset[] } {
+  const draft: ModelPreset[] = JSON.parse(JSON.stringify(state.config.presets ?? []));
+  const list = h("div", { class: "preset-list" });
+  // Model suggestions: models of open sessions right away, all hosts in the background
+  const models = h("datalist", { id: "preset-models" });
+  const known = new Set<string>();
+  const addModels = (keys: string[]) => {
+    for (const k of keys) {
+      if (known.has(k)) continue;
+      known.add(k);
+      models.append(h("option", { value: k }));
+    }
+  };
+  for (const tab of state.tabs.values()) addModels(tab.models.map((m) => `${m.provider}/${m.id}`));
+  for (const host of state.config.hosts)
+    api
+      .listModels(host.id)
+      .then((l) => addModels(l.map((m) => `${m.provider}/${m.id}`)))
+      .catch(() => {});
+
+  const render = () => {
+    list.replaceChildren(
+      ...draft.map((p, idx) => {
+        const name = h("input", { type: "text", value: p.name, placeholder: t("Name") }) as HTMLInputElement;
+        name.addEventListener("input", () => (p.name = name.value));
+        const model = h("input", {
+          type: "text",
+          value: p.model,
+          placeholder: t("Model: keep"),
+          list: "preset-models",
+        }) as HTMLInputElement;
+        model.addEventListener("input", () => (p.model = model.value));
+        const thinking = h(
+          "select",
+          {},
+          h("option", { value: "", selected: !p.thinking }, t("Thinking: keep")),
+          ...THINKING_LEVELS.map((l) => h("option", { value: l, selected: l === p.thinking }, thinkingLabel(l))),
+        ) as HTMLSelectElement;
+        thinking.addEventListener("change", () => (p.thinking = thinking.value));
+        const remove = h("button", { class: "ghost", title: t("Remove") }, "×");
+        remove.addEventListener("click", () => (draft.splice(idx, 1), render()));
+        return h("div", { class: "preset-row" }, name, model, thinking, remove);
+      }),
+    );
+  };
+  render();
+
+  const add = (model = "", thinking = "") => {
+    draft.push({ id: `preset${Date.now()}`, name: "", model, thinking });
+    render();
+    list.querySelector<HTMLInputElement>(".preset-row:last-child input")?.focus();
+  };
+  const cur = state.active;
+  const el = h(
+    "div",
+    {},
+    h(
+      "p",
+      { class: "hint" },
+      t(
+        "Quick choice of model and thinking level in the toolbar and the quick bar. Choosing a preset hides the other two dropdowns.",
+      ),
+    ),
+    list,
+    models,
+    h(
+      "div",
+      { class: "preset-actions" },
+      h("button", { class: "ghost", onclick: () => add() }, t("+ Add preset")),
+      cur?.model
+        ? h(
+            "button",
+            { class: "ghost", onclick: () => add(`${cur.model!.provider}/${cur.model!.id}`, cur.thinkingLevel) },
+            t("+ From current session"),
+          )
+        : null,
+    ),
+  );
+  return { el, get: () => cleanPresets(draft) };
 }
 
 export function settingsDialog() {
@@ -138,6 +224,15 @@ export function settingsDialog() {
     ),
   ) as HTMLSelectElement;
 
+  const curTheme = state.config.ui.theme ?? "auto";
+  const theme = h(
+    "select",
+    {},
+    h("option", { value: "auto", selected: curTheme === "auto" }, t("Automatic (system)")),
+    h("option", { value: "light", selected: curTheme === "light" }, t("Light")),
+    h("option", { value: "dark", selected: curTheme === "dark" }, t("Dark")),
+  ) as HTMLSelectElement;
+
   const hotkey = h("input", {
     type: "text",
     value: state.config.ui.quickHotkey || "Alt+Shift+Space",
@@ -164,8 +259,13 @@ export function settingsDialog() {
   showTapStatus();
   tapSel.addEventListener("change", showTapStatus);
 
+  const presets = presetEditor();
+  const voice = voiceEditor();
+
   const save = async () => {
     state.config.hosts = draft;
+    state.config.presets = presets.get();
+    state.config.voice = voice.get();
     state.config.ui.doubleTap = tapSel.value;
     await api.setDoubleTap(tapSel.value).catch(() => {});
     const hk = hotkey.value.trim() || "Alt+Shift+Space";
@@ -179,6 +279,7 @@ export function settingsDialog() {
     }
     const langChanged = (state.config.ui.language || "auto") !== lang.value;
     state.config.ui.language = lang.value;
+    if (theme.value !== curTheme) setTheme(theme.value as Theme);
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -187,6 +288,8 @@ export function settingsDialog() {
       return window.location.reload();
     }
     renderHosts();
+    applyUiPrefs();
+    renderToolbar();
     loadAllSessions();
   };
 
@@ -197,6 +300,7 @@ export function settingsDialog() {
       {},
       h("h4", { class: "set-head" }, t("General")),
       h("div", { class: "row" }, h("label", {}, t("Language")), lang),
+      h("div", { class: "row" }, h("label", {}, t("Colour scheme")), theme),
       h("h4", { class: "set-head" }, t("Quick launcher")),
       h("div", { class: "row" }, h("label", {}, t("Double tap")), tapSel),
       tapStatus,
@@ -217,6 +321,10 @@ export function settingsDialog() {
           h("span", { class: "muted" }, `  ${t("The bar remembers where you drag it.")}`),
         ),
       ),
+      h("h4", { class: "set-head" }, t("Voice")),
+      voice.el,
+      h("h4", { class: "set-head" }, t("Presets")),
+      presets.el,
       h("h4", { class: "set-head" }, t("Hosts")),
       h(
         "p",

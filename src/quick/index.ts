@@ -1,11 +1,15 @@
 // Quick launcher: floating input bar (window "quick", opened by hotkey from src-tauri/src/quick.rs)
+// with target, preset or model/thinking choice, screenshot/OCR and send.
 import "./quick.css";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { api, AppConfig, SessionInfo, QuickTarget, QuickSubmit, ModelInfo } from "../shared/api";
+import { api, AppConfig, SessionInfo, QuickTarget, QuickSubmit, ModelInfo, ModelPreset, Theme } from "../shared/api";
 import { cleanTitle, shortModel, shortPath, thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { setLang, t, translateDom } from "../shared/i18n";
+import { applyTheme } from "../shared/theme";
+import { isRecording, showVoiceButtons, wireVoice } from "../shared/voice";
+import { splitModelKey } from "../shared/presets";
 
 interface Capture {
   path: string;
@@ -22,10 +26,14 @@ const thumb = $("q-thumb") as HTMLImageElement;
 const ocrInfo = $("q-ocr");
 const modelSel = $("q-model") as HTMLSelectElement;
 const effortSel = $("q-effort") as HTMLSelectElement;
+const presetSel = $("q-preset") as HTMLSelectElement;
+const micBtn = $("q-mic") as HTMLButtonElement;
+const improveBtn = $("q-improve") as HTMLButtonElement;
 const modelsByHost = new Map<string, ModelInfo[] | "loading" | "error">();
 const LAST_MODEL = "pibar.quick.model";
 const LAST_EFFORT = "pibar.quick.effort";
 const RECENT_MODELS = "pibar.quick.recentModels";
+const LAST_PRESET = "pibar.quick.preset";
 
 let config: AppConfig | null = null;
 const sessions = new Map<string, SessionInfo[]>();
@@ -54,6 +62,42 @@ function store(key: string, value?: string): string | null {
     return null;
   }
 }
+
+// ---------- Presets ----------
+
+function currentPreset(): ModelPreset | undefined {
+  return config?.presets?.find((p) => p.id === presetSel.value);
+}
+
+/** Preset dropdown; a chosen preset hides the model and thinking dropdowns */
+function renderPresets() {
+  const presets = config?.presets ?? [];
+  // first render: last choice, otherwise the first preset
+  const prev = presetSel.options.length ? presetSel.value : (store(LAST_PRESET) ?? presets[0]?.id ?? "");
+  const opt = (value: string, label: string) => {
+    const o = document.createElement("option");
+    o.value = value;
+    o.textContent = label;
+    return o;
+  };
+  presetSel.replaceChildren(...presets.map((p) => opt(p.id, p.name)), opt("", t("Custom")));
+  presetSel.value = presets.some((p) => p.id === prev) ? prev : "";
+  presetSel.hidden = !presets.length;
+  showPresetChoice();
+}
+
+function showPresetChoice() {
+  const p = currentPreset();
+  presetSel.classList.toggle("set", !!p);
+  modelSel.hidden = !!p;
+  effortSel.hidden = !!p;
+}
+
+presetSel.addEventListener("change", () => {
+  store(LAST_PRESET, presetSel.value);
+  showPresetChoice();
+  input.focus();
+});
 
 // ---------- Model & thinking ----------
 
@@ -196,7 +240,7 @@ function renderTargets() {
   if (activeSession) {
     const o = document.createElement("option");
     o.value = "active";
-    o.textContent = `${t("Current")}: ${cleanTitle(activeSession.title) || t("Session")}`.slice(0, 48);
+    o.textContent = `${t("Current")}: ${cleanTitle(activeSession.title) || t("Session")}`.slice(0, 60);
     opts.push(o);
   }
   const gNew = document.createElement("optgroup");
@@ -209,23 +253,31 @@ function renderTargets() {
   }
   opts.push(gNew);
 
-  const recent = [...sessions.entries()]
-    .flatMap(([hostId, list]) => list.slice(0, 6).map((s) => ({ hostId, s })))
+  // pinned sessions (sessionMeta, see src/main/sessionGroups.ts) get their own group, own names win
+  const meta = (hostId: string, path: string) => config?.sessionMeta?.[`${hostId}|${path}`] ?? {};
+  const all = [...sessions.entries()].flatMap(([hostId, list]) => list.map((s) => ({ hostId, s })));
+  const pinned = all.filter(({ hostId, s }) => meta(hostId, s.path).pinned);
+  const recent = all
+    .filter(({ hostId, s }) => !meta(hostId, s.path).pinned)
     .sort((a, b) => (b.s.timestamp > a.s.timestamp ? 1 : -1))
     .slice(0, 10);
-  if (recent.length) {
+  const group = (label: string, list: typeof all) => {
+    if (!list.length) return;
     const g = document.createElement("optgroup");
-    g.label = t("Recent sessions");
-    for (const { hostId, s } of recent) {
+    g.label = label;
+    for (const { hostId, s } of list) {
       const host = config?.hosts.find((h) => h.id === hostId);
       const o = document.createElement("option");
       o.value = `sess|${hostId}|${s.path}`;
-      o.textContent = `${cleanTitle(s.name || s.title).slice(0, 34)} · ${host?.name ?? hostId}`;
+      const name = meta(hostId, s.path).name || s.name || s.title;
+      o.textContent = `${cleanTitle(name).slice(0, 44)} · ${host?.name ?? hostId}`;
       o.title = `${s.title}\n${shortPath(s.cwd)}`;
       g.append(o);
     }
     opts.push(g);
-  }
+  };
+  group(t("Pinned"), pinned);
+  group(t("Recent sessions"), recent);
   target.replaceChildren(...opts);
   const values = [...target.options].map((o) => o.value);
   target.value = values.includes(prev) ? prev : (values.find((v) => v.startsWith("new|")) ?? values[0] ?? "");
@@ -239,7 +291,8 @@ function resolveTarget(): QuickTarget {
   if (kind === "sess") {
     const path = rest.join("|");
     const s = sessions.get(hostId)?.find((x) => x.path === path);
-    return { kind: "session", hostId, path, cwd: s?.cwd ?? "~", title: s?.name || s?.title || "" };
+    const own = config?.sessionMeta?.[`${hostId}|${path}`]?.name;
+    return { kind: "session", hostId, path, cwd: s?.cwd ?? "~", title: own || s?.name || s?.title || "" };
   }
   const host = config?.hosts.find((h) => h.id === hostId);
   return { kind: "new", hostId, cwd: host?.defaultDir || "~" };
@@ -247,6 +300,9 @@ function resolveTarget(): QuickTarget {
 
 async function refresh() {
   config = await api.getConfig();
+  applyTheme(config.ui.theme);
+  showVoiceButtons({ mic: micBtn, improveBtn }, config.voice);
+  renderPresets();
   renderTargets();
   // Load sessions in the background (SSH may take a while)
   for (const h of config.hosts) {
@@ -334,7 +390,8 @@ async function submit() {
     let ocr: string | null = null;
     if (capture && mode !== "image") ocr = await runOcr();
     const images = capture && mode !== "ocr" ? [{ data: capture.data, mimeType: capture.mimeType }] : [];
-    const m = selectedModel();
+    const preset = currentPreset();
+    const m = preset ? null : selectedModel();
     if (m) {
       const key = `${m.provider}/${m.id}`;
       const recent = [key, ...(store(RECENT_MODELS) || "").split("\n").filter((k) => k && k !== key)].slice(0, 5);
@@ -342,8 +399,9 @@ async function submit() {
     }
     const payload: QuickSubmit = {
       target: resolveTarget(),
-      model: m ? { provider: m.provider, id: m.id } : null,
-      thinking: effortSel.value || null,
+      model: preset ? splitModelKey(preset.model) : m ? { provider: m.provider, id: m.id } : null,
+      thinking: (preset ? preset.thinking : effortSel.value) || null,
+      preset: preset?.id ?? null,
       text: text || t("Have a look at the screenshot."),
       images,
       ocr,
@@ -381,6 +439,30 @@ document.addEventListener("keydown", (e) => {
   }
 });
 sendBtn.addEventListener("click", submit);
+
+/** Short error in the hint line of the bar */
+let hintTimer = 0;
+function showError(msg: string) {
+  const hint = document.querySelector<HTMLElement>(".qhint")!;
+  hint.textContent = msg;
+  hint.title = msg;
+  hint.classList.add("err");
+  clearTimeout(hintTimer);
+  hintTimer = window.setTimeout(() => {
+    hint.classList.remove("err");
+    hint.title = "";
+    translateDom(hint.parentElement!);
+  }, 8000);
+}
+
+wireVoice({
+  input,
+  mic: micBtn,
+  improveBtn,
+  config: async () => (await api.getConfig()).voice,
+  onError: showError,
+  onText: fit,
+});
 $("q-shot").addEventListener("click", (e) => takeShot((e as MouseEvent).shiftKey));
 $("q-remove").addEventListener("click", clearAttachment);
 document
@@ -402,11 +484,15 @@ listen<{ hostId: string; path: string | null; title: string } | null>("main-acti
 getCurrentWindow()
   .onFocusChanged(({ payload: focused }) => {
     // An open dropdown (target, model, thinking) briefly takes focus from the window: do not close then
+    // …and the microphone permission prompt or a running recording must not close the bar either
     const selectOpen = () => document.activeElement?.tagName === "SELECT";
-    if (!focused && !busy && !selectOpen())
-      setTimeout(() => !busy && !selectOpen() && !document.hasFocus() && invoke("quick_hide"), 120);
+    const stay = () => busy || selectOpen() || isRecording() || micBtn.classList.contains("busy");
+    if (!focused && !stay()) setTimeout(() => !stay() && !document.hasFocus() && invoke("quick_hide"), 120);
   })
   .catch(() => {});
+
+// Colour scheme changed in the main window
+listen<Theme>("theme-changed", (e) => applyTheme(e.payload));
 
 // Re-render in the new language when it is changed in the main window
 listen("language-changed", () => window.location.reload());
@@ -414,6 +500,7 @@ listen("language-changed", () => window.location.reload());
 api
   .getConfig()
   .then((cfg) => {
+    applyTheme(cfg.ui.theme);
     setLang(cfg.ui.language);
     translateDom();
   })
