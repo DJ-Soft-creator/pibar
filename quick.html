@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PiBar Quick</title>
+  </head>
+  <body class="quick-body">
+    <div class="qbar" id="qbar" data-tauri-drag-region>
+      <div class="qrow" data-tauri-drag-region>
+        <span class="qlogo" data-tauri-drag-region data-i18n-title="Drag at π or the edge to move">π</span>
+        <textarea id="q-input" rows="1" data-i18n-placeholder="What should Pi do?"></textarea>
+        <button id="q-shot" class="qicon" data-i18n-title="Screenshot: drag an area (⌘⇧2) · ⇧-click: whole screen">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4">
+            <path
+              d="M2 6V3.5A1.5 1.5 0 0 1 3.5 2H6M12 2h2.5A1.5 1.5 0 0 1 16 3.5V6M16 12v2.5a1.5 1.5 0 0 1-1.5 1.5H12M6 16H3.5A1.5 1.5 0 0 1 2 14.5V12"
+            />
+            <circle cx="9" cy="9" r="2.6" />
+          </svg>
+        </button>
+        <select id="q-target" class="qtarget" data-i18n-title="Where does the message go?"></select>
+        <button id="q-send" class="qsend" data-i18n-title="Send (Enter)">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 15V3M4 8l5-5 5 5" />
+          </svg>
+        </button>
+      </div>
+      <div class="qattach" id="q-attach" hidden>
+        <img id="q-thumb" alt="Screenshot" />
+        <div class="qattach-main">
+          <div class="qseg" id="q-mode">
+            <button
+              data-mode="image"
+              class="active"
+              data-i18n-title="Send the screenshot as an image"
+              data-i18n="Image"
+            >
+              Image
+            </button>
+            <button data-mode="ocr" data-i18n-title="Send only the recognised text" data-i18n="Text (OCR)">
+              Text (OCR)
+            </button>
+            <button data-mode="both" data-i18n-title="Image and recognised text" data-i18n="Both">Both</button>
+          </div>
+          <div class="qocr" id="q-ocr"></div>
+        </div>
+        <button id="q-remove" class="qicon" data-i18n-title="Remove screenshot">×</button>
+      </div>
+      <div class="qfoot" data-tauri-drag-region data-i18n-title="Drag at π or the edge to move">
+        <span
+          class="qhint"
+          data-tauri-drag-region
+          data-i18n="Enter send · ⇧Enter new line · Esc close · ⌘⇧2 screenshot"
+        ></span>
+        <select id="q-model" class="qmini" data-i18n-title="Model"></select>
+        <select id="q-effort" class="qmini" data-i18n-title="Thinking level"></select>
+      </div>
+    </div>
+    <script type="module" src="/src/quick/index.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PiBar</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="toolbar">
+        <div class="brand">
+          <span class="logo">π</span> PiBar
+          <button
+            class="icon-btn panel-btn"
+            id="tg-left"
+            data-i18n-title="Show/hide sessions (⌘B)"
+            title="Show/hide sessions (⌘B)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+              <line x1="6" y1="2.5" x2="6" y2="13.5" />
+            </svg>
+          </button>
+        </div>
+        <div class="tb-session" id="tb-session" data-i18n="No session">No session</div>
+        <div class="tb-controls">
+          <label class="tb-field" data-i18n-title="Model of this session" title="Model of this session">
+            <span data-i18n="Model">Model</span>
+            <select id="sel-model" disabled></select>
+          </label>
+          <label
+            class="tb-field"
+            data-i18n-title="Thinking level of this session"
+            title="Thinking level of this session"
+          >
+            <span data-i18n="Thinking">Thinking</span>
+            <select id="sel-thinking" disabled></select>
+          </label>
+          <button class="toggle" id="tg-tools" data-i18n-title="Show/hide tool calls" data-i18n="Tools">Tools</button>
+          <button class="toggle" id="tg-thinking" data-i18n-title="Show/hide thinking" data-i18n="Thoughts">
+            Thoughts
+          </button>
+          <span class="usage" id="usage" data-i18n-title="Tokens / cost of this session"></span>
+          <button class="icon-btn panel-btn" id="tg-right" data-i18n-title="Show/hide folders and files (⌥⌘B)">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+              <line x1="10" y1="2.5" x2="10" y2="13.5" />
+            </svg>
+          </button>
+          <button class="icon-btn" id="btn-settings" data-i18n-title="Settings">⚙</button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="pane-head">
+          <span data-i18n="Sessions">Sessions</span>
+          <span>
+            <button class="icon-btn" id="btn-refresh" data-i18n-title="Reload all">↻</button>
+            <button class="icon-btn" id="btn-new" data-i18n-title="New session (⌘N)">＋</button>
+          </span>
+        </div>
+        <div id="host-tabs" class="host-tabs"></div>
+        <div id="reminders" class="reminders" hidden></div>
+        <div id="host-list" class="host-list"></div>
+      </aside>
+
+      <main class="chat">
+        <div id="chat-scroll" class="chat-scroll">
+          <div id="empty" class="empty">
+            <div class="empty-logo">π</div>
+            <h2 data-i18n="Welcome to PiBar">Welcome to PiBar</h2>
+            <p data-i18n="Open a session on the left or start a new one.">
+              Open a session on the left or start a new one.
+            </p>
+            <button class="primary" id="btn-new-empty" data-i18n="New session">New session</button>
+          </div>
+        </div>
+        <form id="composer" class="composer">
+          <textarea
+            id="input"
+            rows="1"
+            data-i18n-placeholder="Message to Pi …  (Enter to send, Shift+Enter for a new line)"
+            disabled
+          ></textarea>
+          <div class="composer-actions">
+            <button type="button" id="btn-stop" class="danger" hidden data-i18n="Stop">Stop</button>
+            <button type="submit" id="btn-send" class="primary" disabled data-i18n="Send">Send</button>
+          </div>
+        </form>
+      </main>
+
+      <aside class="files">
+        <div class="pane-head">
+          <span data-i18n="Session folders">Session folders</span>
+          <button class="icon-btn" id="btn-add-folder" data-i18n-title="Add folder" disabled>＋</button>
+        </div>
+        <div id="file-tree" class="file-tree">
+          <p class="muted pad" data-i18n="No session open.">No session open.</p>
+        </div>
+        <div id="editor" class="editor" hidden>
+          <div class="editor-head">
+            <span id="editor-name" class="editor-name"></span>
+            <div class="seg">
+              <button id="ed-edit" class="seg-btn active" data-i18n="Edit">Edit</button>
+              <button id="ed-preview" class="seg-btn" data-i18n="Preview">Preview</button>
+            </div>
+            <button id="ed-save" class="primary small" disabled data-i18n="Save">Save</button>
+            <button id="ed-close" class="icon-btn" data-i18n-title="Close">×</button>
+          </div>
+          <textarea id="ed-text" class="ed-text" spellcheck="false"></textarea>
+          <div id="ed-render" class="ed-render md" hidden></div>
+        </div>
+      </aside>
+    </div>
+
+    <div id="modal-root"></div>
+    <div id="toasts" class="toasts"></div>
+    <script type="module" src="/src/main/index.ts"></script>
+  </body>
+</html>

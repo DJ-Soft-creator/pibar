@@ -1,0 +1,245 @@
+:root {
+  --q-bg: rgba(255, 255, 255, 0.97);
+  --q-border: rgba(0, 0, 0, 0.1);
+  --q-text: #1c1b19;
+  --q-muted: #8a8780;
+  --q-hover: rgba(0, 0, 0, 0.05);
+  --q-accent: #3563d9;
+  --q-seg: #efeeea;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --q-bg: rgba(38, 38, 42, 0.97);
+    --q-border: rgba(255, 255, 255, 0.12);
+    --q-text: #ebeae6;
+    --q-muted: #9b9a95;
+    --q-hover: rgba(255, 255, 255, 0.07);
+    --q-accent: #7a9cf5;
+    --q-seg: #333338;
+    color-scheme: dark;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+html,
+body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+body {
+  font:
+    15px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Inter",
+    sans-serif;
+  color: var(--q-text);
+  padding: 10px 14px 18px;
+}
+button,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.qbar {
+  background: var(--q-bg);
+  border: 1px solid var(--q-border);
+  border-radius: 18px;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.22),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 10px 12px 6px 14px;
+}
+.qrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.qlogo {
+  cursor: grab;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #1f2a44;
+  color: #f4c95d;
+  font-weight: 700;
+  font-size: 20px;
+}
+#q-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font-size: 19px;
+  line-height: 1.35;
+  max-height: 160px;
+  padding: 4px 0;
+}
+#q-input::placeholder {
+  color: var(--q-muted);
+}
+.qicon {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--q-muted);
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  font-size: 18px;
+}
+.qicon:hover {
+  background: var(--q-hover);
+  color: var(--q-text);
+}
+.qicon.on {
+  color: var(--q-accent);
+}
+.qtarget {
+  flex: none;
+  max-width: 220px;
+  border: none;
+  background: transparent;
+  color: var(--q-muted);
+  padding: 6px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.qtarget:hover {
+  background: var(--q-hover);
+  color: var(--q-text);
+}
+.qsend {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  background: var(--q-accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+.qsend:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.qattach {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 2px 44px;
+  padding: 8px;
+  border: 1px solid var(--q-border);
+  border-radius: 12px;
+}
+#q-thumb {
+  width: 72px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--q-border);
+}
+.qattach-main {
+  flex: 1;
+  min-width: 0;
+}
+.qseg {
+  display: inline-flex;
+  background: var(--q-seg);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.qseg button {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: var(--q-muted);
+  cursor: pointer;
+}
+.qseg button.active {
+  background: var(--q-bg);
+  color: var(--q-text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.qocr {
+  font-size: 12px;
+  color: var(--q-muted);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qfoot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 0 44px;
+}
+.qhint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--q-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qbar,
+.qhint,
+.qfoot {
+  cursor: default;
+}
+.qmini {
+  flex: none;
+  max-width: 190px;
+  border: none;
+  background: transparent;
+  color: var(--q-muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.qmini:hover,
+.qmini:focus {
+  background: var(--q-hover);
+  color: var(--q-text);
+  outline: none;
+}
+.qmini.set {
+  color: var(--q-accent);
+}
+.qmini:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+[data-tauri-drag-region] {
+  -webkit-user-select: none;
+  user-select: none;
+}
