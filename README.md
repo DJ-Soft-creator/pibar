@@ -4,7 +4,8 @@ Desktop GUI for the [Pi coding agent](https://pi.dev): sessions on the left, cha
 right, plus a quick bar you open from anywhere with a double tap.
 Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 
-[Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT License
+**Version 1.4.0** · [Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT
+License
 
 > Status: prototype. macOS is the main target; Linux and Windows build, but double tap, area screenshots and OCR are
 > macOS only so far.

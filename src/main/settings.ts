@@ -1,4 +1,5 @@
 // Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets and hosts.
+import { getVersion } from "@tauri-apps/api/app";
 import { emit } from "@tauri-apps/api/event";
 import { api, DoubleTapStatus, HostCfg, ModelPreset, Theme } from "../shared/api";
 import { h, errMsg, openModal, toast } from "../shared/dom";
@@ -266,6 +267,11 @@ export function settingsDialog() {
   showTapStatus();
   tapSel.addEventListener("change", showTapStatus);
 
+  const version = h("p", { class: "app-version" }, "PiBar");
+  getVersion()
+    .then((v) => (version.textContent = `PiBar ${v}`))
+    .catch(() => {});
+
   const presets = presetEditor();
   const voice = voiceEditor();
 
@@ -349,6 +355,7 @@ export function settingsDialog() {
       ),
       list,
       h("button", { class: "ghost", onclick: add }, t("+ Add host")),
+      version,
     ),
     [
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
