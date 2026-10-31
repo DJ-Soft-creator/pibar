@@ -134,7 +134,7 @@ npm install
 npm run app:install
 ```
 
-`app:install` builds the release version, quits a running PiBar, copies `PiBar.app` to `/Applications` and starts it.
+`app:install` installs the dependencies, builds the release version, quits a running PiBar, copies `PiBar.app` to `/Applications` and starts it.
 Run it again after `git pull` to update. Settings, hosts and groups stay (they live in the app's config folder).
 macOS asks once more for microphone, screen recording and input monitoring, now for PiBar itself instead of the
 terminal. To start PiBar at login: System Settings → General → Login Items → add PiBar.

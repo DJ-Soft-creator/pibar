@@ -4,6 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "› Installing / updating dependencies …"
+npm install --no-audit --no-fund
+
 echo "› Building release app (first time takes a few minutes) …"
 npm run tauri build -- --bundles app
 
