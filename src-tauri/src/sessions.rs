@@ -1,8 +1,9 @@
-//! Read a host's session list from Pi's session folder (~/.pi/agent/sessions).
+//! Read a host's session list from Pi's session folder (~/.pi/agent/sessions) and delete session files.
 //! Pi has no list command itself, but the files are plain JSONL.
 
 use crate::config::HostCfg;
-use crate::hostexec;
+use crate::hostexec::{self, sq};
+use crate::i18n::tr;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -83,9 +84,39 @@ pub fn list(host: &HostCfg) -> Result<Vec<SessionInfo>, String> {
     Ok(result)
 }
 
+/// Only Pi session files may be deleted: "…/sessions/…/<name>.jsonl", absolute, without "..".
+pub fn is_session_file(path: &str) -> bool {
+    path.starts_with('/')
+        && path.ends_with(".jsonl")
+        && path.contains("/sessions/")
+        && !path.split('/').any(|seg| seg == ".." || seg == ".")
+}
+
+/// Delete session files on the host; returns how many paths were handed over
+pub fn delete(host: &HostCfg, paths: &[String]) -> Result<usize, String> {
+    if let Some(bad) = paths.iter().find(|p| !is_session_file(p)) {
+        return Err(tr(format!("Not a Pi session file: {bad}"), format!("Keine Pi-Session-Datei: {bad}")));
+    }
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let args: Vec<String> = paths.iter().map(|p| sq(p)).collect();
+    hostexec::run_shell(host, &format!("rm -f -- {}", args.join(" ")), None)?;
+    Ok(paths.len())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::first_text;
+    use super::{first_text, is_session_file};
+
+    #[test]
+    fn only_session_files_can_be_deleted() {
+        assert!(is_session_file("/home/u/.pi/agent/sessions/--home-u--/2026-10-31_abc.jsonl"));
+        assert!(!is_session_file("/home/u/.pi/agent/sessions/../../.bashrc"));
+        assert!(!is_session_file("/home/u/notes.jsonl"));
+        assert!(!is_session_file("relative/sessions/x.jsonl"));
+        assert!(!is_session_file("/home/u/.pi/agent/sessions/x.md"));
+    }
 
     #[test]
     fn extracts_text() {

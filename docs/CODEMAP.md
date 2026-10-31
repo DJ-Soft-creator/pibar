@@ -61,7 +61,7 @@ flowchart LR
 | [`config.rs`](../src-tauri/src/config.rs) | Settings as JSON in the app config folder | [`AppConfig`](../src-tauri/src/config.rs), [`HostCfg`](../src-tauri/src/config.rs), [`UiPrefs`](../src-tauri/src/config.rs), [`VoiceCfg`](../src-tauri/src/config.rs), [`SessionMeta`](../src-tauri/src/config.rs), [`SessionGroup`](../src-tauri/src/config.rs), [`Reminder`](../src-tauri/src/config.rs), [`ModelPreset`](../src-tauri/src/config.rs), [`load`](../src-tauri/src/config.rs), [`find_host`](../src-tauri/src/config.rs) |
 | [`hostexec.rs`](../src-tauri/src/hostexec.rs) | Shell commands locally or over SSH; quoting | [`run_shell`](../src-tauri/src/hostexec.rs), [`spawn_pi`](../src-tauri/src/hostexec.rs), [`shell_command`](../src-tauri/src/hostexec.rs), [`sq`](../src-tauri/src/hostexec.rs), [`shell_path`](../src-tauri/src/hostexec.rs) |
 | [`pi.rs`](../src-tauri/src/pi.rs) | One Pi process per open session, match RPC responses, forward events | [`PiManager`](../src-tauri/src/pi.rs), [`PiManager::open`](../src-tauri/src/pi.rs), [`PiManager::send`](../src-tauri/src/pi.rs), [`PiManager::close`](../src-tauri/src/pi.rs) |
-| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions` | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs) |
+| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions`; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
 | [`files.rs`](../src-tauri/src/files.rs) | List, read, write and create Markdown files; flag and create missing folders | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs) |
 | [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
@@ -111,6 +111,7 @@ flowchart LR
 | --- | --- |
 | [`dev/fake-pi.mjs`](../dev/fake-pi.mjs) | Fake Pi: simulates streaming, thinking, a tool call, `--list-models` |
 | [`scripts/check-codemap.mjs`](../scripts/check-codemap.mjs) | Checks all code references in the docs |
+| [`scripts/install-mac.sh`](../scripts/install-mac.sh) | `npm run app:install`: build the release app and install it to `/Applications` |
 
 ## Flows
 
@@ -215,7 +216,10 @@ then the rest. The quick bar uses the same names and lists pinned sessions first
 act on all of them via [`setMetaMany`](../src/main/sessionGroups.ts). Rows are draggable
 ([`dragStart`](../src/main/sessionSelect.ts), the whole selection if the row is selected); groups, the "Pinned" heading
 and the drop zones under the list (pin, no group, new group) are [`dropTarget`](../src/main/sessionSelect.ts)s. Empty
-groups only show while dragging. HTML drag & drop needs `dragDropEnabled: false` on the main window
+groups only show while dragging. [`deleteSessionsDialog`](../src/main/sessionGroups.ts) asks with a list of the
+sessions, closes open ones, calls [`sessions::delete`](../src-tauri/src/sessions.rs) and removes names, reminders and
+folders of the deleted sessions; closing several open sessions asks first too
+([`closeSessionsDialog`](../src/main/sessionGroups.ts)). HTML drag & drop needs `dragDropEnabled: false` on the main window
 (`tauri.conf.json`).
 
 ### Voice: dictation, read aloud, text improvement
@@ -247,6 +251,7 @@ A new command needs both.
 | `get_config`, `save_config` | Settings (the quick bar position is managed by Rust only) |
 | `set_language` | Language for messages from Rust and the tray menu |
 | `test_host`, `list_sessions`, `list_models` | Check a host, list sessions and models |
+| `delete_sessions` | Delete session files (paths must lie in Pi's `sessions` folder) |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
 | `list_files`, `read_file`, `write_file`, `create_file`, `create_dir` | Markdown files and folders |
 | `quick_hide`, `quick_resize`, `quick_reset_pos`, `show_main` | Windows |

@@ -43,8 +43,10 @@ Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 - Left column grouped by host (local and SSH); start, open, load history, several sessions in parallel
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
 - **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
-- **Multi-select** with ⌘-click and ⇧-click: move, colour, pin or close several sessions at once (bar at the bottom or
-  right click)
+- **Multi-select** with ⌘-click and ⇧-click: move, colour, pin, close or delete several sessions at once (bar at the
+  bottom or right click)
+- **Delete** sessions (right click, bar or ⌫) after a confirmation listing them; the session files on the host are
+  removed
 - **Reminders**: in 1 h, 3 h, this evening, tomorrow, next week or a custom time, with a note; due reminders show at
   the top left and as a system notification
 - **Close** (× on hover or ⌘W): the Pi process ends, the session file stays
@@ -121,22 +123,31 @@ check that SSH works without a password prompt:
 ssh my-server pi --version
 ```
 
-## Run
+## Install as an app (macOS)
 
 ```bash
 git clone https://github.com/DJ-Soft-creator/pibar.git
 cd pibar
 npm install
+npm run app:install
+```
+
+`app:install` builds the release version, quits a running PiBar, copies `PiBar.app` to `/Applications` and starts it.
+Run it again after `git pull` to update. Settings, hosts and groups stay (they live in the app's config folder).
+macOS asks once more for microphone, screen recording and input monitoring, now for PiBar itself instead of the
+terminal. To start PiBar at login: System Settings → General → Login Items → add PiBar.
+
+Only build without installing: `npm run app:build` (`.app` in `src-tauri/target/release/bundle/macos/`); with a
+`.dmg` as well: `npm run tauri build`.
+
+## Development mode
+
+```bash
 npm run dev:app
 ```
 
-The first start compiles the Rust part and takes a few minutes; after that it is quick.
-
-Build the app (`.app` and `.dmg` in `src-tauri/target/release/bundle/`):
-
-```bash
-npm run tauri build
-```
+Runs from the terminal with live reload of the UI. The first start compiles the Rust part and takes a few minutes.
+Quit the installed app first, otherwise both register the same hotkey.
 
 ## Hosts
 

@@ -218,6 +218,8 @@ export const api = {
   saveConfig: (cfg: AppConfig) => invoke<void>("save_config", { cfg }),
   testHost: (hostId: string) => invoke<string>("test_host", { hostId }),
   listSessions: (hostId: string) => invoke<SessionInfo[]>("list_sessions", { hostId }),
+  /** Delete session files (only paths inside Pi's sessions folder) */
+  deleteSessions: (hostId: string, paths: string[]) => invoke<number>("delete_sessions", { hostId, paths }),
   piOpen: (hostId: string, cwd: string, sessionPath?: string) =>
     invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),

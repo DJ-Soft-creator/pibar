@@ -291,6 +291,7 @@ function sessionItem(ref: SessionRef, ts: string) {
       tabindex: 0,
       title: `${cleanTitle(title)}\n${cwd}`,
       draggable: path ? "true" : undefined,
+      "data-key": path ? key : undefined,
       ondragstart: (e: DragEvent) => path && dragStart(e, key),
       onclick: (e: MouseEvent) => {
         if (path && selectClick(e, key)) return;

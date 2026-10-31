@@ -1,7 +1,7 @@
 {
   "name": "pibar",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Desktop GUI for the Pi coding agent",
   "license": "MIT",
   "repository": {
@@ -14,6 +14,8 @@
     "build": "tsc && vite build",
     "tauri": "tauri",
     "dev:app": "tauri dev",
+    "app:build": "tauri build --bundles app",
+    "app:install": "bash scripts/install-mac.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

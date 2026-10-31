@@ -23,8 +23,12 @@ pub fn shell_path(p: &str) -> String {
     }
 }
 
+/// Shell of the user. Apps started from the Finder may lack $SHELL: then zsh (macOS default) or sh.
 fn login_shell() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into())
+    std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/sh" }.into())
 }
 
 fn ssh_command(h: &HostCfg) -> Command {

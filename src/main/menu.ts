@@ -12,6 +12,8 @@ export interface MenuItem {
   selected?: boolean;
   /** Colour dot in front of the label (groups) */
   color?: string;
+  /** Destructive action (shown in red) */
+  danger?: boolean;
   onSelect: () => void;
 }
 
@@ -88,7 +90,7 @@ function item(it: MenuItem): HTMLElement {
     {
       type: "button",
       role: "menuitem",
-      class: `menu-item ${it.selected ? "sel" : ""}`,
+      class: `menu-item ${it.selected ? "sel" : ""} ${it.danger ? "danger" : ""}`,
       onclick: () => {
         closeMenu();
         it.onSelect();
