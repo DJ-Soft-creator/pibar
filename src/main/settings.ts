@@ -6,7 +6,7 @@ import { h, errMsg, openModal, toast } from "../shared/dom";
 import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t } from "../shared/i18n";
 import { cleanPresets } from "../shared/presets";
-import { applyUiPrefs, renderToolbar, setTheme } from "./chatView";
+import { applyUiPrefs, defaultLabel, renderToolbar, setTheme } from "./chatView";
 import { renderFiles } from "./files";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
@@ -235,6 +235,29 @@ export function settingsDialog() {
     h("option", { value: "dark", selected: curTheme === "dark" }, t("Dark")),
   ) as HTMLSelectElement;
 
+  // Default for new sessions: Pi's default, a preset, the current default model or the active session's model
+  const ui0 = state.config.ui;
+  const curDefault = ui0.defaultPreset
+    ? `preset:${ui0.defaultPreset}`
+    : ui0.defaultModel
+      ? `model:${ui0.defaultModel}|${ui0.defaultThinking ?? ""}`
+      : "";
+  const act = state.active;
+  const actKey = act?.model ? `model:${act.model.provider}/${act.model.id}|${act.thinkingLevel}` : "";
+  const defOpts: [string, string][] = [["", t("Pi's default")]];
+  for (const p of state.config.presets ?? []) defOpts.push([`preset:${p.id}`, `${t("Preset")}: ${p.name}`]);
+  if (curDefault.startsWith("model:")) defOpts.push([curDefault, defaultLabel()]);
+  if (actKey && actKey !== curDefault)
+    defOpts.push([
+      actKey,
+      `${t("Current session")}: ${act!.model!.provider}/${act!.model!.id} · ${thinkingLabel(act!.thinkingLevel)}`,
+    ]);
+  const defaultSel = h(
+    "select",
+    {},
+    ...defOpts.map(([v, l]) => h("option", { value: v, selected: v === curDefault }, l)),
+  ) as HTMLSelectElement;
+
   const showGit = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.showGit,
@@ -293,6 +316,11 @@ export function settingsDialog() {
     const langChanged = (state.config.ui.language || "auto") !== lang.value;
     state.config.ui.language = lang.value;
     if (theme.value !== curTheme) setTheme(theme.value as Theme);
+    const d = defaultSel.value;
+    state.config.ui.defaultPreset = d.startsWith("preset:") ? d.slice(7) : "";
+    const [dm, dt] = d.startsWith("model:") ? d.slice(6).split("|") : ["", ""];
+    state.config.ui.defaultModel = dm;
+    state.config.ui.defaultThinking = dt ?? "";
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
     await saveConfig();
@@ -317,6 +345,12 @@ export function settingsDialog() {
       h("h4", { class: "set-head" }, t("General")),
       h("div", { class: "row" }, h("label", {}, t("Language")), lang),
       h("div", { class: "row" }, h("label", {}, t("Colour scheme")), theme),
+      h("div", { class: "row" }, h("label", {}, t("Default model")), defaultSel),
+      h(
+        "p",
+        { class: "hint" },
+        t("Model and thinking level for new sessions. Tip: the star in the header sets the current session's choice."),
+      ),
       h(
         "div",
         { class: "row" },

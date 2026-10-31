@@ -27,6 +27,11 @@ MIT-Lizenz
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
 - **Skills und Befehle**: `/` in der Eingabe tippen (oder auf `/` klicken) zeigt Skills, Prompt-Vorlagen und
   Erweiterungsbefehle der Session
+- **Frühere Nachrichten**: unter jeder eigenen Nachricht – _bearbeiten und neu senden_ oder _ab hier neu ausführen_
+  (beides startet ab dieser Stelle eine neue Verzweigung; die ursprüngliche Session bleibt unverändert), _als neue
+  Nachricht übernehmen_ oder _kopieren_
+- **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der
+  aktuellen Session) oder Einstellungen → Allgemein
 - **Token-Statistik**: Tokens, Kosten und Geschwindigkeit in der Kopfzeile; beim Überfahren Ein-/Ausgabe-/Cache-Tokens,
   Tokens pro Sekunde, Zeit bis zum ersten Token und Kontextbelegung
 
@@ -100,6 +105,9 @@ Schlüssel wird über stdin übergeben, nicht auf der Kommandozeile.
 
 ## macOS-Rechte
 
+- **Lokales Netzwerk**: nötig, wenn Pi einen Modellserver oder Host im eigenen Netz anspricht. Kommt nach der
+  Installation der App „Connection error“: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar
+  einschalten, dann PiBar neu starten.
 - **Mikrofon** (Diktieren): macOS fragt bei der ersten Aufnahme. Systemeinstellungen → Datenschutz & Sicherheit →
   Mikrofon.
 - **Bildschirmaufnahme**: macOS fragt beim ersten Screenshot. Im Entwicklungsmodus gilt die Freigabe für das Terminal,

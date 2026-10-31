@@ -27,6 +27,10 @@ License
 - **Answer style** (header): short, normal, or as short as possible with technical details
 - **Skills and commands**: type `/` in the input (or click `/`) for the session's skills, prompt templates and
   extension commands
+- **Earlier messages**: under each own message – _edit and resend_ or _run again from here_ (both start a new
+  branch from that point; the original session stays as it is), _use as new message_ or _copy_
+- **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
+  preset) or Settings → General
 - **Token statistics**: tokens, cost and speed in the header; hover for input/output/cache tokens, tokens per second,
   time to first token and context use
 
@@ -95,6 +99,9 @@ the key is passed on stdin, not on the command line.
 
 ## macOS permissions
 
+- **Local Network**: needed when Pi talks to a model server or host in your network. If chats fail with
+  "Connection error" after installing the app: System Settings → Privacy & Security → Local Network → enable PiBar,
+  then restart PiBar.
 - **Microphone** (dictation): macOS asks on the first recording. System Settings → Privacy & Security → Microphone.
 - **Screen Recording**: macOS asks on the first screenshot. In development mode the permission belongs to the terminal
   you start `npm run dev:app` from. System Settings → Privacy & Security → Screen Recording.

@@ -4,5 +4,7 @@
   <dict>
     <key>NSMicrophoneUsageDescription</key>
     <string>PiBar records your voice for dictation (speech to text).</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>PiBar starts Pi, which talks to model servers and hosts in your local network.</string>
   </dict>
 </plist>

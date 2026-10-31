@@ -131,7 +131,12 @@ function renderModels() {
     o.textContent = label;
     return o;
   };
-  const opts: HTMLElement[] = [opt("", t("Model: default"))];
+  // "default" = PiBar's default for new sessions (Settings) if set, otherwise Pi's own
+  const ui = config?.ui;
+  const defPreset = config?.presets?.find((p) => p.id === ui?.defaultPreset);
+  const defName =
+    defPreset?.name ?? (ui?.defaultModel ? shortModel(ui.defaultModel.split("/").slice(1).join("/")) : "");
+  const opts: HTMLElement[] = [opt("", defName ? `${t("Model: default")} (${defName})` : t("Model: default"))];
   if (entry === "loading") opts.push(opt("", t("Loading models …")));
   if (Array.isArray(entry)) {
     const keys = new Set(entry.map((m) => `${m.provider}/${m.id}`));

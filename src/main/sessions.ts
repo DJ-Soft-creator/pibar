@@ -1,10 +1,11 @@
 // Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
 import { api } from "../shared/api";
-import { $, h, errMsg, openModal } from "../shared/dom";
+import { $, h, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
-import { cleanTitle, relTime, shortPath } from "../shared/format";
+import { cleanTitle, relTime, shortPath, splitScreenText, stripAnswerStyle } from "../shared/format";
+import { splitModelKey } from "../shared/presets";
 import { t } from "../shared/i18n";
-import { renderToolbar, showEmpty, showTab } from "./chatView";
+import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, renderFiles } from "./files";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
@@ -28,7 +29,7 @@ import {
   selectClick,
   selection,
 } from "./sessionSelect";
-import { SessionTab, TabCallbacks } from "./sessionTab";
+import { SessionTab, TabCallbacks, UserAction } from "./sessionTab";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
 
@@ -326,9 +327,81 @@ function sessionItem(ref: SessionRef, ts: string) {
   );
 }
 
+// ---------- Earlier own messages: edit, run again, reuse, copy ----------
+
+const norm = (s: string) => stripAnswerStyle(splitScreenText(s).text).replace(/\s+/g, " ").trim();
+
+/** A session got a new key (forked or saved for the first time): move it in the maps and carry its settings over */
+function rekey(tab: SessionTab, before: string, inherit = false) {
+  if (tab.key === before) return;
+  state.tabs.delete(before);
+  state.tabs.set(tab.key, tab);
+  const folders = state.config.sessionFolders[before];
+  if (folders) state.config.sessionFolders[tab.key] = [...folders];
+  if (!inherit) delete state.config.sessionFolders[before];
+  // a branch stays in the same group with the same colour
+  const m = inherit && tab.sessionPath ? state.config.sessionMeta?.[before] : undefined;
+  if (m && (m.group || m.color)) (state.config.sessionMeta ??= {})[tab.key] = { group: m.group, color: m.color };
+  saveConfig();
+}
+
+async function onUserAction(tab: SessionTab, index: number, action: UserAction, shown: string) {
+  if (action === "copy") {
+    await navigator.clipboard.writeText(shown).then(
+      () => toast(t("Copied")),
+      (e) => toast(errMsg(e), "err"),
+    );
+    return;
+  }
+  if (action === "reuse") return fillInput(shown);
+  if (!tab.alive) return toast(t("This session is not running."), "err");
+  if (tab.streaming) return toast(t("Pi is still working – stop it first or wait."), "err");
+  try {
+    // Pi's list of fork points = user messages of this branch; match by position, otherwise by text
+    const points = await tab.forkPoints();
+    let p = points[index];
+    if (!p || norm(p.text) !== norm(shown)) p = points.find((x) => norm(x.text) === norm(shown)) ?? p;
+    if (!p) throw new Error(t("This message cannot be branched from."));
+    const before = tab.key;
+    const text = await tab.forkAt(p.entryId);
+    if (text === null) return;
+    rekey(tab, before, true);
+    loadSessions(tab.hostId);
+    renderHosts();
+    renderToolbar();
+    const msg = stripAnswerStyle(text) || shown;
+    if (action === "edit") {
+      fillInput(msg);
+      toast(t("New branch – edit the message and send it. The original session stays unchanged."));
+    } else {
+      await tab.send(msg);
+    }
+  } catch (e) {
+    toast(`${t("Branch")}: ${errMsg(e)}`, "err");
+  }
+}
+
+// ---------- Default model for new sessions ----------
+
+/** Settings → default model: apply to a new session right after its start */
+async function applyDefaults(tab: SessionTab) {
+  const ui = state.config.ui;
+  const preset = (state.config.presets ?? []).find((p) => p.id === ui.defaultPreset);
+  const model = splitModelKey(preset?.model || ui.defaultModel || "");
+  const thinking = preset?.thinking || ui.defaultThinking || "";
+  try {
+    if (model) await tab.setModel(model.provider, model.id);
+    if (thinking) await tab.setThinking(thinking);
+    if (preset) tab.presetId = preset.id;
+  } catch (e) {
+    toast(`${t("Default model")}: ${errMsg(e)}`, "err");
+  }
+}
+
 // ---------- Opening and closing ----------
 
 const tabCallbacks: TabCallbacks = {
+  onUserAction: (tab, index, action, text) => void onUserAction(tab, index, action, text),
   onHandle: (x) => {
     state.tabsByHandle.set(x.handle, x);
   },
@@ -343,17 +416,8 @@ const tabCallbacks: TabCallbacks = {
     } catch {
       /* process may have ended */
     }
-    if (x.key !== before) {
-      // a new session got saved: move key and extra folders to the session file path
-      state.tabs.delete(before);
-      state.tabs.set(x.key, x);
-      const folders = state.config.sessionFolders[before];
-      if (folders) {
-        state.config.sessionFolders[x.key] = folders;
-        delete state.config.sessionFolders[before];
-        saveConfig();
-      }
-    }
+    // a new session got saved: move key and extra folders to the session file path
+    rekey(x, before);
     await loadSessions(x.hostId);
     const info = state.sessionsByHost.get(x.hostId)?.find((s) => s.path === x.sessionPath);
     if (info && (x.title === t("New session") || !x.title)) x.title = info.name || info.title;
@@ -373,6 +437,7 @@ export async function openSession(
   activate(tab);
   try {
     await tab.start(tabCallbacks.onHandle);
+    if (!path) await applyDefaults(tab);
   } catch (e) {
     // If Pi exits right away, onExit shows the exact message (stderr)
     if (tab.alive) await new Promise((r) => setTimeout(r, 300));

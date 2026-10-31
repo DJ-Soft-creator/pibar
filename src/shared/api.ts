@@ -126,6 +126,10 @@ export interface AppConfig {
     filesSplit?: number | null;
     /** Git status in the file tree */
     showGit?: boolean;
+    /** Default for new sessions: preset id, or model "<provider>/<id>" plus thinking level ("" = Pi's default) */
+    defaultPreset?: string;
+    defaultModel?: string;
+    defaultThinking?: string;
   };
 }
 
