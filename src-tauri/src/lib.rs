@@ -113,9 +113,11 @@ async fn list_files(
     app: AppHandle,
     host_id: String,
     folders: Vec<String>,
+    git: Option<bool>,
 ) -> Result<Vec<files::FolderListing>, String> {
     let host = config::find_host(&app, &host_id)?;
-    tauri::async_runtime::spawn_blocking(move || files::list(&host, &folders)).await.map_err(|e| e.to_string())
+    let git = git.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || files::list(&host, &folders, git)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]

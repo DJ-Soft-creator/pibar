@@ -6,6 +6,7 @@ import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t } from "../shared/i18n";
 import { cleanPresets } from "../shared/presets";
 import { applyUiPrefs, renderToolbar, setTheme } from "./chatView";
+import { renderFiles } from "./files";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 import { voiceEditor } from "./voiceSettings";
@@ -233,6 +234,12 @@ export function settingsDialog() {
     h("option", { value: "dark", selected: curTheme === "dark" }, t("Dark")),
   ) as HTMLSelectElement;
 
+  const showGit = h("input", {
+    type: "checkbox",
+    checked: !!state.config.ui.showGit,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
   const hotkey = h("input", {
     type: "text",
     value: state.config.ui.quickHotkey || "Alt+Shift+Space",
@@ -280,6 +287,8 @@ export function settingsDialog() {
     const langChanged = (state.config.ui.language || "auto") !== lang.value;
     state.config.ui.language = lang.value;
     if (theme.value !== curTheme) setTheme(theme.value as Theme);
+    const gitChanged = !!state.config.ui.showGit !== showGit.checked;
+    state.config.ui.showGit = showGit.checked;
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -287,6 +296,7 @@ export function settingsDialog() {
       await emit("language-changed").catch(() => {});
       return window.location.reload();
     }
+    if (gitChanged) renderFiles();
     renderHosts();
     applyUiPrefs();
     renderToolbar();
@@ -301,6 +311,12 @@ export function settingsDialog() {
       h("h4", { class: "set-head" }, t("General")),
       h("div", { class: "row" }, h("label", {}, t("Language")), lang),
       h("div", { class: "row" }, h("label", {}, t("Colour scheme")), theme),
+      h(
+        "div",
+        { class: "row" },
+        h("label", {}, "Git"),
+        h("label", { class: "check" }, showGit, ` ${t("Show Git status in the file tree")}`),
+      ),
       h("h4", { class: "set-head" }, t("Quick launcher")),
       h("div", { class: "row" }, h("label", {}, t("Double tap")), tapSel),
       tapStatus,
