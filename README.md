@@ -9,34 +9,85 @@ Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 > Status: prototype. macOS is the main target; Linux and Windows build, but double tap, area screenshots and OCR are
 > macOS only so far.
 
+## Screenshots
+
+![Main window: sessions in coloured groups, chat, file tree with editor](docs/screenshots/main-window.jpg)
+
+![Quick bar: opens anywhere with a double tap](docs/screenshots/quick-bar.jpg)
+
 ## Features
 
-- Chat with Pi, streamed live, Markdown and code highlighting
-- Choose model and thinking level (Pi stores both per session)
-- Tool calls and thinking as collapsible cards, can be hidden in the toolbar
-- Stop and steer while Pi is working
-- Sessions on the left, grouped by host: start, open, load history, several in parallel
-- **Close sessions** (× on hover or ⌘W); the Pi process ends, the session file stays
-- **Reminders**: ⏰ on a session → in 1 h, 3 h, this evening, tomorrow, next week or a custom time, with a note.
-  Due reminders show at the top left and as a system notification; a click reopens the session
-- Hosts: local and over SSH (uses `~/.ssh/config` and the ssh-agent)
-- Right: folders of the session; create, read, edit, preview and save `.md` files (⌘S)
-- Tokens and cost per session in the header
-- Collapsible side panels: header buttons, ⌘B (left), ⌥⌘B (right)
-- Host switcher at the top left: "All / Local / other hosts"; hosts collapsible in "All"
-- **Quick bar**: double tap ⌥⌥ (macOS, key selectable) or shortcut ⌥⇧Space (changeable in ⚙), floating bar
-  - Target: current session, new session on a host or one of the recent sessions
-  - Model and thinking level, minimal
-  - Screenshot: camera icon or ⌘⇧2 = drag an area, ⇧-click = whole screen
-  - Send the screenshot as **image**, **text (OCR)** or **both**
-  - Movable; the position is remembered
-- Menu bar icon: open PiBar, quick bar, quit. Closing the window hides it; the hotkey stays active
-- **Languages**: English and German, automatic from the system language or set in ⚙
+### Chat
+
+- Chat with Pi, streamed live, Markdown and code highlighting; stop and steer while Pi is working
+- Model and thinking level per session, or a saved preset for both
+- **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
+  or _Debug_ (cards open, tool output live)
+- **Answer style** (header): short, normal, or as short as possible with technical details
+- **Skills and commands**: type `/` in the input (or click `/`) for the session's skills, prompt templates and
+  extension commands
+- **Token statistics**: tokens, cost and speed in the header; hover for input/output/cache tokens, tokens per second,
+  time to first token and context use
+
+### Voice
+
+- **Dictate** with the microphone button in the main window and the quick bar: OpenAI-compatible API (OpenAI, Groq,
+  local whisper servers) or a local command such as whisper.cpp
+- **Improve text** with a second LLM and your own prompt (OpenAI-compatible: OpenAI, Ollama, LM Studio …), by button
+  or automatically after dictation
+- **Read aloud**: speaker button on every answer, system voice or API; optionally automatic for all answers or only
+  for answers to quick bar messages
+
+### Sessions
+
+- Left column grouped by host (local and SSH); start, open, load history, several sessions in parallel
+- **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
+- **Reminders**: in 1 h, 3 h, this evening, tomorrow, next week or a custom time, with a note; due reminders show at
+  the top left and as a system notification
+- **Close** (× on hover or ⌘W): the Pi process ends, the session file stays
+- Host switcher "All / Local / other hosts"
+
+### Files
+
+- Right column: the session's folders as a tree; create files and folders (`+`), read, edit, preview and save `.md`
+  files (⌘S)
+- Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
+
+### Layout
+
+- Light, dark or automatic colour scheme
+- Side panels: resize by dragging the edge (double click: default width), hide with ⌘B / ⌥⌘B
+- Works in half a screen: in narrow windows the side panels float over the chat
+- Menu bar icon: open PiBar, quick bar, quit; closing the window hides it, the hotkey stays active
+- English and German, automatic from the system language or set in the settings
+
+### Quick bar
+
+- Double tap ⌥⌥ (macOS, key selectable) or shortcut ⌥⇧Space (changeable in the settings)
+- Wide input line; target below: current session, new session on a host, pinned or recent sessions
+- Preset or model and thinking level, minimal
+- Microphone and "improve" buttons (when set up in the settings)
+- Screenshot: camera icon or ⌘⇧2 = drag an area, ⇧-click = whole screen; send as **image**, **text (OCR)** or **both**
+- Movable; the position is remembered
 
 Not yet: short answers directly in the bar, J-Tracker, herdr.
 
-### macOS permissions for the quick bar
+## Voice settings
 
+Gear icon → **Voice**. Every part is optional.
+
+| Part | Choices |
+| --- | --- |
+| Dictation | Off · OpenAI-compatible API (base URL, key, model e.g. `whisper-1`, language) · local command with `{file}` |
+| Read aloud | System voice (optional voice name) · OpenAI-compatible API (model e.g. `gpt-4o-mini-tts`, voice) |
+| Text improvement | Base URL, key, model and prompt (empty = built-in prompt); "improve automatically after dictation" |
+
+API keys are stored only in the local settings file of the app, never in the repository. Requests go through `curl`;
+the key is passed on stdin, not on the command line.
+
+## macOS permissions
+
+- **Microphone** (dictation): macOS asks on the first recording. System Settings → Privacy & Security → Microphone.
 - **Screen Recording**: macOS asks on the first screenshot. In development mode the permission belongs to the terminal
   you start `npm run dev:app` from. System Settings → Privacy & Security → Screen Recording.
 - **Input Monitoring** (for the double tap): macOS asks on first start. In development mode it belongs to the terminal.

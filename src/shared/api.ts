@@ -28,10 +28,80 @@ export interface Reminder {
   fired: boolean;
 }
 
+/** Saved combination of model and thinking level; empty fields keep the session's value */
+export interface ModelPreset {
+  id: string;
+  name: string;
+  /** "<provider>/<model id>" */
+  model: string;
+  /** Pi thinking level, e.g. "high" */
+  thinking: string;
+}
+
+export type Theme = "auto" | "light" | "dark";
+/** natural: text only · technical: collapsed thinking/tool cards · debug: cards open, live */
+export type ChatMode = "natural" | "technical" | "debug";
+/** short: brief answers · normal: no hint · technical: as short as possible but with technical details */
+export type AnswerMode = "short" | "normal" | "technical";
+
+/** Dictation, read aloud and text improvement (Rust: VoiceCfg in config.rs) */
+export interface VoiceCfg {
+  stt: {
+    /** "off", "api" (OpenAI-compatible) or "command" (local program, {file} = recording) */
+    provider: "off" | "api" | "command";
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    language: string;
+    command: string;
+  };
+  tts: {
+    /** "system" (OS voice) or "api" (OpenAI-compatible) */
+    provider: "system" | "api";
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    voice: string;
+    /** "off", "quick" (answers to quick bar messages) or "all" */
+    autoRead: "off" | "quick" | "all";
+  };
+  improve: {
+    enabled: boolean;
+    afterDictation: boolean;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    /** empty = default prompt */
+    prompt: string;
+  };
+}
+
+/** Name, pin, colour and group of a session */
+export interface SessionMeta {
+  name?: string;
+  pinned?: boolean;
+  /** Colour name, see COLORS in src/main/menu.ts */
+  color?: string;
+  /** SessionGroup id */
+  group?: string;
+}
+
+export interface SessionGroup {
+  id: string;
+  name: string;
+  color: string;
+  collapsed: boolean;
+}
+
 export interface AppConfig {
   hosts: HostCfg[];
   sessionFolders: Record<string, string[]>;
   reminders: Reminder[];
+  presets: ModelPreset[];
+  voice: VoiceCfg;
+  /** Key "<hostId>|<sessionPath>" */
+  sessionMeta: Record<string, SessionMeta>;
+  groups: SessionGroup[];
   ui: {
     /** "auto", "de" or "en" */
     language?: string;
@@ -43,6 +113,17 @@ export interface AppConfig {
     rightCollapsed?: boolean;
     quickHotkey?: string;
     doubleTap?: string;
+    /** "auto", "light" or "dark" */
+    theme?: Theme;
+    /** How much of Pi's work the chat shows */
+    chatMode?: ChatMode;
+    /** Answer style hint appended to each message */
+    answerMode?: AnswerMode;
+    /** Panel widths in pixels */
+    leftWidth?: number | null;
+    rightWidth?: number | null;
+    /** Height of the file tree above the editor (percent of the right panel) */
+    filesSplit?: number | null;
   };
 }
 
@@ -58,7 +139,10 @@ export interface SessionInfo {
 export interface FolderListing {
   folder: string;
   root: string;
+  /** Markdown files relative to root; folders end with "/" */
   files: string[];
+  /** The folder does not exist on the host */
+  missing: boolean;
   error: string | null;
 }
 
@@ -67,6 +151,18 @@ export interface PiModel {
   name: string;
   provider: string;
   reasoning?: boolean;
+  /** Context window in tokens */
+  contextWindow?: number;
+}
+
+/** Slash command from Pi's get_commands: skill, prompt template or extension command */
+export interface PiCommand {
+  name: string;
+  description?: string;
+  /** "skill", "prompt" or "extension" */
+  source?: string;
+  location?: string;
+  path?: string;
 }
 
 export interface PiResponse {
@@ -98,6 +194,8 @@ export interface QuickSubmit {
   model: { provider: string; id: string } | null;
   /** null = keep the session's thinking level */
   thinking: string | null;
+  /** Id of the chosen preset, null = model/thinking chosen individually */
+  preset: string | null;
   text: string;
   images: { data: string; mimeType: string }[];
   ocr: string | null;
@@ -128,6 +226,13 @@ export const api = {
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
+  createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
+  /** Recording (base64) → text with the dictation settings */
+  transcribe: (data: string, mime: string) => invoke<string>("transcribe_audio", { data, mime }),
+  /** Text → improved text by the second LLM */
+  improveText: (text: string, prompt: string) => invoke<string>("improve_text", { text, prompt }),
+  /** Text → speech (mp3, base64) through the API */
+  speakText: (text: string) => invoke<{ data: string; mimeType: string }>("speak_text", { text }),
 
   /** Send an RPC command to Pi; throws if success=false */
   async pi(handle: number, cmd: Record<string, unknown>): Promise<any> {

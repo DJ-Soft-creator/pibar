@@ -32,8 +32,10 @@ export async function handleQuick(q: QuickSubmit) {
     tab = await openSession(hostId, null, cwd, t("New session"));
   }
   if (!tab.alive) return;
+  if (q.preset || q.model || q.thinking) tab.presetId = q.preset;
   if (q.model)
     await tab.setModel(q.model.provider, q.model.id).catch((e) => toast(`${t("Model")}: ${errMsg(e)}`, "err"));
   if (q.thinking) await tab.setThinking(q.thinking).catch((e) => toast(`${t("Thinking")}: ${errMsg(e)}`, "err"));
+  tab.readNext = true; // auto read (Settings → Voice: "answers to quick bar messages")
   await tab.send(withScreenText(q.text, q.ocr), q.images);
 }

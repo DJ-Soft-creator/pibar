@@ -7,6 +7,7 @@ mod models;
 mod pi;
 mod quick;
 mod sessions;
+mod voice;
 
 use config::AppConfig;
 use pi::PiManager;
@@ -131,6 +132,36 @@ async fn create_file(app: AppHandle, host_id: String, path: String) -> Result<()
     tauri::async_runtime::spawn_blocking(move || files::create(&host, &path)).await.map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+async fn create_dir(app: AppHandle, host_id: String, path: String) -> Result<(), String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || files::create_dir(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+// ---------- Voice (dictation, read aloud, text improvement) ----------
+
+#[tauri::command]
+async fn transcribe_audio(app: AppHandle, data: String, mime: String) -> Result<String, String> {
+    let cfg = config::load(&app).voice.stt;
+    tauri::async_runtime::spawn_blocking(move || voice::transcribe(&cfg, &data, &mime))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn improve_text(app: AppHandle, text: String, prompt: String) -> Result<String, String> {
+    let cfg = config::load(&app).voice.improve;
+    tauri::async_runtime::spawn_blocking(move || voice::improve(&cfg, &prompt, &text))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn speak_text(app: AppHandle, text: String) -> Result<voice::Audio, String> {
+    let cfg = config::load(&app).voice.tts;
+    tauri::async_runtime::spawn_blocking(move || voice::speak(&cfg, &text)).await.map_err(|e| e.to_string())?
+}
+
 // ---------- Quick launcher ----------
 
 #[tauri::command]
@@ -253,6 +284,7 @@ pub fn run() {
             read_file,
             write_file,
             create_file,
+            create_dir,
             quick_hide,
             quick_reset_pos,
             quick_resize,
@@ -261,7 +293,10 @@ pub fn run() {
             set_double_tap,
             double_tap_status,
             capture_screen,
-            ocr_image
+            ocr_image,
+            transcribe_audio,
+            improve_text,
+            speak_text
         ])
         .build(tauri::generate_context!())
         .expect("PiBar failed to start");

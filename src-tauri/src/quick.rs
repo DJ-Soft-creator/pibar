@@ -12,7 +12,7 @@ use crate::i18n::tr;
 
 pub const QUICK: &str = "quick";
 pub const MAIN: &str = "main";
-pub const QUICK_WIDTH: f64 = 800.0;
+pub const QUICK_WIDTH: f64 = 920.0;
 
 // ---------- Window ----------
 

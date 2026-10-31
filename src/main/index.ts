@@ -5,8 +5,10 @@ import { listen } from "@tauri-apps/api/event";
 import { api, QuickSubmit } from "../shared/api";
 import { errMsg, toast } from "../shared/dom";
 import { getLang, setLang, t, translateDom } from "../shared/i18n";
+import { applyTheme } from "../shared/theme";
 import { applyUiPrefs, wireChatView } from "./chatView";
 import { wireFiles } from "./files";
+import { wireLayout } from "./layout";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
 import { loadAllSessions, renderHosts } from "./sessions";
@@ -15,15 +17,17 @@ import { state } from "./state";
 async function init() {
   state.config = await api.getConfig();
   state.config.reminders ??= [];
+  applyTheme(state.config.ui.theme);
   setLang(state.config.ui.language);
   translateDom();
   api.setLanguage(getLang()).catch(() => {});
   // A fresh window has no open sessions: stop Pi processes left over from a reload
   await api.piCloseAll().catch(() => {});
 
+  wireLayout();
+  wireChatView();
   applyUiPrefs();
   renderHosts();
-  wireChatView();
   wireFiles();
 
   // Pi events (from src-tauri/src/pi.rs) go to the session with that process handle

@@ -8,8 +8,18 @@
   --q-seg: #efeeea;
   color-scheme: light;
 }
+:root[data-theme="dark"] {
+  --q-bg: rgba(38, 38, 42, 0.97);
+  --q-border: rgba(255, 255, 255, 0.12);
+  --q-text: #ebeae6;
+  --q-muted: #9b9a95;
+  --q-hover: rgba(255, 255, 255, 0.07);
+  --q-accent: #7a9cf5;
+  --q-seg: #333338;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --q-bg: rgba(38, 38, 42, 0.97);
     --q-border: rgba(255, 255, 255, 0.12);
     --q-text: #ebeae6;
@@ -111,16 +121,19 @@ textarea {
 .qicon.on {
   color: var(--q-accent);
 }
+/* target session: first item in the footer, so the input row keeps its width */
 .qtarget {
-  flex: none;
-  max-width: 220px;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 300px;
   border: none;
   background: transparent;
-  color: var(--q-muted);
-  padding: 6px 4px;
-  border-radius: 8px;
+  color: var(--q-text);
+  padding: 2px 4px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 600;
 }
 .qtarget:hover {
   background: var(--q-hover);
@@ -197,11 +210,12 @@ textarea {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 0 0 44px;
+  padding: 4px 0 0 40px;
 }
 .qhint {
   flex: 1;
   min-width: 0;
+  padding-left: 6px;
   font-size: 11.5px;
   color: var(--q-muted);
   white-space: nowrap;
@@ -242,4 +256,23 @@ textarea {
 [data-tauri-drag-region] {
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* voice buttons in the bar */
+.voice-btn.rec {
+  color: #fff;
+  background: #d9443a;
+  animation: qpulse 1.2s infinite;
+}
+.voice-btn.busy {
+  color: var(--q-accent);
+  animation: qpulse 0.9s infinite;
+}
+@keyframes qpulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+.qhint.err {
+  color: #d9443a;
 }
