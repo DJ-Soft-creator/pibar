@@ -43,6 +43,10 @@ Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Wi
 - Linke Spalte nach Host gruppiert (lokal und SSH); starten, öffnen, Verlauf laden, mehrere Sessions parallel
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
+- **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue
+  Gruppe)
+- **Mehrfachauswahl** mit ⌘-Klick und ⇧-Klick: mehrere Sessions auf einmal verschieben, färben, anpinnen oder
+  schließen (Leiste unten oder Rechtsklick)
 - **Erinnerungen**: in 1 Std., 3 Std., heute Abend, morgen, nächste Woche oder eigene Zeit, mit Notiz; fällige
   Erinnerungen stehen oben links und kommen als Systemmitteilung
 - **Schließen** (× beim Überfahren oder ⌘W): der Pi-Prozess endet, die Session-Datei bleibt

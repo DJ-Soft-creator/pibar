@@ -1,5 +1,5 @@
 // Session organisation in the left column: own names, pins, colours and coloured groups, plus the context menus
-// of sessions and groups. Stored in AppConfig.sessionMeta (key "<hostId>|<sessionPath>") and AppConfig.groups.
+// of sessions, groups and a multi-selection (src/main/sessionSelect.ts). Stored in AppConfig.sessionMeta (key "<hostId>|<sessionPath>") and AppConfig.groups.
 import { api, SessionGroup, SessionMeta } from "../shared/api";
 import { h, errMsg, openModal, toast } from "../shared/dom";
 import { Msg, t } from "../shared/i18n";
@@ -7,6 +7,7 @@ import { renderToolbar } from "./chatView";
 import { COLORS, MenuEntry, openMenu } from "./menu";
 import { reminderDialog, reminderFor } from "./reminders";
 import type { SessionTab } from "./sessionTab";
+import { selection } from "./sessionSelect";
 import { closeSession, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 
@@ -37,6 +38,19 @@ export function setMeta(key: string, patch: SessionMeta) {
   for (const k of Object.keys(m) as (keyof SessionMeta)[]) if (!m[k]) delete m[k];
   if (Object.keys(m).length) all[key] = m;
   else delete all[key];
+  saveConfig();
+  renderHosts();
+}
+
+/** Same change for several sessions, saved and rendered once */
+export function setMetaMany(keys: string[], patch: SessionMeta) {
+  const all = (state.config.sessionMeta ??= {});
+  for (const key of keys) {
+    const m: SessionMeta = { ...all[key], ...patch };
+    for (const k of Object.keys(m) as (keyof SessionMeta)[]) if (!m[k]) delete m[k];
+    if (Object.keys(m).length) all[key] = m;
+    else delete all[key];
+  }
   saveConfig();
   renderHosts();
 }
@@ -108,7 +122,7 @@ export function renameDialog(s: SessionRef) {
   );
 }
 
-function newGroupDialog(then?: (g: SessionGroup) => void) {
+export function newGroupDialog(then?: (g: SessionGroup) => void) {
   textDialog(t("New group"), t("Name"), "", (name) => {
     if (!name) return;
     const used = new Set(groups().map((g) => g.color));
@@ -127,9 +141,78 @@ function newGroupDialog(then?: (g: SessionGroup) => void) {
 
 // ---------- Context menus ----------
 
-/** Right click or "⋯" on a session */
+/** Group entries for one or more sessions; moving into a group also unpins */
+function groupEntries(keys: string[]): MenuEntry[] {
+  const cur = keys.length === 1 ? (metaOf(keys[0]).group ?? "") : null;
+  return [
+    ...groups().map((g) => ({
+      label: g.name,
+      color: g.color,
+      selected: cur === g.id,
+      onSelect: () => setMetaMany(keys, { group: g.id, pinned: false }),
+    })),
+    { label: t("No group"), selected: cur === "", onSelect: () => setMetaMany(keys, { group: "" }) },
+    {
+      label: t("New group …"),
+      onSelect: () => newGroupDialog((g) => setMetaMany(keys, { group: g.id, pinned: false })),
+    },
+  ];
+}
+
+export function groupPickerMenu(anchor: HTMLElement, keys: string[]) {
+  openMenu(anchor, [{ heading: t("Move to group") }, ...groupEntries(keys)]);
+}
+
+export function colorMenu(anchor: HTMLElement, keys: string[]) {
+  const colors = new Set(keys.map((k) => metaOf(k).color ?? ""));
+  openMenu(anchor, [
+    { heading: t("Colour") },
+    {
+      colors: true,
+      current: colors.size === 1 ? [...colors][0] : "-",
+      title: colorName,
+      onPick: (color) => setMetaMany(keys, { color }),
+    },
+  ]);
+}
+
+/** Context menu for several selected sessions */
+export function bulkMenu(keys: string[]): MenuEntry[] {
+  const allPinned = keys.every((k) => metaOf(k).pinned);
+  const open = keys.map((k) => state.tabs.get(k)).filter((x) => x?.alive);
+  return [
+    { heading: t("{n} selected", { n: keys.length }) },
+    { label: allPinned ? t("Unpin") : t("Pin to top"), onSelect: () => setMetaMany(keys, { pinned: !allPinned }) },
+    { separator: true },
+    { heading: t("Colour") },
+    { colors: true, current: "-", title: colorName, onPick: (color) => setMetaMany(keys, { color }) },
+    { separator: true },
+    { heading: t("Move to group") },
+    ...groupEntries(keys),
+    { separator: true },
+    ...(open.length
+      ? [
+          {
+            label: t("Close {n} open sessions", { n: open.length }),
+            onSelect: () => open.forEach((x) => x && closeSession(x)),
+          },
+        ]
+      : []),
+    {
+      label: t("Clear selection (Esc)"),
+      onSelect: () => {
+        selection.clear();
+        renderHosts();
+      },
+    },
+  ];
+}
+
+/** Right click or "⋯" on a session (on a selected one: actions for the whole selection) */
 export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number; y: number }) {
   const key = `${s.hostId}|${s.path}`;
+  if (s.path && selection.has(key) && selection.size > 1)
+    return openMenu(anchor, bulkMenu([...selection]), "right", at);
   const m = metaOf(key);
   const saved = !!s.path;
   const entries: MenuEntry[] = [{ label: t("Rename …"), onSelect: () => renameDialog(s) }];
@@ -144,14 +227,7 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
       { colors: true, current: m.color ?? "", title: colorName, onPick: (color) => setMeta(key, { color }) },
       { separator: true },
       { heading: t("Move to group") },
-      ...groups().map((g) => ({
-        label: g.name,
-        color: g.color,
-        selected: m.group === g.id,
-        onSelect: () => setMeta(key, { group: g.id }),
-      })),
-      { label: t("No group"), selected: !m.group, onSelect: () => setMeta(key, { group: "" }) },
-      { label: t("New group …"), onSelect: () => newGroupDialog((g) => setMeta(key, { group: g.id })) },
+      ...groupEntries([key]),
       { separator: true },
       {
         label: reminderFor(key) ? t("Change reminder") : t("Remind me later"),
