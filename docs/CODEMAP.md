@@ -81,6 +81,7 @@ flowchart LR
 | [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts) |
 | [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
 | [`sessionGroups.ts`](../src/main/sessionGroups.ts) | Own session names, pins, colours, coloured groups; context menus of sessions and groups | [`sessionMenu`](../src/main/sessionGroups.ts), [`groupMenu`](../src/main/sessionGroups.ts), [`renameDialog`](../src/main/sessionGroups.ts), [`setMeta`](../src/main/sessionGroups.ts), [`displayTitle`](../src/main/sessionGroups.ts) |
+| [`sessionSelect.ts`](../src/main/sessionSelect.ts) | Multi-selection (⌘/⇧-click), drag & drop onto groups and drop zones, selection bar | [`selectClick`](../src/main/sessionSelect.ts), [`dragStart`](../src/main/sessionSelect.ts), [`dropTarget`](../src/main/sessionSelect.ts), [`renderSelectionBar`](../src/main/sessionSelect.ts), [`wireSessionSelect`](../src/main/sessionSelect.ts) |
 | [`voiceSettings.ts`](../src/main/voiceSettings.ts) | Settings section "Voice": dictation, read aloud, text improvement | [`voiceEditor`](../src/main/voiceSettings.ts) |
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
 | [`usageStats.ts`](../src/main/usageStats.ts) | Token info in the header and its hover panel (counters, speed, context) | [`usageSummary`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
@@ -208,6 +209,14 @@ rename ([`renameDialog`](../src/main/sessionGroups.ts): own name in `AppConfig.s
 for an open session), pin, colour, move to group, reminder, close. [`sessionSections`](../src/main/sessions.ts) renders
 pinned sessions first, then each group of `AppConfig.groups` (coloured, collapsible, [`groupMenu`](../src/main/sessionGroups.ts)),
 then the rest. The quick bar uses the same names and lists pinned sessions first.
+
+⌘-click and ⇧-click select several sessions ([`selectClick`](../src/main/sessionSelect.ts)); the bar at the bottom
+([`renderSelectionBar`](../src/main/sessionSelect.ts)) and the context menu ([`bulkMenu`](../src/main/sessionGroups.ts))
+act on all of them via [`setMetaMany`](../src/main/sessionGroups.ts). Rows are draggable
+([`dragStart`](../src/main/sessionSelect.ts), the whole selection if the row is selected); groups, the "Pinned" heading
+and the drop zones under the list (pin, no group, new group) are [`dropTarget`](../src/main/sessionSelect.ts)s. Empty
+groups only show while dragging. HTML drag & drop needs `dragDropEnabled: false` on the main window
+(`tauri.conf.json`).
 
 ### Voice: dictation, read aloud, text improvement
 

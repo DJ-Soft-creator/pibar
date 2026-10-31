@@ -9,6 +9,7 @@ import { applyTheme } from "../shared/theme";
 import { applyUiPrefs, wireChatView } from "./chatView";
 import { wireFiles } from "./files";
 import { wireLayout } from "./layout";
+import { wireSessionSelect } from "./sessionSelect";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
 import { loadAllSessions, renderHosts } from "./sessions";
@@ -25,6 +26,7 @@ async function init() {
   await api.piCloseAll().catch(() => {});
 
   wireLayout();
+  wireSessionSelect();
   wireChatView();
   applyUiPrefs();
   renderHosts();

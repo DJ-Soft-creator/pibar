@@ -16,8 +16,18 @@ import {
   renameDialog as renameDialogFor,
   SessionRef,
   sessionMenu,
+  setMetaMany,
   toggleGroup,
 } from "./sessionGroups";
+import {
+  dragStart,
+  dropTarget,
+  noteVisible,
+  renderSelectionBar,
+  resetOrder,
+  selectClick,
+  selection,
+} from "./sessionSelect";
 import { SessionTab, TabCallbacks } from "./sessionTab";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
@@ -99,6 +109,7 @@ function renderHostTabs() {
 // ---------- List ----------
 
 export function renderHosts() {
+  resetOrder();
   renderHostTabs();
   renderReminders();
   const sel = selectedHost();
@@ -173,6 +184,7 @@ export function renderHosts() {
       );
     }),
   );
+  renderSelectionBar();
 }
 
 const ICON_PIN =
@@ -187,12 +199,23 @@ function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[]
   if (pinned.length) {
     const head = h("div", { class: "sec-head" }, h("span", { class: "sec-icon" }), t("Pinned"));
     head.querySelector(".sec-icon")!.innerHTML = ICON_PIN;
+    dropTarget(head, (keys) => setMetaMany(keys, { pinned: true }));
     out.push(head, ...pinned.map((r) => sessionItem(r.ref, r.ts)));
   }
   const ids = new Set(groups().map((g) => g.id));
   for (const g of groups()) {
     const inGroup = rest.filter((r) => meta(r.ref).group === g.id);
-    if (!inGroup.length) continue;
+    // empty groups only show while dragging, so sessions can be dropped into them
+    if (!inGroup.length) {
+      const empty = h(
+        "div",
+        { class: `group empty-group ${g.color ? `c-${g.color}` : ""}` },
+        h("div", { class: "group-head" }, h("span", { class: "cdot" }), h("span", { class: "group-name" }, g.name)),
+      );
+      dropTarget(empty, (keys) => setMetaMany(keys, { group: g.id, pinned: false }));
+      out.push(empty);
+      continue;
+    }
     const menu = (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
@@ -202,25 +225,25 @@ function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[]
         e.type === "contextmenu" ? { x: e.clientX, y: e.clientY } : undefined,
       );
     };
-    out.push(
+    const box = h(
+      "div",
+      {
+        class: `group ${g.color ? `c-${g.color}` : ""} ${g.collapsed ? "collapsed" : ""}`,
+        oncontextmenu: menu,
+      },
       h(
         "div",
-        {
-          class: `group ${g.color ? `c-${g.color}` : ""} ${g.collapsed ? "collapsed" : ""}`,
-          oncontextmenu: menu,
-        },
-        h(
-          "div",
-          { class: "group-head", role: "button", tabindex: 0, onclick: () => toggleGroup(g) },
-          h("span", { class: "chev" }, "▾"),
-          h("span", { class: "cdot" }),
-          h("span", { class: "group-name" }, g.name),
-          h("span", { class: "count" }, String(inGroup.length)),
-          h("button", { class: "sess-act group-more", title: t("More …"), onclick: menu }, icon("more", 13)),
-        ),
-        ...(g.collapsed ? [] : inGroup.map((r) => sessionItem(r.ref, r.ts))),
+        { class: "group-head", role: "button", tabindex: 0, onclick: () => toggleGroup(g) },
+        h("span", { class: "chev" }, "▾"),
+        h("span", { class: "cdot" }),
+        h("span", { class: "group-name" }, g.name),
+        h("span", { class: "count" }, String(inGroup.length)),
+        h("button", { class: "sess-act group-more", title: t("More …"), onclick: menu }, icon("more", 13)),
       ),
+      ...(g.collapsed ? [] : inGroup.map((r) => sessionItem(r.ref, r.ts))),
     );
+    dropTarget(box, (keys) => setMetaMany(keys, { group: g.id, pinned: false }));
+    out.push(box);
   }
   out.push(...rest.filter((r) => !ids.has(meta(r.ref).group ?? "")).map((r) => sessionItem(r.ref, r.ts)));
   return out;
@@ -237,6 +260,7 @@ function sessionItem(ref: SessionRef, ts: string) {
   const reminder = path ? reminderFor(key) : undefined;
   const open = () => (tab ? activate(tab) : openSession(hostId, path, cwd, title));
   const menuRef = { ...ref, title };
+  if (path) noteVisible(key);
   const action = (label: string, ic: IconName, fn: (e: MouseEvent) => void, extra = "") =>
     h(
       "button",
@@ -260,11 +284,18 @@ function sessionItem(ref: SessionRef, ts: string) {
   return h(
     "div",
     {
-      class: `sess ${isActive ? "active" : ""} ${m.color ? `colored c-${m.color}` : ""}`,
+      class: `sess ${isActive ? "active" : ""} ${m.color ? `colored c-${m.color}` : ""} ${
+        path && selection.has(key) ? "selected" : ""
+      }`,
       role: "button",
       tabindex: 0,
       title: `${cleanTitle(title)}\n${cwd}`,
-      onclick: open,
+      draggable: path ? "true" : undefined,
+      ondragstart: (e: DragEvent) => path && dragStart(e, key),
+      onclick: (e: MouseEvent) => {
+        if (path && selectClick(e, key)) return;
+        open();
+      },
       onkeydown: (e: KeyboardEvent) => {
         if (e.key === "Enter") open();
         else if (e.key === "F2") renameDialogFor(menuRef);

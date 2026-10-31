@@ -42,6 +42,9 @@ Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 
 - Left column grouped by host (local and SSH); start, open, load history, several sessions in parallel
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
+- **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
+- **Multi-select** with ⌘-click and ⇧-click: move, colour, pin or close several sessions at once (bar at the bottom or
+  right click)
 - **Reminders**: in 1 h, 3 h, this evening, tomorrow, next week or a custom time, with a note; due reminders show at
   the top left and as a system notification
 - **Close** (× on hover or ⌘W): the Pi process ends, the session file stays

@@ -1988,3 +1988,92 @@ body.resizing-v {
 .sess-acts:has(.menu-open) {
   display: flex;
 }
+
+/* ---------- Session selection and drag & drop (sessionSelect.ts) ---------- */
+.sess.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.sess[draggable="true"] {
+  -webkit-user-drag: element;
+}
+body.dragging-sess .sess {
+  cursor: grabbing;
+}
+.empty-group {
+  display: none;
+}
+body.dragging-sess .empty-group {
+  display: block;
+}
+.group.drop-over,
+.sec-head.drop-over {
+  background: var(--accent-soft);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+.sess-drop {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+.dz {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz.drop-over {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.sel-bar {
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.sel-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sel-count {
+  font-weight: 600;
+  font-size: 13px;
+}
+.sel-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sel-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.drag-ghost {
+  position: fixed;
+  top: -100px;
+  left: -100px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
