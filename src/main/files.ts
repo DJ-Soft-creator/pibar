@@ -1,9 +1,10 @@
 // Right column: folders of the active session as a tree of Markdown files, and the editor.
-import { api, FolderListing } from "../shared/api";
+import { api, FolderListing, GitInfo } from "../shared/api";
 import { $, h, errMsg, openModal, renderMarkdown, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
 import { buildTree, countFiles, TreeDir } from "../shared/tree";
+import { gitLine, gitMark, gitStatusFor } from "../shared/git";
 import { openMenu } from "./menu";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
@@ -42,6 +43,9 @@ function chev(open: boolean): HTMLElement {
 }
 
 /** Rows of a folder's content, indented by depth */
+/** Git status of the folder being rendered (null = off or no repository) */
+let git: GitInfo | null = null;
+
 function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): HTMLElement[] {
   const rows: HTMLElement[] = [];
   const pad = `padding-left:${8 + depth * 14}px`;
@@ -69,6 +73,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
           chev(open),
           icon(ICON_DIR),
           h("span", { class: "tname" }, d.name),
+          git && gitStatusFor(git, `${d.path}/`) ? h("span", { class: "gdot", title: t("Contains changes") }) : null,
           n ? h("span", { class: "tcount" }, String(n)) : null,
         ),
         h(
@@ -102,6 +107,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
         },
         icon(ICON_FILE),
         h("span", { class: "tname" }, f.name),
+        git ? gitMark(gitStatusFor(git, f.path)) : null,
       ),
     );
   }
@@ -167,6 +173,7 @@ function renderTree() {
             : null,
         ),
       );
+      git = l.git ?? null;
       let body: (HTMLElement | null)[] = [];
       if (open) {
         if (l.missing)
@@ -199,7 +206,7 @@ function renderTree() {
               : [h("div", { class: "hint-line" }, t("No .md files"))];
         }
       }
-      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, ...body);
+      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, l.git ? gitLine(l.git) : null, ...body);
     }),
   );
 }
@@ -227,7 +234,7 @@ export async function renderFiles() {
   if (last?.tab !== tab) elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("Loading files …")));
   let listings: FolderListing[];
   try {
-    listings = await api.listFiles(tab.hostId, sessionFolders(tab));
+    listings = await api.listFiles(tab.hostId, sessionFolders(tab), !!state.config.ui.showGit);
   } catch (e) {
     elFileTree.replaceChildren(h("p", { class: "pad host-err" }, errMsg(e)));
     return;

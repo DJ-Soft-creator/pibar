@@ -124,6 +124,8 @@ export interface AppConfig {
     rightWidth?: number | null;
     /** Height of the file tree above the editor (percent of the right panel) */
     filesSplit?: number | null;
+    /** Git status in the file tree */
+    showGit?: boolean;
   };
 }
 
@@ -144,6 +146,20 @@ export interface FolderListing {
   /** The folder does not exist on the host */
   missing: boolean;
   error: string | null;
+  /** Git status (only with ui.showGit and inside a repository) */
+  git?: GitInfo | null;
+}
+
+/** Branch, sync state with the upstream (as of the last fetch) and changed files */
+export interface GitInfo {
+  branch: string;
+  upstream: string | null;
+  /** Commits not pushed yet */
+  ahead: number;
+  /** Commits on the upstream not pulled yet */
+  behind: number;
+  /** Paths relative to the listed folder (folders end with "/"); code = porcelain "XY", e.g. " M", "??" */
+  changes: { path: string; code: string }[];
 }
 
 export interface PiModel {
@@ -224,7 +240,8 @@ export const api = {
     invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),
   piCloseAll: () => invoke<void>("pi_close_all"),
-  listFiles: (hostId: string, folders: string[]) => invoke<FolderListing[]>("list_files", { hostId, folders }),
+  listFiles: (hostId: string, folders: string[], git = false) =>
+    invoke<FolderListing[]>("list_files", { hostId, folders, git }),
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),

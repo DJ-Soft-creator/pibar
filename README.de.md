@@ -60,6 +60,8 @@ Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Wi
   Vorschau, speichern (⌘S)
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
+- Optional **Git-Status** (Einstellungen → Allgemein): Branch, nicht gepushte (↑) oder zu holende Commits (↓), Anzahl
+  der Änderungen und ein kleiner Buchstabe an geänderten Dateien (M, A, U, D)
 
 ### Layout
 

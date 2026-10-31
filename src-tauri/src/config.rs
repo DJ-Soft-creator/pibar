@@ -115,6 +115,9 @@ pub struct UiPrefs {
     /// Height of the file tree above the editor, in percent of the right panel; None = default
     #[serde(default)]
     pub files_split: Option<f64>,
+    /// Show the Git status (branch, unpushed commits, changed files) in the file tree
+    #[serde(default)]
+    pub show_git: bool,
 }
 
 pub fn default_chat_mode() -> String {
@@ -164,6 +167,7 @@ impl Default for UiPrefs {
             left_width: None,
             right_width: None,
             files_split: None,
+            show_git: false,
         }
     }
 }

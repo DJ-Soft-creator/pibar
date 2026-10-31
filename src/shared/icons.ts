@@ -11,6 +11,8 @@ const PATHS = {
   check: '<path d="M3.5 8.5l3 3 6-7"/>',
   more: '<circle cx="3.5" cy="8" r="0.6"/><circle cx="8" cy="8" r="0.6"/><circle cx="12.5" cy="8" r="0.6"/>',
   close: '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>',
+  branch:
+    '<circle cx="5" cy="3.5" r="1.5"/><circle cx="5" cy="12.5" r="1.5"/><circle cx="11" cy="6" r="1.5"/><path d="M5 5v6M11 7.5c0 2.5-3 2.5-5.6 3.6"/>',
 } as const;
 
 export type IconName = keyof typeof PATHS;
