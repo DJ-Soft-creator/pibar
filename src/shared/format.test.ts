@@ -7,10 +7,12 @@ import {
   shortModel,
   shortPath,
   splitScreenText,
+  splitFiles,
   stripAnswerStyle,
   thinkingLabel,
   tokensPerSecond,
   withAnswerStyle,
+  withFiles,
   withScreenText,
 } from "./format";
 import { setLang } from "./i18n";
@@ -98,4 +100,13 @@ describe("answer style", () => {
     expect(tokensPerSecond(100, 2000)).toBe(50);
     expect(tokensPerSecond(0, 2000)).toBeNull();
   });
+});
+
+describe("attached files", () => {
+  it("withFiles and splitFiles are inverse", () => {
+    const msg = withFiles("Look at this", [{ name: "a.md", text: "# A\nline" }]);
+    expect(splitFiles(msg)).toEqual({ text: "Look at this", files: [{ name: "a.md", text: "# A\nline" }] });
+  });
+  it("keeps messages without files", () => expect(splitFiles("Hi").files).toEqual([]));
+  it("removes file blocks from titles", () => expect(cleanTitle('Review <file name="x.ts">code')).toBe("Review"));
 });

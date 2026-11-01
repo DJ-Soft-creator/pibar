@@ -75,9 +75,10 @@ fn pi_open(
     host_id: String,
     cwd: String,
     session_path: Option<String>,
+    tools: Option<Vec<String>>,
 ) -> Result<u32, String> {
     let host = config::find_host(&app, &host_id)?;
-    mgr.open(&app, &host, &cwd, session_path)
+    mgr.open(&app, &host, &cwd, session_path, tools)
 }
 
 #[tauri::command]

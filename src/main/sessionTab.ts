@@ -1,7 +1,7 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, PiCommand, PiModel } from "../shared/api";
 import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
-import { splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } from "../shared/format";
+import { splitFiles, splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } from "../shared/format";
 import { getLang, t } from "../shared/i18n";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
@@ -144,6 +144,8 @@ export class SessionTab {
   readNext = false;
   /** Name given in "New session", saved as own name once the session has a file */
   pendingName = "";
+  /** Pi tools for this session (allowlist), null = Pi's default; applied when Pi starts */
+  toolset: string[] | null = null;
   /** Text of the last answer of the current run (for auto read) */
   private lastText = "";
 
@@ -175,7 +177,7 @@ export class SessionTab {
 
   async start(onHandle?: (tab: SessionTab) => void) {
     this.note(this.sessionPath ? t("Loading session …") : t("Starting new session …"));
-    this.handle = await api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined);
+    this.handle = await api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined, this.toolset);
     this.alive = true;
     onHandle?.(this);
     await this.refreshState();
@@ -492,8 +494,24 @@ export class SessionTab {
         h("div", { class: "body" }, h("pre", {}, ocr)),
       );
     }
+    // attached text files as collapsible cards
+    const fsplit = splitFiles(text);
+    text = fsplit.text;
+    const fileCards = fsplit.files.map((f) =>
+      h(
+        "details",
+        { class: "card ocr-card" },
+        h(
+          "summary",
+          {},
+          h("span", { class: "label" }, f.name),
+          h("span", { class: "preview" }, t("{n} characters", { n: f.text.length })),
+        ),
+        h("div", { class: "body" }, h("pre", {}, f.text)),
+      ),
+    );
     const index = this.userCount++;
-    const bubble = h("div", { class: "bubble" }, ...imgs, text, ocrCard);
+    const bubble = h("div", { class: "bubble" }, ...imgs, text, ocrCard, ...fileCards);
     const panel = h("div", { class: "branch-panel", hidden: true });
     const act = (name: IconName, title: string, fn: () => void) => {
       const b = h("button", { class: "msg-act", title, "aria-label": title, onclick: fn });

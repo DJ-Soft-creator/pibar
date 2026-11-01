@@ -84,6 +84,8 @@ export interface SessionMeta {
   color?: string;
   /** SessionGroup id */
   group?: string;
+  /** Pi tools of this session: undefined = Pi's default, [] = none */
+  tools?: string[];
 }
 
 export interface SessionGroup {
@@ -242,8 +244,9 @@ export const api = {
   listSessions: (hostId: string) => invoke<SessionInfo[]>("list_sessions", { hostId }),
   /** Delete session files (only paths inside Pi's sessions folder) */
   deleteSessions: (hostId: string, paths: string[]) => invoke<number>("delete_sessions", { hostId, paths }),
-  piOpen: (hostId: string, cwd: string, sessionPath?: string) =>
-    invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null }),
+  /** tools: null = Pi's default, [] = no tools, otherwise an allowlist */
+  piOpen: (hostId: string, cwd: string, sessionPath?: string, tools?: string[] | null) =>
+    invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null, tools: tools ?? null }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),
   /** What a Pi process wrote to stderr (tail) */
   piStderr: (handle: number) => invoke<string>("pi_stderr", { handle }),
@@ -257,6 +260,9 @@ export const api = {
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
+  /** Screenshot: "region" (drag an area) or "screen"; null if cancelled */
+  captureScreen: (mode: "region" | "screen") =>
+    invoke<{ path: string; data: string; mimeType: string } | null>("capture_screen", { mode }),
   /** Recording (base64) → text with the dictation settings */
   transcribe: (data: string, mime: string) => invoke<string>("transcribe_audio", { data, mime }),
   /** Text → improved text by the second LLM */

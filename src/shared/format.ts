@@ -34,11 +34,28 @@ const SCREEN_RE = /<(screen-text|bildschirmtext)[^>]*>([\s\S]*?)<\/\1>/;
 export function cleanTitle(title: string): string {
   return (
     (title || "")
-      .replace(/<(screen-text|bildschirmtext|response-style)[\s\S]*/i, "")
+      .replace(/<(screen-text|bildschirmtext|response-style|file)[\s\S]*/i, "")
       // titles are cut after ~120 characters: drop a half tag at the end
       .replace(/\s*<[a-z-]*$/i, "")
       .trim() || title
   );
+}
+
+/** Attached text files as tagged blocks at the end of a message (shown as cards in the chat) */
+export function withFiles(text: string, files: { name: string; text: string }[]): string {
+  if (!files.length) return text;
+  const blocks = files.map((f) => `<file name="${f.name.replace(/"/g, "'")}">\n${f.text}\n</file>`);
+  return [text, ...blocks].filter(Boolean).join("\n\n");
+}
+
+/** Counterpart of withFiles: message text and the attached files */
+export function splitFiles(text: string): { text: string; files: { name: string; text: string }[] } {
+  const files: { name: string; text: string }[] = [];
+  const rest = text.replace(/<file name="([^"]*)">\n?([\s\S]*?)\n?<\/file>/g, (_m, name: string, body: string) => {
+    files.push({ name, text: body });
+    return "";
+  });
+  return { text: files.length ? rest.trim() : text, files };
 }
 
 /** Answer style hints (src/main/sessionTab.ts appends them to each message) */

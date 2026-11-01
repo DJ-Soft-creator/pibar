@@ -193,6 +193,9 @@ pub struct SessionMeta {
     pub color: String,
     /// Id of a SessionGroup, empty = none
     pub group: String,
+    /// Pi tools for this session (allowlist); None = Pi's default, empty = no tools
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<String>>,
 }
 
 /// User-defined group of sessions with a colour

@@ -1394,7 +1394,6 @@ details.card[open] > summary::before {
 
 /* ---------- "/" menu ---------- */
 .slash-btn {
-  align-self: center;
   font-family: var(--mono);
   font-weight: 600;
 }
@@ -2283,4 +2282,139 @@ button.ghost.danger-text {
 .undo-bar span {
   flex: 1;
   min-width: 0;
+}
+
+/* ---------- Tool dock at the input (composerTools.ts) ---------- */
+.input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.input-wrap textarea {
+  width: 100%;
+}
+.dock {
+  position: relative;
+  align-self: flex-end;
+  margin-bottom: 4px;
+}
+.dock-main {
+  display: inline-grid;
+  place-items: center;
+  position: relative;
+  transition: transform 0.18s ease;
+}
+.dock.near .dock-main,
+.dock.open .dock-main {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+.dock-main.has::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* vertical, right above the "+", so it never covers the input or the attachment chips */
+.dock-pop {
+  position: absolute;
+  left: -4px;
+  bottom: calc(100% + 4px);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  /* fade out a little later, so moving the mouse to a button does not lose them */
+  transition:
+    opacity 0.2s ease 0.35s,
+    transform 0.2s ease 0.35s;
+  z-index: 20;
+}
+.dock.near .dock-pop,
+.dock.open .dock-pop {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 0s;
+}
+.dock-pop .icon-btn {
+  display: inline-grid;
+  place-items: center;
+}
+#btn-tools.set {
+  color: var(--accent);
+}
+.attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 3px 4px 3px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  font-size: 12px;
+}
+.chip-thumb {
+  width: 22px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.chip-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  color: var(--muted);
+}
+.chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+}
+.chip-x:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.composer.drop-files .input-wrap textarea {
+  border-color: var(--accent);
+  border-style: dashed;
+}
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, auto);
+  gap: 6px 14px;
+  margin: 8px 0 4px 24px;
+}
+.modal label.check input {
+  width: auto;
+  flex: none;
 }
