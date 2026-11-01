@@ -640,8 +640,10 @@ details.card[open] > summary::before {
 .mode-natural .part.thinking {
   display: none;
 }
-/* answers that consist only of thinking and tool calls: gone completely (no gap, no time, no actions) */
-.mode-natural .msg.assistant.technical {
+/* answers without visible text (only thinking and tool calls): gone completely – no gap, no time, no actions.
+   Two ways, so it also holds while text is still streaming in: the class set by sessionTab.ts, and the content. */
+.mode-natural .msg.assistant.technical,
+.mode-natural .msg.assistant:not(:has(.part.text .md > *, .error, .note)) {
   display: none;
 }
 .mode-debug details.card {
