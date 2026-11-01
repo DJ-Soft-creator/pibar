@@ -1,4 +1,4 @@
-//! List, read and write Markdown files in a session's folders, optionally with the Git status.
+//! List, read and write Markdown and HTML files (images: read only) in a session's folders, optionally with the Git status.
 //! Locally and over SSH with the same shell commands.
 
 use crate::config::HostCfg;
@@ -6,10 +6,23 @@ use crate::hostexec::{self, shell_path, sq};
 use crate::i18n::tr;
 use serde::Serialize;
 
-/// The file panel only shows and edits Markdown. The file commands accept nothing else, so a bug or injected script
-/// in the UI cannot read keys or overwrite shell profiles through them: absolute (or "~/") paths to `.md`/`.markdown`
-/// files, without ".." segments or control characters.
-pub fn check_markdown_path(path: &str) -> Result<(), String> {
+/// The file panel only shows and edits Markdown and HTML. The file commands accept nothing else, so a bug or injected
+/// script in the UI cannot read keys or overwrite shell profiles through them: absolute (or "~/") paths to
+/// `.md`/`.markdown`/`.html`/`.htm` files, without ".." segments or control characters.
+pub fn check_doc_path(path: &str) -> Result<(), String> {
+    check_path_shape(path)?;
+    let lower = path.to_lowercase();
+    if ![".md", ".markdown", ".html", ".htm"].iter().any(|ext| lower.ends_with(ext)) {
+        return Err(tr(
+            format!("Path not allowed (no Markdown or HTML file): {path}"),
+            format!("Pfad nicht erlaubt (keine Markdown- oder HTML-Datei): {path}"),
+        ));
+    }
+    Ok(())
+}
+
+/// Absolute (or "~/") path without ".." segments or control characters
+fn check_path_shape(path: &str) -> Result<(), String> {
     let bad =
         |why: &str| Err(tr(format!("Path not allowed ({why}): {path}"), format!("Pfad nicht erlaubt ({why}): {path}")));
     if path.chars().any(char::is_control) {
@@ -21,10 +34,6 @@ pub fn check_markdown_path(path: &str) -> Result<(), String> {
     if path.split('/').any(|seg| seg == "..") {
         return bad("..");
     }
-    let lower = path.to_lowercase();
-    if !(lower.ends_with(".md") || lower.ends_with(".markdown")) {
-        return bad("no Markdown file");
-    }
     Ok(())
 }
 
@@ -35,7 +44,7 @@ pub struct FolderListing {
     pub folder: String,
     /// Resolved absolute path
     pub root: String,
-    /// Markdown files relative to root; folders end with "/"
+    /// Markdown, HTML and image files relative to root; folders end with "/"
     pub files: Vec<String>,
     /// The folder does not exist on the host
     pub missing: bool,
@@ -71,10 +80,10 @@ pub struct GitChange {
 /// First output line when the folder does not exist
 const MISSING: &str = "__PIBAR_MISSING__";
 
-/// Lists the current folder: its absolute path, then Markdown files, then folders (with a trailing "/", so empty
+/// Lists the current folder: its absolute path, then Markdown, HTML and image files, then folders (with a trailing "/", so empty
 /// folders show in the tree too). Build output, dependencies and hidden folders are skipped.
 const LIST: &str = r#"pwd
-find . -maxdepth 5 \( -name node_modules -o -name .git -o -name target \) -prune -o -type f \( -name '*.md' -o -name '*.markdown' \) -print | sed 's|^\./||' | sort | head -n 1000
+find . -maxdepth 5 \( -name node_modules -o -name .git -o -name target \) -prune -o -type f \( -name '*.md' -o -name '*.markdown' -o -name '*.html' -o -name '*.htm' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \) -print | sed 's|^\./||' | sort | head -n 1000
 find . -mindepth 1 -maxdepth 4 \( -name node_modules -o -name target -o -name '.*' \) -prune -o -type d -print | sed 's|^\./||; s|$|/|' | sort | head -n 500"#;
 
 /// Marks the start of the Git part of the output
@@ -189,8 +198,52 @@ pub fn list(host: &HostCfg, folders: &[String], with_git: bool) -> Vec<FolderLis
         .collect()
 }
 
+/// Images the file panel shows (read only): extension → MIME type
+const IMAGE_TYPES: &[(&str, &str)] = &[
+    (".png", "image/png"),
+    (".jpg", "image/jpeg"),
+    (".jpeg", "image/jpeg"),
+    (".gif", "image/gif"),
+    (".webp", "image/webp"),
+];
+
+/// Largest image the panel loads (it travels base64-encoded through the UI)
+const MAX_IMAGE: u64 = 20_000_000;
+
+/// MIME type of an image path the panel may show; same rules as [`check_doc_path`] otherwise
+pub fn image_type(path: &str) -> Result<&'static str, String> {
+    let lower = path.to_lowercase();
+    let Some((_, mime)) = IMAGE_TYPES.iter().find(|(ext, _)| lower.ends_with(ext)) else {
+        return Err(tr(format!("Not an image: {path}"), format!("Kein Bild: {path}")));
+    };
+    check_path_shape(path)?;
+    Ok(mime)
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageData {
+    pub mime_type: String,
+    /// base64
+    pub data: String,
+}
+
+/// Read an image from the host as base64 (works the same locally and over SSH)
+pub fn read_image(host: &HostCfg, path: &str) -> Result<ImageData, String> {
+    let mime = image_type(path)?;
+    let p = sq(path);
+    let script = format!(
+        "s=$(wc -c < {p} | tr -d ' ') && [ -n \"$s\" ] || exit 1; if [ \"$s\" -gt {MAX_IMAGE} ]; then echo TOO_LARGE; exit 0; fi; base64 < {p} | tr -d '\\n'"
+    );
+    let out = hostexec::run_shell(host, &script, None)?;
+    if out.trim() == "TOO_LARGE" {
+        return Err(tr("Image too large (max. 20 MB)", "Bild zu groß (max. 20 MB)"));
+    }
+    Ok(ImageData { mime_type: mime.into(), data: out.trim().to_string() })
+}
+
 pub fn read(host: &HostCfg, path: &str) -> Result<String, String> {
-    check_markdown_path(path)?;
+    check_doc_path(path)?;
     hostexec::run_shell(host, &format!("cat {}", sq(path)), None)
 }
 
@@ -219,7 +272,7 @@ pub fn parse_head(out: &str) -> HeadVersion {
 }
 
 pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
-    check_markdown_path(path)?;
+    check_doc_path(path)?;
     let (dir, name) = path.rsplit_once('/').unwrap_or((".", path));
     let dir = if dir.is_empty() { "/" } else { dir };
     let script = format!(
@@ -232,7 +285,7 @@ pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
 }
 
 pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
-    check_markdown_path(path)?;
+    check_doc_path(path)?;
     let p = sq(path);
     // write to a temp file, then rename: no half-written files on failure
     let script = format!("cat > {p}.pibar-tmp && mv {p}.pibar-tmp {p}");
@@ -240,7 +293,7 @@ pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
 }
 
 pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
-    check_markdown_path(path)?;
+    check_doc_path(path)?;
     let p = sq(path);
     let script = format!("mkdir -p \"$(dirname {p})\" && [ ! -e {p} ] && : > {p}");
     hostexec::run_shell(host, &script, None).map(|_| ())
@@ -357,8 +410,15 @@ mod tests {
 
     #[test]
     fn only_markdown_paths_are_allowed() {
-        for ok in ["/home/u/notes/a.md", "~/notes/Plan.MD", "/repo/docs/x.markdown", "/a b/ä.md"] {
-            assert!(check_markdown_path(ok).is_ok(), "{ok}");
+        for ok in [
+            "/home/u/notes/a.md",
+            "~/notes/Plan.MD",
+            "/repo/docs/x.markdown",
+            "/a b/ä.md",
+            "/r/report.html",
+            "/r/i.HTM",
+        ] {
+            assert!(check_doc_path(ok).is_ok(), "{ok}");
         }
         for bad in [
             "notes/a.md",
@@ -368,8 +428,9 @@ mod tests {
             "~/../etc/passwd.md",
             "/home/u/a.md\nrm -rf ~",
             "/home/u/a.md.sh",
+            "/home/u/page.html.js",
         ] {
-            assert!(check_markdown_path(bad).is_err(), "{bad}");
+            assert!(check_doc_path(bad).is_err(), "{bad}");
         }
     }
 
@@ -380,5 +441,14 @@ mod tests {
         let l = parse_listing("~/repo", out);
         let paths: Vec<_> = l.git[0].changes.iter().map(|c| c.path.as_str()).collect();
         assert_eq!(paths, vec!["Über uns.md", "neu/Ärger.md"]);
+    }
+
+    #[test]
+    fn images_are_read_only_and_typed() {
+        assert_eq!(image_type("/home/u/Bilder/Foto.JPG"), Ok("image/jpeg"));
+        assert_eq!(image_type("~/a.png"), Ok("image/png"));
+        assert!(image_type("/home/u/../x.png").is_err());
+        assert!(image_type("/home/u/a.svg").is_err());
+        assert!(check_doc_path("/home/u/a.png").is_err(), "images cannot be written");
     }
 }

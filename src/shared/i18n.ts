@@ -136,7 +136,6 @@ const de = {
   "working folder": "Arbeitsordner",
   "New Markdown file": "Neue Markdown-Datei",
   "Remove folder from session": "Ordner aus Session entfernen",
-  "No .md files": "Keine .md-Dateien",
   "~/notes": "~/notizen",
   "Add folder to session": "Ordner zur Session hinzufügen",
   "Folder on the host": "Ordner auf dem Host",
@@ -283,6 +282,8 @@ const de = {
   "Attach files (images, text files)": "Dateien anhängen (Bilder, Textdateien)",
   "Versions of this message": "Versionen dieser Nachricht",
   "Pi asks": "Pi fragt",
+  "HTML preview": "HTML-Vorschau",
+  "No Markdown or HTML files": "Keine Markdown- oder HTML-Dateien",
   "Own answer …": "Eigene Antwort …",
   "Send answer": "Antwort senden",
   "Tick one or more answers or write your own. ⌘Enter sends.":

@@ -289,6 +289,9 @@ export const api = {
   listFiles: (hostId: string, folders: string[], git = false) =>
     invoke<FolderListing[]>("list_files", { hostId, folders, git }),
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
+  /** Image of the file panel (png, jpeg, gif, webp) as base64; read only */
+  readImage: (hostId: string, path: string) =>
+    invoke<{ mimeType: string; data: string }>("read_image", { hostId, path }),
   /** File content in Git HEAD, for the diff view */
   readFileHead: (hostId: string, path: string) => invoke<HeadVersion>("read_file_head", { hostId, path }),
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
