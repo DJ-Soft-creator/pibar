@@ -271,6 +271,7 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Run this message again from here?": "Diese Nachricht ab hier erneut ausführen?",
   "Creates a new branch; the original session stays unchanged.":
     "Erzeugt eine neue Verzweigung; die ursprüngliche Session bleibt unverändert.",
