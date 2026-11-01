@@ -68,7 +68,11 @@ MIT-Lizenz
 - Linke Spalte nach Host gruppiert (lokal und SSH); starten (auf Wunsch gleich mit Namen), öffnen, Verlauf laden,
   mehrere Sessions parallel
 - **Ordnerauswahl** für den Arbeitsordner einer neuen Session und für weitere Ordner: durchsucht den Host (lokal und
-  SSH), nach oben/Benutzerordner, neuer Ordner, auf Wunsch versteckte Ordner
+  SSH), nach oben/Benutzerordner, neuer Ordner, auf Wunsch versteckte Ordner; „Als Standardordner merken“ belegt ihn für die nächste neue Session auf diesem Host vor (auch in der
+  Quick-Bar)
+- **Aufräumen** (Archiv-Kiste neben ↻): verschiebt Sessions in eine zugeklappte Gruppe „Archiv“ am Ende der Liste –
+  alle oder nur ältere, auf Wunsch auch gruppierte oder angepinnte; gelöscht wird nichts, die Meldung bietet
+  „Rückgängig“
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
 - **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue

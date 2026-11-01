@@ -2837,3 +2837,21 @@ button.ghost.danger-text {
 .show-times .msg-time-inline {
   display: none;
 }
+
+/* Tidy up (cleanup.ts) */
+.toast-act {
+  margin-left: 10px;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.cleanup-count {
+  margin: 10px 0 4px;
+  font-weight: 600;
+}
+.group.archive .group-name {
+  color: var(--muted);
+}

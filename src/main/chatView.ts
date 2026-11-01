@@ -13,6 +13,7 @@ import { showVoiceButtons, wireVoice } from "../shared/voice";
 import { isEditorOpen, saveEditor } from "./files";
 import { applyLayout, togglePanel } from "./layout";
 import { openMenu } from "./menu";
+import { cleanupDialog } from "./cleanup";
 import { displayTitle } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { renderUsage, wireUsage } from "./usageStats";
@@ -444,6 +445,7 @@ export function wireChatView() {
 
   $("btn-settings").addEventListener("click", settingsDialog);
   $("btn-refresh").addEventListener("click", () => loadAllSessions());
+  $("btn-cleanup").addEventListener("click", () => cleanupDialog());
   $("btn-new-empty").addEventListener("click", () => newSessionDialog(defaultHostId()));
   $("btn-new").addEventListener("click", () => newSessionDialog(defaultHostId()));
 
