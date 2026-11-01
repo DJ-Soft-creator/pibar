@@ -18,7 +18,7 @@ import { displayTitle } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { renderUsage, wireUsage } from "./usageStats";
 import type { SessionTab } from "./sessionTab";
-import { closeSession, defaultHostId, loadAllSessions, newSessionDialog, undoBranch } from "./sessions";
+import { closeSession, defaultHostId, loadAllSessions, newSessionDialog, openQuestions, undoBranch } from "./sessions";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
 
@@ -182,6 +182,7 @@ export function renderToolbar() {
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
+  $("question-bar").hidden = !tab?.questions.length || tab.streaming;
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
   elActivity.hidden = !(tab?.streaming && chatMode() === "natural");
@@ -428,6 +429,11 @@ export function wireChatView() {
   elTheme.addEventListener("click", () => setTheme(nextTheme(state.config.ui.theme)));
   elDefault.innerHTML = iconSvg("star", 15);
   $("btn-undo").addEventListener("click", () => state.active && undoBranch(state.active));
+  $("btn-answer").addEventListener("click", () => state.active && openQuestions(state.active));
+  $("btn-question-close").addEventListener("click", () => {
+    if (state.active) state.active.questions = [];
+    renderToolbar();
+  });
   $("btn-undo-close").addEventListener("click", () => {
     if (state.active) state.active.undo = null;
     renderToolbar();

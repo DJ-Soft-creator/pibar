@@ -2909,3 +2909,44 @@ button.ghost.danger-text {
   box-shadow: 0 0 0 2px var(--accent);
   transition: box-shadow 0.3s;
 }
+
+/* ---------- Questions to the user (answerDialog.ts) ---------- */
+.question-bar {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.q-dialog {
+  min-width: min(520px, 80vw);
+}
+.q-group {
+  border: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.q-group legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.q-option {
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.q-option:hover {
+  background: var(--bg-hover);
+}
+.q-option input {
+  width: auto;
+  margin-top: 3px;
+}
+.q-own {
+  width: 100%;
+  margin-top: 6px;
+  resize: vertical;
+}

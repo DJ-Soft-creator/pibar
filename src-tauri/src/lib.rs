@@ -104,6 +104,15 @@ async fn pi_send(mgr: State<'_, PiManager>, handle: u32, cmd: Value) -> Result<V
     mgr.send(handle, cmd).await
 }
 
+/// Answer to a dialog Pi asked for (extension_ui_response); only this message type is passed on
+#[tauri::command]
+fn pi_reply(mgr: State<'_, PiManager>, handle: u32, msg: Value) -> Result<(), String> {
+    if msg.get("type").and_then(Value::as_str) != Some("extension_ui_response") {
+        return Err("only extension_ui_response".into());
+    }
+    mgr.reply(handle, &msg)
+}
+
 #[tauri::command]
 fn pi_stderr(mgr: State<'_, PiManager>, handle: u32) -> String {
     mgr.stderr(handle)
@@ -352,6 +361,7 @@ pub fn run() {
             list_models,
             pi_open,
             pi_send,
+            pi_reply,
             pi_close,
             pi_stderr,
             diagnose,

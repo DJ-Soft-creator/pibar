@@ -95,11 +95,21 @@ export function errMsg(e: unknown): string {
 }
 
 /** Simple modal dialog. Returns a function that closes it. */
-export function openModal(title: string, body: HTMLElement, actions: HTMLElement[]): () => void {
+export function openModal(
+  title: string,
+  body: HTMLElement,
+  actions: HTMLElement[],
+  /** Called once when the dialog closes, however (button, Escape, click outside) */
+  onClose?: () => void,
+): () => void {
   const root = $("modal-root");
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     backdrop.remove();
     document.removeEventListener("keydown", onKey);
+    onClose?.();
   };
   // Only the topmost dialog closes on Escape (a picker opened from a dialog)
   const onKey = (e: KeyboardEvent) => {
