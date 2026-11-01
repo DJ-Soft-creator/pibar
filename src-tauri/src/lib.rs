@@ -3,6 +3,7 @@ mod diag;
 mod disclaim;
 mod doubletap;
 mod files;
+mod gitlog;
 mod hostexec;
 mod i18n;
 mod models;
@@ -217,6 +218,48 @@ async fn create_dir(app: AppHandle, host_id: String, path: String) -> Result<(),
     tauri::async_runtime::spawn_blocking(move || files::create_dir(&host, &path)).await.map_err(|e| e.to_string())?
 }
 
+// ---------- Git history (read only) ----------
+
+#[tauri::command]
+async fn git_log(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    file: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<gitlog::Commit>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || gitlog::log(&host, &dir, file.as_deref(), limit.unwrap_or(200)))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_commit(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    hash: String,
+) -> Result<gitlog::CommitDetail, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || gitlog::commit(&host, &dir, &hash)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_diff(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    hash: String,
+    path: String,
+    top: bool,
+) -> Result<String, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || gitlog::diff(&host, &dir, &hash, &path, top))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 // ---------- Voice (dictation, read aloud, text improvement) ----------
 
 #[tauri::command]
@@ -381,6 +424,9 @@ pub fn run() {
             list_files,
             read_file,
             read_image,
+            git_log,
+            git_commit,
+            git_diff,
             write_file,
             create_file,
             create_dir,

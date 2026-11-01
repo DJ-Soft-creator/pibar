@@ -53,6 +53,8 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
           ),
         );
         list.scrollTop = 0;
+        // keyboard: the first folder gets the focus (Enter opens it), unless the path is being typed
+        if (document.activeElement !== inPath) (list.firstElementChild as HTMLElement | null)?.focus();
       } catch (e) {
         if (fallback && path !== "~") return load("~", false);
         status.textContent = errMsg(e);
@@ -96,6 +98,33 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
       return b;
     };
 
+    // ↑↓ between folders, Enter opens (button), ⌫ / ⌘↑ goes up, ⌘Enter takes the current folder, letters jump
+    let typed = "";
+    let typedAt = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const items = [...list.querySelectorAll<HTMLElement>(".fp-item")];
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      const inField = document.activeElement === inPath;
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (cur) finish(inPath.value.trim() || "~");
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (e.metaKey && e.key === "ArrowUp") return void (cur && load(parentDir(cur.path)));
+        const next = i < 0 ? 0 : i + (e.key === "ArrowDown" ? 1 : -1);
+        if (next < 0) inPath.focus();
+        else items[Math.min(next, items.length - 1)]?.focus();
+      } else if (e.key === "Backspace" && !inField) {
+        e.preventDefault();
+        if (cur) load(parentDir(cur.path));
+      } else if (!inField && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const now = performance.now();
+        typed = now - typedAt < 800 ? typed + e.key.toLowerCase() : e.key.toLowerCase();
+        typedAt = now;
+        items.find((b) => (b.textContent ?? "").toLowerCase().startsWith(typed))?.focus();
+      }
+    };
+
     const close = openModal(
       t("Choose folder"),
       h(
@@ -111,12 +140,14 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
         ),
         list,
         h("div", { class: "fp-foot" }, status, h("label", { class: "check" }, chkHidden, t("Hidden folders"))),
+        h("p", { class: "hint" }, t("↑↓ choose · Enter open · ⌫ up · ⌘Enter take this folder · letters jump")),
       ),
       [
         h("button", { class: "ghost", onclick: () => finish(null) }, t("Cancel")),
         h("button", { class: "primary", onclick: () => cur && finish(inPath.value.trim() || "~") }, t("Choose")),
       ],
     );
+    list.closest(".modal")?.addEventListener("keydown", (e) => onKey(e as KeyboardEvent));
     // Escape / click beside the dialog also cancel
     const backdrop = list.closest(".modal-backdrop");
     new MutationObserver((_, obs) => {
@@ -151,5 +182,11 @@ export function folderField(input: HTMLInputElement, host: () => string, onPick?
     icon("folder", 14),
   );
   b.setAttribute("aria-label", t("Choose folder"));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" && e.altKey) {
+      e.preventDefault();
+      b.click();
+    }
+  });
   return h("div", { class: "fp-field" }, input, b);
 }

@@ -47,6 +47,12 @@ License
   date (today, yesterday, last 7 days, …), by folder or none
 - **Messages while Pi works**: Enter queues the message (Pi gets it when done), ⌥Enter puts it in between (before
   Pi's next step); waiting messages stay visible above the input and can be switched, taken back or removed
+- **Git history**: click the Git line under a folder for the commits of the repository (changed files and diff per
+  commit, not pushed ones marked ↑); right click on a file → History for the commits of that file
+- **Auto scroll** follows the answer to the end (also big tool output); scroll up or the round button stops it,
+  scrolling to the end starts it again; Settings → Chat: start new answers without it (fast models)
+- **Keyboard**: ⌘/ shows all shortcuts – ⌘⇧N new session in the same folder, ⌘[ / ⌘] and ⌘1…9 switch sessions,
+  ⌘↑ takes your last message back, ⌘L into the input, ⌘. stop; dialogs and the folder picker work with the keyboard
 - **Versions of a message**: where branches part, "‹ 2/3 ›" under your message switches between the versions
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General

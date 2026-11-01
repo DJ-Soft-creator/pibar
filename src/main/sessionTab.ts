@@ -81,6 +81,8 @@ export interface TabCallbacks {
    * sent, `edited` = new text for "edit"
    */
   onUserAction: (tab: SessionTab, index: number, action: UserAction, text: string, edited?: string) => void;
+  /** A run of Pi starts (auto scroll decides whether to follow it) */
+  onAnswerStart: (tab: SessionTab) => void;
   /** Dialog or notice from a Pi extension (Pi waits for dialogs to be answered) */
   onUiRequest: (tab: SessionTab, req: UiRequest) => void;
 }
@@ -249,6 +251,7 @@ export class SessionTab {
     this.tools.clear();
     this.cur = null;
     this.userCount = 0;
+    this.userTexts = [];
   }
 
   // ---------- Branching (Pi RPC fork) ----------
@@ -501,6 +504,7 @@ export class SessionTab {
         this.reqStart = performance.now();
         this.firstToken = 0;
         if (ev.type === "turn_start") break;
+        this.cb.onAnswerStart(this);
         this.lastText = "";
         this.failed = false;
         this.unseen = false;
@@ -688,6 +692,7 @@ export class SessionTab {
       ),
     );
     const index = this.userCount++;
+    this.userTexts[index] = text;
     const bubble = h("div", { class: "bubble" }, ...imgs, text, ctxChips, ocrCard, ...fileCards);
     const panel = h("div", { class: "branch-panel", hidden: true });
     const act = (name: IconName, title: string, fn: () => void) => {
@@ -715,6 +720,13 @@ export class SessionTab {
   }
 
   // ---------- Versions of a message (branches, src/main/branchNav.ts) ----------
+
+  /** Texts of the own messages shown (⌘↑ takes the last one back into the input) */
+  private userTexts: string[] = [];
+
+  lastUserText(): string {
+    return this.userTexts[this.userTexts.length - 1] ?? "";
+  }
 
   /** Number of own messages shown in this chat */
   get userMessages(): number {
@@ -957,8 +969,6 @@ export class SessionTab {
 
   /** Re-render changed text parts as Markdown */
   private flush() {
-    const scroller = this.el.parentElement;
-    const atBottom = scroller ? scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80 : false;
     for (const part of this.allParts()) {
       if (!part.dirty) continue;
       part.dirty = false;
@@ -968,7 +978,6 @@ export class SessionTab {
         if (prev) prev.textContent = part.text.replace(/\s+/g, " ").slice(0, 120);
       }
     }
-    if (scroller && atBottom) scroller.scrollTop = scroller.scrollHeight;
   }
 
   private *allParts(): Generator<Part> {

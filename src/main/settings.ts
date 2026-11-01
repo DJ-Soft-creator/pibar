@@ -283,6 +283,12 @@ export function settingsDialog() {
     style: "width:auto",
   }) as HTMLInputElement;
 
+  const autoScroll = h("input", {
+    type: "checkbox",
+    checked: state.config.ui.autoScroll !== "off",
+    style: "width:auto",
+  }) as HTMLInputElement;
+
   const showGit = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.showGit,
@@ -358,6 +364,7 @@ export function settingsDialog() {
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
     state.config.ui.showTimes = showTimes.checked;
+    state.config.ui.autoScroll = autoScroll.checked ? "on" : "off";
     state.config.ui.notifyDone = notifyDone.checked;
     await saveConfig();
     close();
@@ -391,7 +398,12 @@ export function settingsDialog() {
         "div",
         { class: "row" },
         h("label", {}, t("Chat")),
-        h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
+        h(
+          "div",
+          {},
+          h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
+          h("label", { class: "check" }, autoScroll, ` ${t("Follow new answers (auto scroll)")}`),
+        ),
       ),
       h(
         "div",

@@ -156,12 +156,26 @@ export interface AppConfig {
     defaultPreset?: string;
     defaultModel?: string;
     defaultThinking?: string;
+    /** Auto scroll at the start of an answer: "on" (default) or "off" (switch on by hand) */
+    autoScroll?: "on" | "off";
     /** File tree: only Markdown, HTML and images (default: all files) */
     filesDocsOnly?: boolean;
     /** Session list: order and sections (src/shared/sessionOrder.ts) */
     sessionSort?: SessionSort;
     sessionGroup?: SessionGroupBy;
   };
+}
+
+/** A commit of the Git history (src-tauri/src/gitlog.rs) */
+export interface GitCommit {
+  hash: string;
+  short: string;
+  author: string;
+  /** Seconds since the epoch */
+  time: number;
+  refs: string;
+  subject: string;
+  unpushed: boolean;
 }
 
 export interface SessionInfo {
@@ -298,6 +312,14 @@ export const api = {
   listFiles: (hostId: string, folders: string[], git = false, docsOnly = false) =>
     invoke<FolderListing[]>("list_files", { hostId, folders, git, docsOnly }),
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
+  /** Git history: commits of the repository of `dir`, or of `file` (name relative to `dir`) */
+  gitLog: (hostId: string, dir: string, file?: string, limit = 200) =>
+    invoke<GitCommit[]>("git_log", { hostId, dir, file: file ?? null, limit }),
+  gitCommit: (hostId: string, dir: string, hash: string) =>
+    invoke<{ message: string; files: { status: string; path: string }[] }>("git_commit", { hostId, dir, hash }),
+  /** Diff of a file in a commit; `top`: path relative to the repository root, otherwise to `dir` */
+  gitDiff: (hostId: string, dir: string, hash: string, path: string, top: boolean) =>
+    invoke<string>("git_diff", { hostId, dir, hash, path, top }),
   /** Image of the file panel (png, jpeg, gif, webp) as base64; read only */
   readImage: (hostId: string, path: string) =>
     invoke<{ mimeType: string; data: string }>("read_image", { hostId, path }),
