@@ -345,7 +345,7 @@ function rekey(tab: SessionTab, before: string, inherit = false) {
   saveConfig();
 }
 
-async function onUserAction(tab: SessionTab, index: number, action: UserAction, shown: string) {
+async function onUserAction(tab: SessionTab, index: number, action: UserAction, shown: string, edited?: string) {
   if (action === "copy") {
     await navigator.clipboard.writeText(shown).then(
       () => toast(t("Copied")),
@@ -369,13 +369,8 @@ async function onUserAction(tab: SessionTab, index: number, action: UserAction, 
     loadSessions(tab.hostId);
     renderHosts();
     renderToolbar();
-    const msg = stripAnswerStyle(text) || shown;
-    if (action === "edit") {
-      fillInput(msg);
-      toast(t("New branch – edit the message and send it. The original session stays unchanged."));
-    } else {
-      await tab.send(msg);
-    }
+    // "edit": the text from the inline editor; "rerun": the original message
+    await tab.send(action === "edit" && edited ? edited : stripAnswerStyle(text) || shown);
   } catch (e) {
     toast(`${t("Branch")}: ${errMsg(e)}`, "err");
   }
@@ -401,7 +396,7 @@ async function applyDefaults(tab: SessionTab) {
 // ---------- Opening and closing ----------
 
 const tabCallbacks: TabCallbacks = {
-  onUserAction: (tab, index, action, text) => void onUserAction(tab, index, action, text),
+  onUserAction: (tab, index, action, text, edited) => void onUserAction(tab, index, action, text, edited),
   onHandle: (x) => {
     state.tabsByHandle.set(x.handle, x);
   },

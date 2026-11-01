@@ -193,13 +193,14 @@ into the card. The answer style is a short hint that [`SessionTab.send`](../src/
 
 ### Earlier messages: edit, run again, reuse
 
-Each user bubble ([`SessionTab`](../src/main/sessionTab.ts)) gets buttons that call
-[`onUserAction`](../src/main/sessions.ts). "Edit" and "run again" ask Pi for the fork points
-([`SessionTab.forkPoints`](../src/main/sessionTab.ts), RPC `get_fork_messages`), match the message by position or text
-and fork there ([`SessionTab.forkAt`](../src/main/sessionTab.ts), RPC `fork`): Pi writes a new session file with the
-history up to that message; the original file stays. [`rekey`](../src/main/sessions.ts) moves the tab to the new key
-and keeps group and colour. "Edit" puts the text into the input ([`fillInput`](../src/main/chatView.ts)), "run again"
-sends it right away.
+Each user bubble ([`SessionTab`](../src/main/sessionTab.ts)) gets buttons. "Edit" and "run again" first open an inline
+panel under the message (`branchPanel` in [`SessionTab`](../src/main/sessionTab.ts)): an editor or a short question, with
+"Cancel" (and Esc) – nothing changes until the user confirms. Then [`onUserAction`](../src/main/sessions.ts) asks Pi for
+the fork points ([`SessionTab.forkPoints`](../src/main/sessionTab.ts), RPC `get_fork_messages`), matches the original
+message by position or text and forks there ([`SessionTab.forkAt`](../src/main/sessionTab.ts), RPC `fork`): Pi writes a
+new session file with the history up to that message; the original file stays. [`rekey`](../src/main/sessions.ts) moves
+the tab to the new key and keeps group and colour, then the edited (or original) text is sent. "Use as new message"
+puts the text into the input ([`fillInput`](../src/main/chatView.ts)).
 
 ### Default model for new sessions
 

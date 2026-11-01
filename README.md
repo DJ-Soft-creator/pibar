@@ -27,8 +27,9 @@ License
 - **Answer style** (header): short, normal, or as short as possible with technical details
 - **Skills and commands**: type `/` in the input (or click `/`) for the session's skills, prompt templates and
   extension commands
-- **Earlier messages**: under each own message – _edit and resend_ or _run again from here_ (both start a new
-  branch from that point; the original session stays as it is), _use as new message_ or _copy_
+- **Earlier messages**: under each own message – _edit and resend_ (edit right in the message) or _run again from
+  here_; both start a new branch from that point only when you confirm, _Cancel_ or Esc leaves everything as it is,
+  and the original session always stays. Also _use as new message_ or _copy_
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General
 - **Token statistics**: tokens, cost and speed in the header; hover for input/output/cache tokens, tokens per second,
