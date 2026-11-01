@@ -32,7 +32,7 @@ function tapStatusText(choice: string, st: DoubleTapStatus | ""): string {
       return t("Active. Tap the key twice quickly.");
     case "permission":
       return t(
-        "macOS permission missing: System Settings → Privacy & Security → Input Monitoring → enable Terminal (or PiBar), then restart PiBar.",
+        "macOS permission missing: System Settings → Privacy & Security → Input Monitoring → enable PiBar (in development mode: the terminal). If it is already on: remove it (−), add it again, restart PiBar.",
       );
     case "unsupported":
       return t("Double tap is only available on macOS.");
@@ -302,6 +302,15 @@ export function settingsDialog() {
   };
   showTapStatus();
   tapSel.addEventListener("change", showTapStatus);
+  // registration at start-up may have failed (shortcut taken): show why
+  api
+    .hotkeyStatus()
+    .then((s) => {
+      if (!s.error) return;
+      hotkeyHint.textContent = s.error;
+      hotkeyHint.style.color = "var(--danger)";
+    })
+    .catch(() => {});
 
   const version = h("p", { class: "app-version" }, "PiBar");
   getVersion()

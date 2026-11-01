@@ -107,18 +107,34 @@ pub fn toggle_quick(app: &AppHandle) {
     let _ = app.emit_to(QUICK, "quick-show", ());
 }
 
+/// Result of the last hotkey registration: (shortcut, error). Shown in the settings, since the start-up
+/// registration has no window to report to.
+static HOTKEY: std::sync::Mutex<(String, Option<String>)> = std::sync::Mutex::new((String::new(), None));
+
+pub fn hotkey_status() -> (String, Option<String>) {
+    HOTKEY.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
 pub fn register_hotkey(app: &AppHandle, accel: &str) -> Result<(), String> {
     let gs = app.global_shortcut();
     let _ = gs.unregister_all();
     let accel = if accel.trim().is_empty() { crate::config::default_hotkey() } else { accel.trim().to_string() };
-    gs.on_shortcut(accel.as_str(), |app, _shortcut, event| {
-        if event.state == ShortcutState::Pressed {
-            toggle_quick(app);
-        }
-    })
-    .map_err(|e| {
-        tr(format!("Shortcut '{accel}' not possible: {e}"), format!("Tastenkürzel '{accel}' nicht möglich: {e}"))
-    })
+    let res = gs
+        .on_shortcut(accel.as_str(), |app, _shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                toggle_quick(app);
+            }
+        })
+        .map_err(|e| {
+            tr(
+                format!("Shortcut '{accel}' not possible: {e}. Is it used by another app (or a PiBar still running from the terminal)?"),
+                format!("Tastenkürzel '{accel}' nicht möglich: {e}. Belegt es eine andere App (oder ein PiBar, das noch im Terminal läuft)?"),
+            )
+        });
+    if let Ok(mut s) = HOTKEY.lock() {
+        *s = (accel.clone(), res.as_ref().err().cloned());
+    }
+    res
 }
 
 // ---------- Screenshot ----------

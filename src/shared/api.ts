@@ -248,6 +248,8 @@ export type DoubleTapStatus = "off" | "active" | "permission" | "error" | "unsup
 export const api = {
   showMain: () => invoke<void>("show_main"),
   setHotkey: (accel: string) => invoke<void>("set_hotkey", { accel }),
+  /** Shortcut of the quick bar and why it could not be registered (null = registered) */
+  hotkeyStatus: () => invoke<{ accel: string; error: string | null }>("hotkey_status"),
   /** Returns the status code, see DoubleTapStatus */
   setDoubleTap: (key: string) => invoke<DoubleTapStatus>("set_double_tap", { key }),
   doubleTapStatus: () => invoke<DoubleTapStatus>("double_tap_status"),

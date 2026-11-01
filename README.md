@@ -23,7 +23,8 @@ License
 - Chat with Pi, streamed live, Markdown and code highlighting; one round button sends, stops Pi while it works, or
   steers it as soon as you type
 - The input grows with the text up to six lines, then it scrolls
-- Model and thinking level per session, or a saved preset for both
+- Model and thinking level per session, or a saved preset for both; a message sent right after a change waits until
+  Pi has switched; each answer shows the model that produced it (on hover)
 - **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
   or _Debug_ (cards open, tool output live)
 - **Answer style** (header): short, normal, or as short as possible with technical details
@@ -135,7 +136,15 @@ puts everything on the clipboard.
 - **Screen Recording**: macOS asks on the first screenshot. In development mode the permission belongs to the terminal
   you start `npm run dev:app` from. System Settings → Privacy & Security → Screen Recording.
 - **Input Monitoring** (for the double tap): macOS asks on first start. In development mode it belongs to the terminal.
-  System Settings → Privacy & Security → Input Monitoring. Restart PiBar afterwards.
+  System Settings → Privacy & Security → Input Monitoring. Restart PiBar afterwards. If the switch is on but the double
+  tap does not react: remove PiBar there (−), add it again and restart PiBar.
+- **Permissions and rebuilds**: macOS ties permissions to the code signature. `npm run app:install` signs PiBar with a
+  local certificate ("PiBar Local Signing", created once in the login keychain; macOS may ask for your password to
+  trust it), so permissions survive rebuilds. When the certificate is new, the script resets the old permissions once
+  and macOS asks again.
+- **Quick bar does not open**: PiBar shows a message at start if the shortcut is taken (by another app or by a PiBar
+  still running from the terminal) or the double tap lacks the permission; the tray menu → Quick-Launcher always
+  works.
 - **OCR** uses Apple's text recognition (Vision). The first time, PiBar builds a small helper with the Xcode tools; this
   takes 20–40 seconds once.
 

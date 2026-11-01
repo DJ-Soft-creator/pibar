@@ -158,8 +158,8 @@ const de = {
   "right ⌘ Command": "rechte ⌘ Command",
   "Double tap is off.": "Doppeltipp ist aus.",
   "Active. Tap the key twice quickly.": "Aktiv. Tipp zweimal schnell auf die Taste.",
-  "macOS permission missing: System Settings → Privacy & Security → Input Monitoring → enable Terminal (or PiBar), then restart PiBar.":
-    "macOS-Recht fehlt: Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung → Terminal (bzw. PiBar) einschalten, dann PiBar neu starten.",
+  "macOS permission missing: System Settings → Privacy & Security → Input Monitoring → enable PiBar (in development mode: the terminal). If it is already on: remove it (−), add it again, restart PiBar.":
+    "macOS-Recht fehlt: Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung → PiBar einschalten (im Entwicklungsmodus: das Terminal). Ist es schon an: entfernen (−), wieder hinzufügen, PiBar neu starten.",
   "Double tap is only available on macOS.": "Doppeltipp gibt es nur auf macOS.",
   "Double tap could not be started.": "Doppeltipp ließ sich nicht starten.",
   "Keyboard shortcut": "Tastenkürzel",
@@ -337,6 +337,10 @@ const de = {
   "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Choose folder": "Ordner auswählen",
+  "The new model applies from the next message; the running answer keeps the old one.":
+    "Das neue Modell gilt ab der nächsten Nachricht; die laufende Antwort nutzt noch das alte.",
+  "Double tap: macOS permission missing. System Settings → Privacy & Security → Input Monitoring: remove PiBar (−), add it again, restart PiBar.":
+    "Doppeltipp: macOS-Berechtigung fehlt. Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung: PiBar entfernen (−), wieder hinzufügen, PiBar neu starten.",
   "Add to context": "Zum Kontext hinzufügen",
   "Have a look at the context.": "Sieh dir den Kontext an.",
   Diff: "Diff",

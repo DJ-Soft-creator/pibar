@@ -46,7 +46,34 @@ async function init() {
   await listen("quick-request-active", () => broadcastActive());
 
   startReminderClock();
+  warnQuickBar();
   await loadAllSessions();
+}
+
+/** The quick bar cannot open if its shortcut is taken or the double tap lacks the macOS permission: say so */
+function warnQuickBar() {
+  api
+    .hotkeyStatus()
+    .then((s) => s.error && toast(s.error, "err", 15000))
+    .catch(() => {});
+  if ((state.config.ui.doubleTap ?? "option") === "off") return;
+  // the keyboard listener starts in the background: ask a moment later
+  setTimeout(() => {
+    api
+      .doubleTapStatus()
+      .then(
+        (st) =>
+          st === "permission" &&
+          toast(
+            t(
+              "Double tap: macOS permission missing. System Settings → Privacy & Security → Input Monitoring: remove PiBar (−), add it again, restart PiBar.",
+            ),
+            "err",
+            20000,
+          ),
+      )
+      .catch(() => {});
+  }, 3000);
 }
 
 init().catch((e) => toast(`${t("Start failed")}: ${errMsg(e)}`, "err", 15000));

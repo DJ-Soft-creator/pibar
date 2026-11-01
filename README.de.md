@@ -23,7 +23,8 @@ MIT-Lizenz
 - Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; ein runder Knopf sendet, stoppt Pi während der Arbeit
   oder steuert nach, sobald du tippst
 - Die Eingabe wächst mit dem Text bis sechs Zeilen, danach scrollt sie
-- Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides
+- Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides; eine Nachricht direkt nach dem Wechsel
+  wartet, bis Pi umgestellt hat; jede Antwort zeigt das Modell, das sie erzeugt hat (beim Überfahren)
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
   Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
@@ -143,7 +144,15 @@ API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischena
 - **Bildschirmaufnahme**: macOS fragt beim ersten Screenshot. Im Entwicklungsmodus gilt die Freigabe für das Terminal,
   aus dem du `npm run dev:app` startest. Systemeinstellungen → Datenschutz & Sicherheit → Bildschirmaufnahme.
 - **Eingabeüberwachung** (für den Doppeltipp): macOS fragt beim ersten Start. Im Entwicklungsmodus gilt sie für das
-  Terminal. Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung. Danach PiBar neu starten.
+  Terminal. Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung. Danach PiBar neu starten. Ist der
+  Schalter an, der Doppeltipp reagiert aber nicht: PiBar dort entfernen (−), wieder hinzufügen und PiBar neu starten.
+- **Berechtigungen und Neubauen**: macOS bindet Berechtigungen an die Code-Signatur. `npm run app:install` signiert
+  PiBar mit einem lokalen Zertifikat („PiBar Local Signing“, einmalig im Anmelde-Schlüsselbund angelegt; macOS fragt
+  dabei eventuell nach dem Passwort, um ihm zu vertrauen), damit Berechtigungen ein Neubauen überstehen. Ist das
+  Zertifikat neu, setzt das Skript die alten Berechtigungen einmal zurück und macOS fragt erneut.
+- **Quick-Bar öffnet nicht**: PiBar meldet beim Start, wenn das Tastenkürzel belegt ist (von einer anderen App oder
+  einem PiBar, das noch im Terminal läuft) oder dem Doppeltipp die Berechtigung fehlt; Menüleisten-Symbol →
+  Quick-Launcher geht immer.
 - **OCR** nutzt Apples Texterkennung (Vision). Beim ersten Mal baut PiBar dafür ein kleines Hilfsprogramm mit den
   Xcode-Werkzeugen, einmalig 20–40 Sekunden.
 

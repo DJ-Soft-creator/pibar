@@ -5,6 +5,7 @@ import {
   baseName,
   splitContext,
   splitFiles,
+  shortModel,
   splitScreenText,
   stripAnswerStyle,
   tokensPerSecond,
@@ -164,6 +165,11 @@ export class SessionTab {
   private cb: TabCallbacks;
   /** Live timing: request start and first token of the current answer */
   private reqStart = 0;
+  /**
+   * Model and thinking changes still on their way to Pi. Pi handles RPC commands concurrently: a prompt sent right
+   * after set_model could start before the switch is done and still use the old model. send() waits for this.
+   */
+  private settling: Promise<unknown> = Promise.resolve();
   private firstToken = 0;
   /** Number of user messages shown (index for the message actions) */
   private userCount = 0;
@@ -295,6 +301,7 @@ export class SessionTab {
   // ---------- Actions ----------
 
   async send(text: string, images: { data: string; mimeType: string }[] = []) {
+    await this.settling.catch(() => {});
     const cmd: Record<string, unknown> = { type: "prompt", message: withAnswerStyle(text, state.config.ui.answerMode) };
     if (images.length) cmd.images = images.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
     if (this.streaming) cmd.streamingBehavior = "steer";
@@ -306,18 +313,31 @@ export class SessionTab {
     await api.pi(this.handle, { type: "abort" });
   }
 
-  async setModel(provider: string, modelId: string) {
-    const m = await api.pi(this.handle, { type: "set_model", provider, modelId });
-    this.model = m ?? this.model;
-    await this.refreshModels();
-    await this.refreshState();
-    this.cb.onStateChange(this);
+  /** Run a settings change after the previous ones; send() waits until all are done */
+  private settle<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.settling.catch(() => {}).then(fn);
+    this.settling = run;
+    return run;
   }
 
-  async setThinking(level: string) {
-    await api.pi(this.handle, { type: "set_thinking_level", level });
-    this.thinkingLevel = level;
-    this.cb.onStateChange(this);
+  setModel(provider: string, modelId: string) {
+    if (this.streaming)
+      this.note(t("The new model applies from the next message; the running answer keeps the old one."));
+    return this.settle(async () => {
+      const m = await api.pi(this.handle, { type: "set_model", provider, modelId });
+      this.model = m ?? this.model;
+      await this.refreshModels();
+      await this.refreshState();
+      this.cb.onStateChange(this);
+    });
+  }
+
+  setThinking(level: string) {
+    return this.settle(async () => {
+      await api.pi(this.handle, { type: "set_thinking_level", level });
+      this.thinkingLevel = level;
+      this.cb.onStateChange(this);
+    });
   }
 
   // ---------- History ----------
@@ -667,16 +687,22 @@ export class SessionTab {
       .map((p) => p.text)
       .join("\n\n")
       .trim();
+    // the model that actually answered (shown with the actions, on hover)
+    const used = msg?.model
+      ? h("span", { class: "msg-model", title: `${msg.provider ?? ""}/${msg.model}` }, shortModel(msg.model))
+      : null;
+    let btn: HTMLElement | null = null;
     if (text) {
       this.lastText = text;
-      const btn: HTMLElement = h("button", {
+      const b: HTMLElement = h("button", {
         class: "msg-act",
         title: t("Read aloud"),
-        onclick: () => readAloud(text, btn),
+        onclick: () => readAloud(text, b),
       });
-      btn.innerHTML = ICON_SPEAK;
-      cur.el.append(h("div", { class: "msg-acts" }, btn));
+      b.innerHTML = ICON_SPEAK;
+      btn = b;
     }
+    if (btn || used) cur.el.append(h("div", { class: "msg-acts" }, btn, used));
     this.cur = null;
   }
 
