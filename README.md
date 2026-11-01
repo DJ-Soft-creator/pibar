@@ -20,7 +20,8 @@ License
 
 ### Chat
 
-- Chat with Pi, streamed live, Markdown and code highlighting; stop and steer while Pi is working
+- Chat with Pi, streamed live, Markdown and code highlighting; one round button sends, stops Pi while it works, or
+  steers it as soon as you type
 - Model and thinking level per session, or a saved preset for both
 - **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
   or _Debug_ (cards open, tool output live)
@@ -109,7 +110,8 @@ the key is passed on stdin, not on the command line.
 
 Chat errors such as "Connection error" have a **Diagnose** button (also per host in the settings). It runs on the host
 with the same rights and environment as Pi and shows Pi's own error output, the Pi and Node versions, relevant
-environment variables (secrets hidden), Pi's model configuration and whether the model servers can be reached – plus
+environment variables (secrets hidden), Pi's model configuration, server addresses found in Pi's configuration and
+extensions, whether they can be reached (curl and Node, like Pi), and the result of a short test request through Pi – plus
 plain hints for typical causes (local network permission, server not running, missing API key, proxy). "Copy report"
 puts everything on the clipboard.
 

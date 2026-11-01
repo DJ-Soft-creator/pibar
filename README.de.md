@@ -20,7 +20,8 @@ MIT-Lizenz
 
 ### Chat
 
-- Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; stoppen und nachsteuern, während Pi arbeitet
+- Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; ein runder Knopf sendet, stoppt Pi während der Arbeit
+  oder steuert nach, sobald du tippst
 - Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
   Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
@@ -115,8 +116,9 @@ Schlüssel wird über stdin übergeben, nicht auf der Kommandozeile.
 
 Fehler im Chat wie „Connection error“ haben einen Knopf **Diagnose** (auch pro Host in den Einstellungen). Er läuft auf
 dem Host mit denselben Rechten und derselben Umgebung wie Pi und zeigt Pis eigene Fehlerausgabe, die Pi- und
-Node-Version, relevante Umgebungsvariablen (Geheimnisse verborgen), Pis Modell-Konfiguration und ob die Modellserver
-erreichbar sind – dazu Hinweise auf typische Ursachen in Klartext (Freigabe „Lokales Netzwerk“, Server läuft nicht,
+Node-Version, relevante Umgebungsvariablen (Geheimnisse verborgen), Pis Modell-Konfiguration, die in Pis
+Konfiguration und Erweiterungen gefundenen Serveradressen, ob sie erreichbar sind (per curl und Node wie Pi) und das
+Ergebnis einer kurzen Test-Anfrage über Pi – dazu Hinweise auf typische Ursachen in Klartext (Freigabe „Lokales Netzwerk“, Server läuft nicht,
 API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischenablage.
 
 ## macOS-Rechte

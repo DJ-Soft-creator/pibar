@@ -2418,3 +2418,41 @@ button.ghost.danger-text {
   width: auto;
   flex: none;
 }
+
+/* ---------- Send button: send · stop · steer ---------- */
+.send-btn {
+  flex: none;
+  align-self: center;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.1s;
+}
+.send-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.send-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.send-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.send-btn.stop {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.send-btn.steer {
+  background: var(--warn);
+}
+.composer-actions {
+  align-items: center;
+}

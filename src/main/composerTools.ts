@@ -111,6 +111,7 @@ function renderChips() {
     ),
   );
   $("btn-dock").classList.toggle("has", attachments.length > 0);
+  renderToolbar(); // the send button depends on attachments
 }
 
 // ---------- Tools of a session ----------

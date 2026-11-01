@@ -271,6 +271,8 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "Stop (Esc)": "Stopp (Esc)",
+  "Steer: send while Pi is working (Enter)": "Nachsteuern: senden, während Pi arbeitet (Enter)",
   Apply: "Übernehmen",
   "File too large (max. 200 KB for text)": "Datei zu groß (max. 200 KB bei Text)",
   "Have a look at the attached files.": "Schau dir die angehängten Dateien an.",
