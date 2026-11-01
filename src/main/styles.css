@@ -2950,3 +2950,31 @@ button.ghost.danger-text {
   margin-top: 6px;
   resize: vertical;
 }
+
+/* HTML files: rendered in a sandboxed frame (files.ts renderHtml), white page like in a browser */
+.ed-render.html {
+  padding: 0;
+  overflow: hidden;
+}
+.html-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* Images in the file panel (read only) */
+.image-view {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 12px;
+  background: repeating-conic-gradient(var(--bg-hover) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+.file-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}

@@ -86,7 +86,8 @@ License
 ### Files
 
 - Right column: the session's folders as a tree; create files and folders (`+`), read, edit, preview and save `.md`
-  files (⌘S)
+  files (⌘S); **HTML** files open rendered (sandboxed: no scripts, no files from the web), **images** (PNG, JPEG, GIF,
+  WebP) are shown
 - **Diff view** next to edit and preview: the changes against the last Git commit or against the saved file, including
   unsaved edits (+/− lines, 3 lines of context); right click on a file → Show changes
 - **Context**: drag a folder or file from the tree into the input, or right click → Add to context; Pi gets the path

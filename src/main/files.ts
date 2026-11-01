@@ -45,6 +45,8 @@ const closedRoots = new Set<string>();
 
 const ICON_DIR =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.5h5.6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/></svg>';
+const ICON_IMAGE =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><circle cx="6" cy="6.5" r="1.3"/><path d="M2.5 12l3.5-3.5 2.5 2.5 2-2 3 3"/></svg>';
 const ICON_FILE =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3M6 8.5h4M6 11h4"/></svg>';
 
@@ -166,14 +168,16 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
               [
                 { label: t("Open"), onSelect: () => openFile(tab.hostId, full) },
                 { label: t("Add to context"), onSelect: () => addContextPath("file", full) },
-                { label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") },
+                ...(isImage(full)
+                  ? []
+                  : [{ label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") }]),
               ],
               "left",
               { x: e.clientX, y: e.clientY },
             );
           },
         },
-        icon(ICON_FILE),
+        icon(/\.(png|jpe?g|gif|webp)$/i.test(f.name) ? ICON_IMAGE : ICON_FILE),
         h("span", { class: "tname" }, f.name),
         changes.length ? gitMark(gitStatusFor(changes, f.path)) : null,
       ),
@@ -274,7 +278,7 @@ function renderTree() {
           body =
             tree.dirs.length || tree.files.length
               ? treeRows(tab, l.root, tree, 1)
-              : [h("div", { class: "hint-line" }, t("No .md files"))];
+              : [h("div", { class: "hint-line" }, t("No Markdown or HTML files"))];
         }
       }
       const own = repos.find((r) => r.dir === "");
@@ -329,6 +333,7 @@ export async function reloadFiles() {
   await renderFiles();
   const path = editor.path;
   if (!path || !isEditorOpen() || elEdText.value !== editor.original) return;
+  if (isImage(path)) return void openImage(editor.hostId, path);
   try {
     const text = await api.readFile(editor.hostId, path);
     if (editor.path !== path || elEdText.value !== editor.original || text === editor.original) return;
@@ -488,8 +493,42 @@ function newFileDialog(tab: SessionTab, root: string) {
   );
 }
 
+const isImage = (path: string) => /\.(png|jpe?g|gif|webp)$/i.test(path);
+
+/** Images are only shown: no edit, preview or diff */
+function setImageMode(on: boolean) {
+  elEditor.classList.toggle("image", on);
+  for (const m of ["edit", "preview", "diff"] as const) ($(`ed-${m}`) as HTMLButtonElement).hidden = on;
+  elEdSave.hidden = on;
+}
+
+async function openImage(hostId: string, path: string) {
+  try {
+    const img = await api.readImage(hostId, path);
+    Object.assign(editor, { hostId, path, original: "", head: undefined });
+    elEdText.value = "";
+    $("editor-name").textContent = baseName(path);
+    $("editor-name").title = path;
+    showEditor(true);
+    setImageMode(true);
+    elEdText.hidden = true;
+    elEdDiff.hidden = true;
+    elEdRender.hidden = false;
+    elEdRender.classList.remove("md", "html");
+    const el = h("img", { class: "file-image", src: `data:${img.mimeType};base64,${img.data}`, alt: baseName(path) });
+    elEdRender.replaceChildren(h("div", { class: "image-view" }, el));
+    elFileTree
+      .querySelectorAll<HTMLElement>(".file")
+      .forEach((b) => b.classList.toggle("active", b.dataset.path === path));
+  } catch (e) {
+    toast(`${t("Read file")}: ${errMsg(e)}`, "err");
+  }
+}
+
 async function openFile(hostId: string, path: string, mode?: EditorMode) {
   if (editor.path !== path && !confirmDiscard()) return;
+  if (isImage(path)) return openImage(hostId, path);
+  setImageMode(false);
   try {
     const text = await api.readFile(hostId, path);
     Object.assign(editor, { hostId, path, original: text, head: undefined });
@@ -498,7 +537,8 @@ async function openFile(hostId: string, path: string, mode?: EditorMode) {
     $("editor-name").title = path;
     elEdSave.disabled = true;
     showEditor(true);
-    setMode(mode ?? (editor.mode === "diff" ? "edit" : editor.mode));
+    // HTML opens rendered; Markdown in the last used mode (but not in the diff)
+    setMode(mode ?? (isHtml(path) ? "preview" : editor.mode === "diff" ? "edit" : editor.mode));
     elFileTree
       .querySelectorAll<HTMLElement>(".file")
       .forEach((b) => b.classList.toggle("active", b.dataset.path === path));
@@ -532,13 +572,35 @@ export function closeEditor() {
   elFileTree.querySelectorAll(".file.active").forEach((b) => b.classList.remove("active"));
 }
 
+const isHtml = (path: string) => /\.html?$/i.test(path);
+
+/**
+ * HTML preview in a sandboxed frame: no scripts, forms or popups, no access to PiBar. It keeps the page's
+ * Content Security Policy, so styles in the file and embedded (data:) images show, files from the web do not.
+ */
+function renderHtml(target: HTMLElement, html: string) {
+  const frame = document.createElement("iframe");
+  frame.className = "html-frame";
+  frame.setAttribute("sandbox", "");
+  frame.setAttribute("referrerpolicy", "no-referrer");
+  frame.title = t("HTML preview");
+  frame.srcdoc = html;
+  target.replaceChildren(frame);
+}
+
 function setMode(mode: EditorMode) {
   editor.mode = mode;
   for (const m of ["edit", "preview", "diff"] as const) $(`ed-${m}`).classList.toggle("active", m === mode);
   elEdText.hidden = mode !== "edit";
   elEdRender.hidden = mode !== "preview";
   elEdDiff.hidden = mode !== "diff";
-  if (mode === "preview") renderMarkdown(elEdRender, elEdText.value);
+  const html = isHtml(editor.path);
+  elEdRender.classList.toggle("md", !html);
+  elEdRender.classList.toggle("html", html);
+  if (mode === "preview") {
+    if (html) renderHtml(elEdRender, elEdText.value);
+    else renderMarkdown(elEdRender, elEdText.value);
+  }
   if (mode === "diff") void renderDiff();
 }
 

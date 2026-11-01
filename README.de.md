@@ -93,7 +93,8 @@ MIT-Lizenz
 ### Dateien
 
 - Rechte Spalte: Ordner der Session als Baum; Dateien und Ordner anlegen (`+`), `.md`-Dateien lesen, bearbeiten,
-  Vorschau, speichern (⌘S)
+  Vorschau, speichern (⌘S); **HTML**-Dateien öffnen gerendert (abgeschottet: keine Skripte, keine Dateien aus dem
+  Netz), **Bilder** (PNG, JPEG, GIF, WebP) werden angezeigt
 - **Diff-Ansicht** neben Bearbeiten und Vorschau: Änderungen gegenüber dem letzten Git-Commit oder der gespeicherten
   Datei, inklusive ungespeicherter Änderungen (+/−-Zeilen, 3 Zeilen Kontext); Rechtsklick auf eine Datei → Änderungen
   anzeigen

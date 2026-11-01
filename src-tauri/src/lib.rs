@@ -166,6 +166,13 @@ async fn read_file(app: AppHandle, host_id: String, path: String) -> Result<Stri
     tauri::async_runtime::spawn_blocking(move || files::read(&host, &path)).await.map_err(|e| e.to_string())?
 }
 
+/// An image of the file panel as base64 (read only)
+#[tauri::command]
+async fn read_image(app: AppHandle, host_id: String, path: String) -> Result<files::ImageData, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || files::read_image(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn read_file_head(app: AppHandle, host_id: String, path: String) -> Result<files::HeadVersion, String> {
     let host = config::find_host(&app, &host_id)?;
@@ -369,6 +376,7 @@ pub fn run() {
             set_language,
             list_files,
             read_file,
+            read_image,
             write_file,
             create_file,
             create_dir,
