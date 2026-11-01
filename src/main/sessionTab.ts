@@ -776,7 +776,8 @@ export class SessionTab {
 
   private beginAssistant() {
     if (this.cur) return;
-    const el = h("div", { class: "msg assistant" });
+    // "technical" until visible text arrives: the natural view hides such messages completely (tool calls only)
+    const el = h("div", { class: "msg assistant technical" });
     this.el.append(el);
     this.cur = { el, parts: new Map() };
   }
@@ -785,6 +786,8 @@ export class SessionTab {
     if (!this.cur) this.beginAssistant();
     const cur = this.cur!;
     if (msg?.usage) this.addUsage(msg.usage);
+    if (msg?.stopReason === "error" || msg?.errorMessage || msg?.stopReason === "aborted")
+      cur.el.classList.remove("technical"); // errors and "aborted" stay visible in every view
     if (msg?.stopReason === "error" || msg?.errorMessage) {
       if (this.streaming) this.failed = true;
       const error = msg.errorMessage || t("Error in the response");
@@ -878,6 +881,7 @@ export class SessionTab {
     const p = this.getPart(index, kind);
     p.text += delta;
     p.dirty = true;
+    if (kind === "text" && p.text.trim()) this.cur?.el.classList.remove("technical");
     this.schedule();
   }
 
