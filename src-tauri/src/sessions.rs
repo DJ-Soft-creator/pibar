@@ -18,13 +18,15 @@ pub struct SessionInfo {
     pub name: Option<String>,
     /// Session this one was branched from (header `parentSession`, set by Pi's fork)
     pub parent: Option<String>,
+    /// Last change of the file (last activity), seconds since the epoch; 0 = unknown
+    pub modified: i64,
 }
 
 const LIST_SCRIPT: &str = r#"
 dir="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/sessions"
 [ -d "$dir" ] || exit 0
 ls -t "$dir"/*/*.jsonl 2>/dev/null | head -n 300 | while IFS= read -r f; do
-  printf '%s\t' "$f"
+  printf '%s\t%s\t' "$f" "$(date -r "$f" +%s 2>/dev/null)"
   head -n 1 "$f" | tr -d '\t\n'
   printf '\t'
   grep -m1 '"role":"user"' "$f" | cut -c1-2000 | tr -d '\t\n'
@@ -61,17 +63,18 @@ pub fn list(host: &HostCfg) -> Result<Vec<SessionInfo>, String> {
     let out = hostexec::run_shell(host, LIST_SCRIPT, None)?;
     let mut result = Vec::new();
     for line in out.lines() {
-        let parts: Vec<&str> = line.splitn(4, '\t').collect();
-        if parts.len() < 3 {
+        let parts: Vec<&str> = line.splitn(5, '\t').collect();
+        if parts.len() < 4 {
             continue;
         }
-        let header: Value = serde_json::from_str(parts[1]).unwrap_or(Value::Null);
-        let title = first_text(parts[2]);
+        let modified = parts[1].trim().parse().unwrap_or(0);
+        let header: Value = serde_json::from_str(parts[2]).unwrap_or(Value::Null);
+        let title = first_text(parts[3]);
         if title.is_empty() {
             continue; // skip empty sessions without a message
         }
         let name = parts
-            .get(3)
+            .get(4)
             .and_then(|s| serde_json::from_str::<Value>(s).ok())
             .and_then(|v| v.get("name").and_then(Value::as_str).map(String::from));
         result.push(SessionInfo {
@@ -82,6 +85,7 @@ pub fn list(host: &HostCfg) -> Result<Vec<SessionInfo>, String> {
             title,
             name,
             parent: header.get("parentSession").and_then(Value::as_str).map(String::from),
+            modified,
         });
     }
     Ok(result)

@@ -43,6 +43,8 @@ License
   message_ or _copy_. The model you chose stays when branching.
 - **Questions with options**: when Pi ends an answer with a choice question, a dialog opens with the options to
   tick and a field for your own answer (also for dialogs of Pi extensions)
+- **Session list in order**: button in the header – sort by last activity, creation, name or folder; sections by
+  date (today, yesterday, last 7 days, …), by folder or none
 - **Versions of a message**: where branches part, "‹ 2/3 ›" under your message switches between the versions
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General

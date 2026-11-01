@@ -7,7 +7,16 @@ import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
 import { cleanTitle, relTime, shortPath, splitScreenText, stripAnswerStyle } from "../shared/format";
 import { splitModelKey } from "../shared/presets";
-import { t } from "../shared/i18n";
+import {
+  rowTime,
+  sectionRows,
+  sortRows,
+  type OrderRow,
+  type SessionGroupBy,
+  type SessionSort,
+} from "../shared/sessionOrder";
+import { openMenu } from "./menu";
+import { getLang, t, type Msg } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, reloadFiles, renderFiles } from "./files";
 import { refreshBranches } from "./branchNav";
@@ -40,6 +49,7 @@ import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
 
 const elHostList = $("host-list");
+$("btn-session-view").addEventListener("click", (e) => viewMenu(e.currentTarget as HTMLElement));
 const elHostTabs = $("host-tabs");
 
 // ---------- Loading ----------
@@ -176,18 +186,28 @@ export function renderHosts() {
           : sessionSections([
               ...openNew.map((x) => ({
                 ref: { hostId: host.id, path: x.sessionPath ?? "", title: x.title, cwd: x.cwd, tab: x },
-                ts: "",
+                title: x.title,
+                cwd: x.cwd,
+                created: 0,
+                modified: 0,
+                fresh: true,
               })),
-              ...list.map((s) => ({
-                ref: {
+              ...list.map((s) => {
+                const ref: SessionRef = {
                   hostId: host.id,
                   path: s.path,
                   title: s.name || s.title,
                   cwd: s.cwd,
                   tab: state.tabs.get(`${host.id}|${s.path}`),
-                },
-                ts: s.timestamp,
-              })),
+                };
+                return {
+                  ref,
+                  title: displayTitle(`${host.id}|${s.path}`, s.name || s.title),
+                  cwd: s.cwd,
+                  created: Date.parse(s.timestamp) || 0,
+                  modified: (s.modified ?? 0) * 1000,
+                };
+              }),
             ])),
         !isCollapsed && list.length === 0 && openNew.length === 0 && st?.state === "ok"
           ? h("div", { class: "hint-line" }, t("No sessions yet"))
@@ -202,22 +222,94 @@ const ICON_PIN =
   '<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M9.8 1.5 14.5 6.2l-1.4.4-2.6 2.6.3 3.3-1.2 1.2-2.9-2.9-3.6 3.6-.7-.7 3.6-3.6L3.1 7.3l1.2-1.2 3.3.3 2.6-2.6z"/></svg>';
 
 /** Pinned sessions first, then each group (coloured header, collapsible), then the rest */
-function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[] {
+type ListRow = OrderRow & { ref: SessionRef };
+
+/** Time shown in a row: matches the order (last activity, or creation when sorted by it) */
+function rowTs(r: ListRow): string {
+  const ms = rowTime(r, sortMode());
+  return ms ? new Date(ms).toISOString() : "";
+}
+
+function sortMode(): SessionSort {
+  return state.config.ui.sessionSort ?? "activity";
+}
+
+function groupMode(): SessionGroupBy {
+  return state.config.ui.sessionGroup ?? "date";
+}
+
+/** Heading of a section of the session list */
+function sectionLabel(key: string): string {
+  if (groupMode() === "folder") return shortPath(key) || "~";
+  const fixed: Record<string, string> = {
+    today: t("Today"),
+    yesterday: t("Yesterday"),
+    week: t("Last 7 days"),
+    month: t("Last 30 days"),
+  };
+  if (fixed[key]) return fixed[key];
+  const [y, m] = key.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(getLang(), { month: "long", year: "numeric" });
+}
+
+/** Header button: order and sections of the session list */
+function viewMenu(anchor: HTMLElement) {
+  const ui = state.config.ui;
+  const set = (patch: Partial<typeof ui>) => {
+    Object.assign(ui, patch);
+    saveConfig();
+    renderHosts();
+  };
+  const sorts: [SessionSort, Msg][] = [
+    ["activity", "Last activity"],
+    ["created", "Created"],
+    ["name", "Name"],
+    ["folder", "Folder"],
+  ];
+  const groupsBy: [SessionGroupBy, Msg][] = [
+    ["date", "Date"],
+    ["folder", "Folder"],
+    ["none", "No sections"],
+  ];
+  openMenu(
+    anchor,
+    [
+      { heading: t("Sort by") },
+      ...sorts.map(([v, l]) => ({ label: t(l), selected: sortMode() === v, onSelect: () => set({ sessionSort: v }) })),
+      { separator: true },
+      { heading: t("Sections") },
+      ...groupsBy.map(([v, l]) => ({
+        label: t(l),
+        selected: groupMode() === v,
+        onSelect: () => set({ sessionGroup: v }),
+      })),
+    ],
+    "right",
+  );
+}
+
+function sessionSections(rows: ListRow[]): HTMLElement[] {
   const meta = (r: SessionRef) => (r.path ? metaOf(`${r.hostId}|${r.path}`) : {});
-  const pinned = rows.filter((r) => meta(r.ref).pinned);
+  const pinned = sortRows(
+    rows.filter((r) => meta(r.ref).pinned),
+    sortMode(),
+  );
   const rest = rows.filter((r) => !meta(r.ref).pinned);
   const out: HTMLElement[] = [];
   if (pinned.length) {
     const head = h("div", { class: "sec-head" }, h("span", { class: "sec-icon" }), t("Pinned"));
     head.querySelector(".sec-icon")!.innerHTML = ICON_PIN;
     dropTarget(head, (keys) => setMetaMany(keys, { pinned: true }));
-    out.push(head, ...pinned.map((r) => sessionItem(r.ref, r.ts)));
+    out.push(head, ...pinned.map((r) => sessionItem(r.ref, rowTs(r))));
   }
   const ids = new Set(groups().map((g) => g.id));
   // the archive always comes last
   const ordered = [...groups().filter((g) => g.id !== ARCHIVE), ...groups().filter((g) => g.id === ARCHIVE)];
   for (const g of ordered) {
-    const inGroup = rest.filter((r) => meta(r.ref).group === g.id);
+    const inGroup = sortRows(
+      rest.filter((r) => meta(r.ref).group === g.id),
+      sortMode(),
+    );
     // empty groups only show while dragging, so sessions can be dropped into them
     if (!inGroup.length) {
       const empty = h(
@@ -253,12 +345,17 @@ function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[]
         h("span", { class: "count" }, String(inGroup.length)),
         h("button", { class: "sess-act group-more", title: t("More …"), onclick: menu }, icon("more", 13)),
       ),
-      ...(g.collapsed ? [] : inGroup.map((r) => sessionItem(r.ref, r.ts))),
+      ...(g.collapsed ? [] : inGroup.map((r) => sessionItem(r.ref, rowTs(r)))),
     );
     dropTarget(box, (keys) => setMetaMany(keys, { group: g.id, pinned: false }));
     out.push(box);
   }
-  out.push(...rest.filter((r) => !ids.has(meta(r.ref).group ?? "")).map((r) => sessionItem(r.ref, r.ts)));
+  // sessions without a group: sorted and, if chosen, in sections by date or folder
+  const loose = rest.filter((r) => !ids.has(meta(r.ref).group ?? ""));
+  for (const sec of sectionRows(loose, sortMode(), groupMode())) {
+    if (sec.key) out.push(h("div", { class: "sec-head date-head" }, sectionLabel(sec.key)));
+    out.push(...sec.rows.map((r) => sessionItem(r.ref, rowTs(r))));
+  }
   return out;
 }
 
