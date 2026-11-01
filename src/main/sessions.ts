@@ -363,13 +363,23 @@ async function onUserAction(tab: SessionTab, index: number, action: UserAction, 
     let p = points[index];
     if (!p || norm(p.text) !== norm(shown)) p = points.find((x) => norm(x.text) === norm(shown)) ?? p;
     if (!p) throw new Error(t("This message cannot be branched from."));
+    // "go back": fork before the NEXT message, so this message and its answer stay and everything later is gone
+    let at = p;
+    if (action === "rewind") {
+      const next = points[points.indexOf(p) + 1];
+      if (!next) return toast(t("This is already the latest state."));
+      at = next;
+    }
     const before = tab.key;
-    const text = await tab.forkAt(p.entryId);
+    const fromPath = tab.sessionPath;
+    const text = await tab.forkAt(at.entryId);
     if (text === null) return;
     rekey(tab, before, true);
+    tab.undo = fromPath ? { fromPath, branchPath: tab.sessionPath } : null;
     loadSessions(tab.hostId);
     renderHosts();
     renderToolbar();
+    if (action === "rewind") return;
     // "edit": the text from the inline editor; "rerun": the original message
     await tab.send(action === "edit" && edited ? edited : stripAnswerStyle(text) || shown);
   } catch (e) {
@@ -388,6 +398,34 @@ async function nameNewSession(tab: SessionTab, name: string) {
   }
   renderToolbar();
   renderHosts();
+}
+
+/** Undo the last branch / "go back": return to the previous session file and delete the branch */
+export async function undoBranch(tab: SessionTab) {
+  const u = tab.undo;
+  if (!u) return;
+  try {
+    if (tab.streaming) {
+      await tab.abort().catch(() => {});
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    // the branch may have been saved meanwhile (first message sent): take its current file
+    const branchPath = tab.sessionPath ?? u.branchPath;
+    const before = tab.key;
+    if (!(await tab.switchTo(u.fromPath))) return;
+    tab.undo = null;
+    rekey(tab, before);
+    if (branchPath && branchPath !== u.fromPath) {
+      await api.deleteSessions(tab.hostId, [branchPath]).catch(() => {});
+      delete state.config.sessionMeta?.[`${tab.hostId}|${branchPath}`];
+      saveConfig();
+    }
+    await loadSessions(tab.hostId);
+    renderToolbar();
+    toast(t("Undone – back to the previous version."));
+  } catch (e) {
+    toast(`${t("Undo")}: ${errMsg(e)}`, "err");
+  }
 }
 
 // ---------- Default model for new sessions ----------

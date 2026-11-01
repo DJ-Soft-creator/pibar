@@ -16,7 +16,7 @@ import { displayTitle } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { usageSummary, wireUsage } from "./usageStats";
 import type { SessionTab } from "./sessionTab";
-import { closeSession, defaultHostId, loadAllSessions, newSessionDialog } from "./sessions";
+import { closeSession, defaultHostId, loadAllSessions, newSessionDialog, undoBranch } from "./sessions";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
 
@@ -151,6 +151,7 @@ export function renderToolbar() {
   elStop.hidden = !tab?.streaming;
   elAddFolder.disabled = !tab;
   elSlash.disabled = !ready;
+  $("undo-bar").hidden = !tab?.undo;
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
   elActivity.hidden = !(tab?.streaming && chatMode() === "natural");
@@ -271,6 +272,8 @@ async function sendInput() {
   if (!text || !tab || !tab.alive) return;
   elInput.value = "";
   autoGrow();
+  tab.undo = null; // working on in the branch: no undo any more
+  renderToolbar();
   try {
     await tab.send(text);
   } catch (e) {
@@ -345,6 +348,11 @@ export function wireChatView() {
   );
   elTheme.addEventListener("click", () => setTheme(nextTheme(state.config.ui.theme)));
   elDefault.innerHTML = iconSvg("star", 15);
+  $("btn-undo").addEventListener("click", () => state.active && undoBranch(state.active));
+  $("btn-undo-close").addEventListener("click", () => {
+    if (state.active) state.active.undo = null;
+    renderToolbar();
+  });
   elDefault.addEventListener("click", toggleDefault);
   wireSlashMenu(elInput, $("slash-menu"), elSlash);
   wireVoice({

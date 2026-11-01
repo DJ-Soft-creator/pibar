@@ -20,6 +20,8 @@ struct PiProc {
     stdin: Mutex<ChildStdin>,
     child: Mutex<Child>,
     pending: Pending,
+    /// Last ~4000 characters Pi wrote to stderr (warnings, network errors)
+    stderr_tail: Arc<Mutex<String>>,
 }
 
 #[derive(Default)]
@@ -98,7 +100,7 @@ impl PiManager {
             });
         }
 
-        let proc = Arc::new(PiProc { stdin: Mutex::new(stdin), child: Mutex::new(child), pending });
+        let proc = Arc::new(PiProc { stdin: Mutex::new(stdin), child: Mutex::new(child), pending, stderr_tail });
         self.procs.lock().unwrap().insert(handle, proc);
         Ok(handle)
     }
@@ -132,6 +134,11 @@ impl PiManager {
                 Err(tr("Pi did not answer in time", "Zeitüberschreitung bei Pi"))
             }
         }
+    }
+
+    /// What the Pi process wrote to stderr so far (tail), for the error details in the chat
+    pub fn stderr(&self, handle: u32) -> String {
+        self.procs.lock().unwrap().get(&handle).map(|p| p.stderr_tail.lock().unwrap().clone()).unwrap_or_default()
     }
 
     pub fn close(&self, handle: u32) {

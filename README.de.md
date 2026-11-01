@@ -27,10 +27,11 @@ MIT-Lizenz
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
 - **Skills und Befehle**: `/` in der Eingabe tippen (oder auf `/` klicken) zeigt Skills, Prompt-Vorlagen und
   Erweiterungsbefehle der Session
-- **Frühere Nachrichten**: unter jeder eigenen Nachricht – _bearbeiten und neu senden_ (direkt in der Nachricht) oder
-  _ab hier neu ausführen_; beides startet erst nach Bestätigung eine neue Verzweigung ab dieser Stelle, _Abbrechen_ oder
-  Esc lässt alles unverändert, die ursprüngliche Session bleibt immer erhalten. Außerdem _als neue Nachricht übernehmen_
-  oder _kopieren_
+- **Frühere Nachrichten**: unter jeder eigenen Nachricht – _bearbeiten und neu senden_ (direkt in der Nachricht), _ab
+  hier neu ausführen_ oder _bis hierher zurück_ (das Gespräch springt auf den Stand nach dieser Nachricht und ihrer
+  Antwort). Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung:
+  die ursprüngliche Session bleibt immer erhalten. Direkt danach führt eine Leiste **Rückgängig** zur vorherigen
+  Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der
   aktuellen Session) oder Einstellungen → Allgemein
 - **Token-Statistik**: Tokens, Kosten und Geschwindigkeit in der Kopfzeile; beim Überfahren Ein-/Ausgabe-/Cache-Tokens,
@@ -104,6 +105,14 @@ Zahnrad → **Sprache & Audio**. Jeder Teil ist optional.
 
 API-Schlüssel liegen nur in der lokalen Einstellungsdatei der App, nie im Repository. Anfragen laufen über `curl`; der
 Schlüssel wird über stdin übergeben, nicht auf der Kommandozeile.
+
+## Wenn etwas nicht geht
+
+Fehler im Chat wie „Connection error“ haben einen Knopf **Diagnose** (auch pro Host in den Einstellungen). Er läuft auf
+dem Host mit denselben Rechten und derselben Umgebung wie Pi und zeigt Pis eigene Fehlerausgabe, die Pi- und
+Node-Version, relevante Umgebungsvariablen (Geheimnisse verborgen), Pis Modell-Konfiguration und ob die Modellserver
+erreichbar sind – dazu Hinweise auf typische Ursachen in Klartext (Freigabe „Lokales Netzwerk“, Server läuft nicht,
+API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischenablage.
 
 ## macOS-Rechte
 

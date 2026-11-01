@@ -12,6 +12,7 @@ const PATHS = {
   more: '<circle cx="3.5" cy="8" r="0.6"/><circle cx="8" cy="8" r="0.6"/><circle cx="12.5" cy="8" r="0.6"/>',
   close: '<path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/>',
   edit: '<path d="M10.5 2.5l3 3L6 13H3v-3z"/><path d="M9 4l3 3"/>',
+  undo: '<path d="M3 3v3.5h3.5"/><path d="M3 6.5A5.5 5.5 0 1 1 2.5 9"/>',
   redo: '<path d="M13 3v3.5H9.5"/><path d="M13 6.5A5.5 5.5 0 1 0 13.5 9"/>',
   insert: '<path d="M13 3v5a2 2 0 0 1-2 2H4"/><path d="M6.5 7.5L4 10l2.5 2.5"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',

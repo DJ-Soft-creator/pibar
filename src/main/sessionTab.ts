@@ -5,6 +5,7 @@ import { splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } f
 import { getLang, t } from "../shared/i18n";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
+import { diagnoseDialog } from "./diagnose";
 import { state } from "./state";
 
 type PartKind = "text" | "thinking" | "tool";
@@ -27,7 +28,15 @@ interface ToolCard {
 }
 
 /** What to do with an earlier own message (buttons under a user bubble) */
-export type UserAction = "edit" | "rerun" | "reuse" | "copy";
+export type UserAction = "edit" | "rerun" | "rewind" | "reuse" | "copy";
+
+/** Where an "Undo" after branching or going back returns to */
+export interface BranchUndo {
+  /** Session file before the branch */
+  fromPath: string;
+  /** File of the branch (deleted on undo), null if Pi has not saved it */
+  branchPath: string | null;
+}
 
 export interface TabCallbacks {
   onHandle: (tab: SessionTab) => void;
@@ -215,6 +224,21 @@ export class SessionTab {
     return r?.text ?? "";
   }
 
+  /** Undo for the last branch or "go back" (shown as a bar above the input), null = nothing to undo */
+  undo: BranchUndo | null = null;
+
+  /** Switch this Pi process to another session file (RPC switch_session) and show it */
+  async switchTo(path: string): Promise<boolean> {
+    const r = await api.pi(this.handle, { type: "switch_session", sessionPath: path });
+    if (r?.cancelled) return false;
+    await this.refreshState();
+    this.sessionPath = path;
+    this.clearView();
+    await this.loadHistory();
+    this.cb.onStateChange(this);
+    return true;
+  }
+
   /** Stop the Pi process. The session file stays and can be reopened. */
   close() {
     if (this.alive) api.piClose(this.handle).catch(() => {});
@@ -388,6 +412,16 @@ export class SessionTab {
     }
   }
 
+  /** Diagnosis for an error of this session (model, error text, Pi's stderr) */
+  diagnose(error: string) {
+    diagnoseDialog(this.hostId, {
+      provider: this.model?.provider,
+      model: this.model?.id,
+      error,
+      handle: this.alive ? this.handle : undefined,
+    });
+  }
+
   onExit(stderr: string) {
     this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
     this.alive = false;
@@ -404,6 +438,11 @@ export class SessionTab {
           "button",
           { class: "ghost", onclick: () => this.restart().catch((e) => toast(errMsg(e), "err")) },
           t("Reconnect"),
+        ),
+        h(
+          "button",
+          { class: "ghost", onclick: () => this.diagnose(stderr.trim() || t("Pi has stopped.")) },
+          t("Diagnose"),
         ),
       ),
     );
@@ -464,8 +503,13 @@ export class SessionTab {
     const acts = h(
       "div",
       { class: "msg-acts user-acts" },
-      act("edit", t("Edit and resend (new branch from here)"), () => this.branchPanel(panel, acts, index, text, true)),
-      act("redo", t("Run again from here (new branch)"), () => this.branchPanel(panel, acts, index, text, false)),
+      act("edit", t("Edit and resend (new branch from here)"), () =>
+        this.branchPanel(panel, acts, index, text, "edit"),
+      ),
+      act("redo", t("Run again from here (new branch)"), () => this.branchPanel(panel, acts, index, text, "rerun")),
+      act("undo", t("Go back to here (later messages are removed from this view)"), () =>
+        this.branchPanel(panel, acts, index, text, "rewind"),
+      ),
       act("insert", t("Use as new message"), () => this.cb.onUserAction(this, index, "reuse", text)),
       act("copy", t("Copy"), () => this.cb.onUserAction(this, index, "copy", text)),
     );
@@ -476,7 +520,14 @@ export class SessionTab {
    * Inline panel under an own message: edit the text (or just confirm "run again"), then branch – or cancel
    * (button or Esc) and nothing changes. The fork only happens on "send".
    */
-  private branchPanel(panel: HTMLElement, acts: HTMLElement, index: number, text: string, editable: boolean) {
+  private branchPanel(
+    panel: HTMLElement,
+    acts: HTMLElement,
+    index: number,
+    text: string,
+    mode: "edit" | "rerun" | "rewind",
+  ) {
+    const editable = mode === "edit";
     const close = () => {
       panel.hidden = true;
       panel.replaceChildren();
@@ -493,7 +544,7 @@ export class SessionTab {
       const msg = area ? area.value.trim() : text;
       if (!msg) return;
       close();
-      this.cb.onUserAction(this, index, editable ? "edit" : "rerun", text, msg);
+      this.cb.onUserAction(this, index, mode, text, msg);
     };
     area?.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
@@ -506,7 +557,14 @@ export class SessionTab {
       }
     });
     panel.replaceChildren(
-      area ?? h("div", { class: "branch-q" }, t("Run this message again from here?")),
+      area ??
+        h(
+          "div",
+          { class: "branch-q" },
+          mode === "rewind"
+            ? t("Go back to the state after this message and its answer?")
+            : t("Run this message again from here?"),
+        ),
       h(
         "div",
         { class: "branch-bar" },
@@ -515,7 +573,7 @@ export class SessionTab {
         h(
           "button",
           { class: "primary small", type: "button", onclick: go },
-          editable ? t("Send as new branch") : t("Run again"),
+          editable ? t("Send as new branch") : mode === "rewind" ? t("Go back") : t("Run again"),
         ),
       ),
     );
@@ -539,8 +597,22 @@ export class SessionTab {
     const cur = this.cur!;
     if (msg?.usage) this.addUsage(msg.usage);
     if (msg?.stopReason === "error" || msg?.errorMessage) {
+      const error = msg.errorMessage || t("Error in the response");
       cur.el.append(
-        h("div", { class: "part" }, h("div", { class: "error" }, msg.errorMessage || t("Error in the response"))),
+        h(
+          "div",
+          { class: "part" },
+          h(
+            "div",
+            { class: "error" },
+            error,
+            h(
+              "div",
+              { class: "error-acts" },
+              h("button", { class: "ghost small", onclick: () => this.diagnose(error) }, t("Diagnose")),
+            ),
+          ),
+        ),
       );
     } else if (msg?.stopReason === "aborted") {
       cur.el.append(h("div", { class: "part msg note" }, t("Aborted.")));

@@ -1,4 +1,5 @@
 mod config;
+mod diag;
 mod doubletap;
 mod files;
 mod hostexec;
@@ -82,6 +83,17 @@ fn pi_open(
 #[tauri::command]
 async fn pi_send(mgr: State<'_, PiManager>, handle: u32, cmd: Value) -> Result<Value, String> {
     mgr.send(handle, cmd).await
+}
+
+#[tauri::command]
+fn pi_stderr(mgr: State<'_, PiManager>, handle: u32) -> String {
+    mgr.stderr(handle)
+}
+
+#[tauri::command]
+async fn diagnose(app: AppHandle, host_id: String, provider: String, model: String) -> Result<String, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || diag::run(&host, &provider, &model)).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -291,6 +303,8 @@ pub fn run() {
             pi_open,
             pi_send,
             pi_close,
+            pi_stderr,
+            diagnose,
             pi_close_all,
             set_language,
             list_files,
