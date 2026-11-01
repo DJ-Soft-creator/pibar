@@ -127,6 +127,32 @@ MIT-Lizenz
 
 Noch nicht drin: Kurzantwort direkt in der Leiste, J-Tracker, herdr.
 
+## KI und Datenschutz
+
+PiBar selbst schickt keine Daten irgendwohin: Es spricht nur mit Pi auf deinen eigenen Rechnern, lokal oder per SSH.
+Welches Modell deine Prompts, Dateiinhalte und Tool-Ausgaben sieht, legt Pis Konfiguration auf dem jeweiligen Host
+fest. Ein lokales Modell (z. B. auf einem LLM-Server im eigenen Netz) hält alles im Haus; ein Cloud-Modell bekommt,
+was die Session ihm schickt.
+
+**Gemeinsame Skills mit Syncthing.** Lege `~/.pi/agent/skills/`, `prompts/` und, falls genutzt, `extensions/` in
+einen [Syncthing](https://syncthing.net)-Ordner. Er synchronisiert direkt zwischen deinen Rechnern, ohne Cloud-Dienst
+dazwischen, so hat jeder Host dieselben Skills und Slash-Befehle. Nicht synchronisieren: `auth.json` (API-Keys,
+OAuth-Tokens), den Ordner `sessions/` und `trust.json` – Zugangsdaten und Gespräche bleiben auf dem Rechner, zu dem
+sie gehören. Erweiterungen vor dem Teilen prüfen, sie laufen im Pi-Prozess.
+
+**Arbeit auf dedizierte VMs verteilen.** Ein Agent erreicht nur, was sein Rechner erreicht. Statt eines Pi mit
+Zugriff auf alles bekommt jeder Zweck eine eigene VM (oder einen eigenen Host) mit genau den Rechten, die er braucht,
+und jede wird in PiBar als Host eingetragen:
+
+- eine Coding-VM mit den Projekt-Repositories, aber ohne private Dokumente oder Mails
+- eine VM für Notizen und Dokumente, ohne SSH-Schlüssel zu Servern und ohne Push-Rechte auf Repositories
+- ein lokaler LLM-Server ohne Internetzugang für alles, was das Haus nicht verlassen darf
+- der eigene Rechner nur für Arbeit, die wirklich dort passieren soll
+
+Pro VM: eigener Linux-Benutzer und SSH-Schlüssel, eigene, eng begrenzte API-Keys, Snapshots vor größeren Änderungen.
+In PiBar lassen sich zusätzlich Pis Tools pro Session einschränken (Tool-Leiste → Tools). Passiert eine
+Prompt-Injection oder ein falscher Befehl, bleibt der Schaden in dieser einen VM.
+
 ## Spracheinstellungen
 
 Zahnrad → **Sprache & Audio**. Jeder Teil ist optional.
