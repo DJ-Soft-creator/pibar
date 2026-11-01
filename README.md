@@ -99,9 +99,11 @@ the key is passed on stdin, not on the command line.
 
 ## macOS permissions
 
-- **Local Network**: needed when Pi talks to a model server or host in your network. If chats fail with
-  "Connection error" after installing the app: System Settings → Privacy & Security → Local Network → enable PiBar,
-  then restart PiBar.
+- **Local Network**: needed when Pi talks to a model server or host in your network: System Settings → Privacy &
+  Security → Local Network → enable PiBar.
+- **Environment**: an app started from the Finder does not see variables from `~/.zshrc` (API keys, base URLs of
+  model servers, proxies). PiBar reads the environment of your interactive shell once at start and passes it to local
+  Pi sessions, so they behave like in the terminal.
 - **Microphone** (dictation): macOS asks on the first recording. System Settings → Privacy & Security → Microphone.
 - **Screen Recording**: macOS asks on the first screenshot. In development mode the permission belongs to the terminal
   you start `npm run dev:app` from. System Settings → Privacy & Security → Screen Recording.

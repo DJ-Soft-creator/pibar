@@ -1,10 +1,68 @@
 //! Run commands on a host: locally through the login shell, remotely through SSH.
 //! Both paths use the same shell script so sessions and files work the same everywhere.
+//! Local commands get the environment of the user's interactive shell (see [`user_env`]).
 
 use crate::config::HostCfg;
 use crate::i18n::tr;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
+use std::sync::{mpsc, OnceLock};
+use std::time::Duration;
+
+const ENV_MARK: &str = "__PIBAR_ENV__";
+
+/// Variables that belong to the shell that printed them, not to the user's setup
+const ENV_SKIP: &[&str] =
+    &["_", "PWD", "OLDPWD", "SHLVL", "PS1", "PS2", "PROMPT", "RPROMPT", "TERM", "COLUMNS", "LINES"];
+
+/// Parse the output of `printf MARK; env -0`: everything before the marker is shell chatter (greetings, prompts)
+pub fn parse_env(out: &[u8]) -> Vec<(String, String)> {
+    let text = String::from_utf8_lossy(out);
+    let Some(start) = text.find(ENV_MARK) else { return vec![] };
+    text[start + ENV_MARK.len()..]
+        .split('\0')
+        .filter_map(|kv| {
+            let kv = kv.trim_start_matches('\n');
+            let (k, v) = kv.split_once('=')?;
+            let ok = !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+            (ok && !ENV_SKIP.contains(&k)).then(|| (k.to_string(), v.to_string()))
+        })
+        .collect()
+}
+
+/// Environment of the user's interactive login shell, read once (at most 10 s).
+/// An app started from the Finder only gets a minimal environment; variables from ~/.zshrc such as API keys, base
+/// URLs of model servers, proxies or PATH entries would be missing for Pi. Terminals and VS Code solve it the same way.
+pub fn user_env() -> &'static [(String, String)] {
+    static ENV: OnceLock<Vec<(String, String)>> = OnceLock::new();
+    ENV.get_or_init(|| {
+        if cfg!(windows) {
+            return vec![];
+        }
+        let Ok(child) = Command::new(login_shell())
+            .args(["-ilc", &format!("printf '{ENV_MARK}'; env -0")])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        else {
+            return vec![];
+        };
+        let pid = child.id();
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(child.wait_with_output());
+        });
+        match rx.recv_timeout(Duration::from_secs(10)) {
+            Ok(Ok(out)) => parse_env(&out.stdout),
+            _ => {
+                // shell hangs (e.g. waits for input): give up and keep the app's own environment
+                let _ = Command::new("kill").arg(pid.to_string()).status();
+                vec![]
+            }
+        }
+    })
+}
 
 /// Shell quoting with single quotes.
 pub fn sq(s: &str) -> String {
@@ -75,6 +133,7 @@ pub fn shell_command(h: &HostCfg, script: &str) -> Command {
         c
     } else {
         let mut c = Command::new(login_shell());
+        c.envs(user_env().iter().map(|(k, v)| (k.as_str(), v.as_str())));
         c.arg("-lc").arg(script);
         c
     }
@@ -141,6 +200,17 @@ mod tests {
         assert_eq!(shell_path(""), "\"$HOME\"");
         assert_eq!(shell_path("~/my dir"), "\"$HOME\"/'my dir'");
         assert_eq!(shell_path("/opt/x"), "'/opt/x'");
+    }
+
+    #[test]
+    fn reads_shell_environment() {
+        let out = b"Welcome!\n__PIBAR_ENV__OPENAI_BASE_URL=http://mini:1234/v1\0PATH=/opt/homebrew/bin:/usr/bin\0_=/usr/bin/env\0MULTI=a\nb\0";
+        let env = parse_env(out);
+        assert!(env.contains(&("OPENAI_BASE_URL".into(), "http://mini:1234/v1".into())));
+        assert!(env.contains(&("PATH".into(), "/opt/homebrew/bin:/usr/bin".into())));
+        assert!(env.contains(&("MULTI".into(), "a\nb".into())));
+        assert!(!env.iter().any(|(k, _)| k == "_"));
+        assert!(parse_env(b"no marker").is_empty());
     }
 
     #[test]

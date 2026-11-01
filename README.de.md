@@ -105,9 +105,11 @@ Schlüssel wird über stdin übergeben, nicht auf der Kommandozeile.
 
 ## macOS-Rechte
 
-- **Lokales Netzwerk**: nötig, wenn Pi einen Modellserver oder Host im eigenen Netz anspricht. Kommt nach der
-  Installation der App „Connection error“: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar
-  einschalten, dann PiBar neu starten.
+- **Lokales Netzwerk**: nötig, wenn Pi einen Modellserver oder Host im eigenen Netz anspricht: Systemeinstellungen →
+  Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten.
+- **Umgebung**: Eine aus dem Finder gestartete App sieht keine Variablen aus `~/.zshrc` (API-Schlüssel, Basis-URLs von
+  Modellservern, Proxys). PiBar liest die Umgebung deiner interaktiven Shell einmal beim Start ein und gibt sie an
+  lokale Pi-Sessions weiter, damit sie sich wie im Terminal verhalten.
 - **Mikrofon** (Diktieren): macOS fragt bei der ersten Aufnahme. Systemeinstellungen → Datenschutz & Sicherheit →
   Mikrofon.
 - **Bildschirmaufnahme**: macOS fragt beim ersten Screenshot. Im Entwicklungsmodus gilt die Freigabe für das Terminal,
