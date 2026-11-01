@@ -11,7 +11,11 @@ export function $(id: string): HTMLElement {
   return e;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- handlers get the concrete event type of their DOM event
 type Attrs = Record<string, string | boolean | number | ((ev: any) => void) | undefined>;
+
+/** Keys of T whose fields accept a value of type V, e.g. the free text fields of a settings object */
+export type KeysWith<T, V> = { [K in keyof T]-?: V extends T[K] ? K : never }[keyof T];
 
 export function h<K extends keyof HTMLElementTagNameMap>(
   tag: K,

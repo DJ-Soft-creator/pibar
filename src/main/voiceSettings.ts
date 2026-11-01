@@ -1,7 +1,7 @@
 // Settings → "Voice": dictation (speech to text), read aloud (text to speech) and text improvement by a second LLM.
 // Returns the editor element and a getter for the edited copy of AppConfig.voice.
 import type { VoiceCfg } from "../shared/api";
-import { h, errMsg } from "../shared/dom";
+import { h, errMsg, type KeysWith } from "../shared/dom";
 import { getLang, Msg, t } from "../shared/i18n";
 import { DEFAULT_IMPROVE_PROMPT, improve, speak } from "../shared/voice";
 import { saveConfig, state } from "./state";
@@ -29,11 +29,12 @@ export function voiceEditor(): { el: HTMLElement; get: () => VoiceCfg } {
 
   const row = (label: string, input: HTMLElement) => h("div", { class: "row" }, h("label", {}, label), input);
   const hint = (text: string) => h("p", { class: "hint" }, text);
-  function text<T extends object>(obj: T, key: keyof T, ph = "", type = "text") {
+  function text<T extends object>(obj: T, key: KeysWith<T, string>, ph = "", type = "text") {
     const i = h("input", { type, placeholder: ph, value: String(obj[key] ?? ""), autocomplete: "off" });
-    i.addEventListener("input", () => ((obj as any)[key] = i.value));
+    i.addEventListener("input", () => ((obj as Record<typeof key, string>)[key] = i.value));
     return i;
   }
+  // the option values are the allowed values of the field
   function select<T extends object>(obj: T, key: keyof T, opts: [string, Msg][], rerender = false) {
     const s = h(
       "select",
@@ -41,15 +42,15 @@ export function voiceEditor(): { el: HTMLElement; get: () => VoiceCfg } {
       ...opts.map(([v, l]) => h("option", { value: v, selected: obj[key] === v }, t(l))),
     ) as HTMLSelectElement;
     s.addEventListener("change", () => {
-      (obj as any)[key] = s.value;
+      (obj as Record<typeof key, string>)[key] = s.value;
       if (rerender) render();
     });
     return s;
   }
-  function check<T extends object>(obj: T, key: keyof T, label: string, rerender = false) {
+  function check<T extends object>(obj: T, key: KeysWith<T, boolean>, label: string, rerender = false) {
     const c = h("input", { type: "checkbox", checked: !!obj[key], style: "width:auto" }) as HTMLInputElement;
     c.addEventListener("change", () => {
-      (obj as any)[key] = c.checked;
+      (obj as Record<typeof key, boolean>)[key] = c.checked;
       if (rerender) render();
     });
     return h("label", { class: "check" }, c, ` ${label}`);

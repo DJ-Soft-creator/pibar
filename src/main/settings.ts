@@ -2,7 +2,7 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { emit } from "@tauri-apps/api/event";
 import { api, DoubleTapStatus, HostCfg, ModelPreset, Theme } from "../shared/api";
-import { h, errMsg, openModal, toast } from "../shared/dom";
+import { h, errMsg, openModal, toast, type KeysWith } from "../shared/dom";
 import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t } from "../shared/i18n";
 import { cleanPresets } from "../shared/presets";
@@ -130,9 +130,9 @@ export function settingsDialog() {
   const list = h("div", {});
 
   const field = (label: string, input: HTMLElement) => h("div", { class: "row" }, h("label", {}, label), input);
-  const text = (host: HostCfg, key: keyof HostCfg, ph = "") => {
+  const text = (host: HostCfg, key: KeysWith<HostCfg, string>, ph = "") => {
     const i = h("input", { type: "text", placeholder: ph, value: String(host[key] ?? "") }) as HTMLInputElement;
-    i.addEventListener("input", () => ((host as any)[key] = i.value));
+    i.addEventListener("input", () => (host[key] = i.value));
     return i;
   };
 

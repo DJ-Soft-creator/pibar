@@ -1,5 +1,14 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, PiCommand, PiModel } from "../shared/api";
+import type {
+  AssistantMessage,
+  Content,
+  PiEvent,
+  PiMessage,
+  PiSessionStats,
+  ToolArgs,
+  Usage,
+} from "../shared/piProtocol";
 import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
 import {
   baseName,
@@ -147,7 +156,7 @@ export class SessionTab {
   presetId: string | null = null;
   stats: TabStats = emptyStats();
   /** Pi's get_session_stats (tokens, cost, context use of the whole session), null = not loaded */
-  piStats: any = null;
+  piStats: PiSessionStats | null = null;
   /** Finished while not on screen (marked in the list until opened) */
   unseen = false;
   /** The last run ended with an error */
@@ -209,7 +218,8 @@ export class SessionTab {
   }
 
   async restart() {
-    if (this.alive) await api.piClose(this.handle).catch(() => {});
+    // also after Pi ended by itself: frees its entry in the Rust core
+    if (this.handle) await api.piClose(this.handle).catch(() => {});
     this.clearView();
     await this.start(this.cb.onHandle);
   }
@@ -238,7 +248,7 @@ export class SessionTab {
     const r = await api.pi(this.handle, { type: "fork", entryId });
     if (r?.cancelled) return null;
     const st = await api.pi(this.handle, { type: "get_state" });
-    this.sessionPath = st.messageCount > 0 ? (st.sessionFile ?? null) : null;
+    this.sessionPath = (st.messageCount ?? 0) > 0 ? (st.sessionFile ?? null) : null;
     this.model = st.model ?? this.model;
     this.thinkingLevel = st.thinkingLevel ?? this.thinkingLevel;
     this.clearView();
@@ -264,7 +274,7 @@ export class SessionTab {
 
   /** Stop the Pi process. The session file stays and can be reopened. */
   close() {
-    if (this.alive) api.piClose(this.handle).catch(() => {});
+    if (this.handle) api.piClose(this.handle).catch(() => {});
     this.alive = false;
     this.streaming = false;
   }
@@ -286,7 +296,7 @@ export class SessionTab {
     this.model = st.model ?? null;
     this.thinkingLevel = st.thinkingLevel ?? "";
     this.streaming = !!st.isStreaming;
-    if (st.sessionFile && st.messageCount > 0) this.sessionPath = st.sessionFile;
+    if (st.sessionFile && (st.messageCount ?? 0) > 0) this.sessionPath = st.sessionFile;
     if (st.sessionName) this.title = st.sessionName;
   }
 
@@ -313,7 +323,7 @@ export class SessionTab {
   }
 
   /** Pi's statistics for the whole session (get_session_stats) */
-  sessionStats(): Promise<any> {
+  sessionStats(): Promise<PiSessionStats> {
     return api.pi(this.handle, { type: "get_session_stats" });
   }
 
@@ -321,7 +331,10 @@ export class SessionTab {
 
   async send(text: string, images: { data: string; mimeType: string }[] = []) {
     await this.settling.catch(() => {});
-    const cmd: Record<string, unknown> = { type: "prompt", message: withAnswerStyle(text, state.config.ui.answerMode) };
+    const cmd: { type: "prompt"; [key: string]: unknown } = {
+      type: "prompt",
+      message: withAnswerStyle(text, state.config.ui.answerMode),
+    };
     if (images.length) cmd.images = images.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
     if (this.streaming) cmd.streamingBehavior = "steer";
     const res = await api.pi(this.handle, cmd);
@@ -367,14 +380,14 @@ export class SessionTab {
     this.flush();
   }
 
-  private renderStored(m: any) {
+  private renderStored(m: PiMessage) {
     switch (m.role) {
       case "user":
         this.userBubble(m.content, m.timestamp);
         break;
       case "assistant": {
         this.beginAssistant();
-        (m.content ?? []).forEach((c: any, i: number) => {
+        (m.content ?? []).forEach((c, i) => {
           if (c.type === "text") this.appendPart(i, "text", c.text ?? "");
           else if (c.type === "thinking") this.appendPart(i, "thinking", c.thinking ?? "");
           else if (c.type === "toolCall") {
@@ -396,7 +409,7 @@ export class SessionTab {
 
   // ---------- Live events ----------
 
-  onEvent(ev: any) {
+  onEvent(ev: PiEvent) {
     switch (ev.type) {
       case "agent_start":
       case "turn_start":
@@ -421,8 +434,9 @@ export class SessionTab {
         else if (ev.message?.role === "assistant") this.beginAssistant();
         break;
       case "message_update": {
-        const a = ev.assistantMessageEvent ?? {};
+        const a = ev.assistantMessageEvent;
         if (!this.cur) this.beginAssistant();
+        if (!a) break;
         if (!this.firstToken && /_(delta|start)$/.test(a.type ?? "")) this.firstToken = performance.now();
         if (a.type === "text_delta") this.appendPart(a.contentIndex, "text", a.delta);
         else if (a.type === "thinking_delta") this.appendPart(a.contentIndex, "thinking", a.delta);
@@ -441,7 +455,7 @@ export class SessionTab {
       case "tool_execution_start":
         if (!this.tools.has(ev.toolCallId)) {
           this.beginAssistant();
-          this.toolStart(999, ev.toolCallId, ev.toolName);
+          this.toolStart(999, ev.toolCallId, ev.toolName ?? "Tool");
           this.toolArgs(ev.toolCallId, ev.args);
         }
         this.setToolStatus(ev.toolCallId, "run", t("running …"));
@@ -508,14 +522,14 @@ export class SessionTab {
     this.el.append(h("div", { class: "msg note loading" }, text));
   }
 
-  private userBubble(content: any, ts?: number) {
+  private userBubble(content: Content | undefined, ts?: number | string) {
     let text = "";
     const imgs: HTMLElement[] = [];
     if (typeof content === "string") text = content;
     else if (Array.isArray(content)) {
       text = content
-        .filter((c: any) => c.type === "text")
-        .map((c: any) => c.text)
+        .map((c) => (c.type === "text" ? (c.text ?? "") : null))
+        .filter((x): x is string => x !== null)
         .join("\n");
       for (const c of content) {
         if (c.type === "image" && c.data) {
@@ -678,7 +692,7 @@ export class SessionTab {
     this.cur = { el, parts: new Map() };
   }
 
-  private endAssistant(msg: any) {
+  private endAssistant(msg?: AssistantMessage) {
     if (!this.cur) this.beginAssistant();
     const cur = this.cur!;
     if (msg?.usage) this.addUsage(msg.usage);
@@ -834,7 +848,7 @@ export class SessionTab {
     if (debugView()) this.schedule();
   }
 
-  private toolArgs(id: string, args: any) {
+  private toolArgs(id: string, args?: ToolArgs) {
     const card = this.tools.get(id);
     if (!card) return;
     card.args.textContent = JSON.stringify(args ?? {}, null, 2);
@@ -848,11 +862,12 @@ export class SessionTab {
     card.status.textContent = text;
   }
 
-  private toolResult(id: string, content: any, isError: boolean, durationMs?: number, partial = false) {
+  private toolResult(id: string, content: Content | undefined, isError: boolean, durationMs?: number, partial = false) {
     const card = this.tools.get(id);
     if (!card) return;
     let text = "";
-    if (Array.isArray(content)) text = content.map((c: any) => (c.type === "text" ? c.text : `[${c.type}]`)).join("\n");
+    if (Array.isArray(content))
+      text = content.map((c) => (c.type === "text" ? (c.text ?? "") : `[${c.type}]`)).join("\n");
     else if (typeof content === "string") text = content;
     if (text.length > MAX_RESULT)
       text = text.slice(0, MAX_RESULT) + `\n… ${t("({n} characters truncated)", { n: text.length - MAX_RESULT })}`;
@@ -866,7 +881,7 @@ export class SessionTab {
     if (debugView()) this.schedule();
   }
 
-  private addUsage(u: any) {
+  private addUsage(u: Usage) {
     const s = this.stats;
     const input = u.input ?? 0;
     const output = u.output ?? 0;
@@ -887,7 +902,7 @@ export class SessionTab {
   }
 
   /** Speed of a live answer: output tokens from the first token to message_end */
-  measure(msg: any) {
+  measure(msg?: AssistantMessage) {
     const output = msg?.usage?.output ?? 0;
     if (!this.firstToken || !output) return;
     const now = performance.now();
@@ -920,7 +935,7 @@ function timeLabel(ts: unknown, inline = false): HTMLElement | null {
   );
 }
 
-function argPreview(args: any): string {
+function argPreview(args?: ToolArgs): string {
   if (!args || typeof args !== "object") return "";
   const v = args.command ?? args.path ?? args.file_path ?? args.pattern ?? args.url ?? Object.values(args)[0];
   return typeof v === "string" ? v.replace(/\s+/g, " ").slice(0, 140) : "";

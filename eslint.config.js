@@ -11,8 +11,8 @@ export default tseslint.config(
     files: ["src/**/*.ts"],
     languageOptions: { globals: globals.browser },
     rules: {
-      // Pi events are dynamic JSON; `any` is deliberately allowed there
-      "@typescript-eslint/no-explicit-any": "off",
+      // Pi's dynamic JSON is typed in src/shared/piProtocol.ts; new `any` needs a reason (eslint-disable comment)
+      "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
