@@ -58,6 +58,10 @@ License
 
 ### Sessions
 
+- **Activity at a glance**: a session where Pi is working shows a spinner and "working · tool"; one that finished while
+  you looked elsewhere is marked "Done" (or "Error") until you open it. Counters at each host and host tab, the
+  number of finished sessions on the app icon, and a system notification when PiBar is in the background (can be
+  turned off in the settings)
 - Left column grouped by host (local and SSH); start (optionally with a name right away), open, load history, several
   sessions in parallel
 - **Folder picker** for the working folder of a new session and for extra folders: browses the host (local and SSH),

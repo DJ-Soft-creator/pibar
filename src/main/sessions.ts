@@ -1,5 +1,6 @@
 // Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
 import { folderField } from "./folderPicker";
+import { hostMarks, markSeen, markSettled, sessionMark, sessionPill } from "./activity";
 import { api } from "../shared/api";
 import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
@@ -97,6 +98,7 @@ function renderHostTabs() {
       { class: `host-tab ${sel === id ? "active" : ""}`, onclick: () => selectHost(id), title: label },
       dot !== undefined ? h("span", { class: `dot ${dot}` }) : null,
       h("span", { class: "host-tab-name" }, label),
+      ...hostMarks(id === "all" ? undefined : id),
       h("span", { class: "count" }, String(count)),
     );
   elHostTabs.replaceChildren(
@@ -150,6 +152,7 @@ export function renderHosts() {
             host.name,
             h("span", { class: "host-where" }, where),
           ),
+          ...hostMarks(host.id),
           h("span", { class: "count" }, String(list.length + openNew.length)),
           h("button", { class: "icon-btn", title: t("Reload"), onclick: () => loadSessions(host.id) }, "↻"),
           h(
@@ -287,7 +290,7 @@ function sessionItem(ref: SessionRef, ts: string) {
   return h(
     "div",
     {
-      class: `sess ${isActive ? "active" : ""} ${m.color ? `colored c-${m.color}` : ""} ${
+      class: `sess ${isActive ? "active" : ""} ${tab?.unseen ? "unseen" : ""} ${tab?.alive && tab.streaming ? "working" : ""} ${m.color ? `colored c-${m.color}` : ""} ${
         path && selection.has(key) ? "selected" : ""
       }`,
       role: "button",
@@ -309,9 +312,16 @@ function sessionItem(ref: SessionRef, ts: string) {
         sessionMenu(e.currentTarget as HTMLElement, menuRef, { x: e.clientX, y: e.clientY });
       },
     },
-    tab?.alive ? h("span", { class: `live ${tab.streaming ? "busy" : ""}` }) : null,
+    sessionMark(tab),
     titleEl,
-    h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
+    tab?.alive && tab.streaming
+      ? h(
+          "span",
+          { class: "sess-meta working" },
+          [t("Pi is working …"), tab.activity, shortPath(cwd)].filter(Boolean).join(" · "),
+        )
+      : h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
+    sessionPill(tab),
     h(
       "span",
       { class: "sess-acts" },
@@ -458,6 +468,7 @@ const tabCallbacks: TabCallbacks = {
     renderHosts();
   },
   onSettled: async (x) => {
+    markSettled(x);
     const before = x.key;
     try {
       await x.refreshState();
@@ -511,6 +522,7 @@ export async function openSession(
 /** Bring a session into the chat area */
 export function activate(tab: SessionTab) {
   state.active = tab;
+  markSeen(tab);
   broadcastActive();
   showTab(tab);
   closeEditor();

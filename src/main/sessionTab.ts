@@ -148,6 +148,10 @@ export class SessionTab {
   stats: TabStats = emptyStats();
   /** Pi's get_session_stats (tokens, cost, context use of the whole session), null = not loaded */
   piStats: any = null;
+  /** Finished while not on screen (marked in the list until opened) */
+  unseen = false;
+  /** The last run ended with an error */
+  failed = false;
   /** Skills, prompt templates and extension commands (for the "/" menu) */
   commands: PiCommand[] = [];
   /** Name of the tool that is running right now ("" = none) */
@@ -400,6 +404,8 @@ export class SessionTab {
         this.firstToken = 0;
         if (ev.type === "turn_start") break;
         this.lastText = "";
+        this.failed = false;
+        this.unseen = false;
         this.streaming = true;
         this.cb.onStateChange(this);
         break;
@@ -676,6 +682,7 @@ export class SessionTab {
     const cur = this.cur!;
     if (msg?.usage) this.addUsage(msg.usage);
     if (msg?.stopReason === "error" || msg?.errorMessage) {
+      if (this.streaming) this.failed = true;
       const error = msg.errorMessage || t("Error in the response");
       cur.el.append(
         h(

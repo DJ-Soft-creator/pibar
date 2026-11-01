@@ -147,6 +147,8 @@ export interface AppConfig {
     showGit?: boolean;
     /** Time of each chat message */
     showTimes?: boolean;
+    /** Notification when a session finishes while PiBar is in the background (default on) */
+    notifyDone?: boolean;
     /** Default for new sessions: preset id, or model "<provider>/<id>" plus thinking level ("" = Pi's default) */
     defaultPreset?: string;
     defaultModel?: string;
