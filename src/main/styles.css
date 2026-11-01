@@ -2258,8 +2258,8 @@ button.ghost.danger-text {
 .diag-pre {
   margin: 0 0 6px;
   padding: 8px 10px;
-  max-height: 260px;
-  overflow: auto;
+  overflow-x: auto;
+  user-select: text;
   background: var(--code-bg);
   border-radius: 6px;
   font: 11.5px/1.45 var(--mono);

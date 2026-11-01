@@ -32,6 +32,14 @@ export function diagnoseHints(report: string, error = ""): Msg[] {
     hints.push("A proxy is set but NO_PROXY is not: local model servers may be sent through the proxy.");
   if (/certificate|SSL|self.signed|UNABLE_TO_VERIFY/i.test(all))
     hints.push("Certificate problem: for your own certificates set NODE_EXTRA_CA_CERTS.");
+  const curlOk = /^curl \S+ -> .*HTTP [1-5]\d\d/m.test(report);
+  const nodeFails = /^node \S+ -> (?!HTTP)/m.test(report);
+  if (curlOk && nodeFails)
+    hints.push(
+      "curl reaches the server but Node (which Pi uses) does not – see the node line and its cause in the report.",
+    );
+  if (/ECONNREFUSED ::1|connect ECONNREFUSED ::1/.test(all))
+    hints.push("localhost resolves to IPv6 (::1) where the server does not listen: use 127.0.0.1 in the base URL.");
   if (/HTTP 401|HTTP 403|invalid.*api.?key|Unauthorized/i.test(all))
     hints.push("The server answers but rejects the login: check the API key.");
   return hints;
