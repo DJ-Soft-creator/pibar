@@ -25,8 +25,12 @@ License
 - **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
   or _Debug_ (cards open, tool output live)
 - **Answer style** (header): short, normal, or as short as possible with technical details
-- **Skills and commands**: type `/` in the input (or click `/`) for the session's skills, prompt templates and
+- **Tool dock** at the input: a quiet `+`; when the mouse comes near, more buttons fade in – **attach files** (text files
+  and images, also by drag & drop or paste; shown as chips above the input), **screenshot**, **skills** and **tools**
+- **Skills and commands**: type `/` in the input (or use the dock) for the session's skills, prompt templates and
   extension commands
+- **Tools per session**: choose which of Pi's tools (read, bash, edit, write, grep, find, ls) a session may use; Pi
+  restarts in the same session, the history stays
 - **Earlier messages**: under each own message – _edit and resend_ (edit right in the message), _run again from here_
   or _go back to here_ (the conversation returns to the state after that message and its answer). Each of these only
   happens after you confirm (_Cancel_ or Esc leaves everything as it is) and works in a new branch: the original

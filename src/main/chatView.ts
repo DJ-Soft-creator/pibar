@@ -3,7 +3,8 @@
 import { emit } from "@tauri-apps/api/event";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { $, h, errMsg, toast } from "../shared/dom";
-import { cleanTitle, shortPath, thinkingLabel } from "../shared/format";
+import { cleanTitle, shortPath, thinkingLabel, withFiles } from "../shared/format";
+import { hasAttachments, renderDock, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
 import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
@@ -151,6 +152,7 @@ export function renderToolbar() {
   elStop.hidden = !tab?.streaming;
   elAddFolder.disabled = !tab;
   elSlash.disabled = !ready;
+  renderDock();
   $("undo-bar").hidden = !tab?.undo;
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
@@ -269,13 +271,17 @@ export function fillInput(text: string) {
 async function sendInput() {
   const tab = state.active;
   const text = elInput.value.trim();
-  if (!text || !tab || !tab.alive) return;
+  if ((!text && !hasAttachments()) || !tab || !tab.alive) return;
   elInput.value = "";
   autoGrow();
   tab.undo = null; // working on in the branch: no undo any more
   renderToolbar();
+  const files = takeAttachments();
+  const texts = files.filter((f) => f.kind === "text").map((f) => ({ name: f.name, text: f.text ?? "" }));
+  const images = files.filter((f) => f.kind === "image").map((f) => ({ data: f.data ?? "", mimeType: f.mimeType }));
+  const msg = withFiles(text || t("Have a look at the attached files."), texts);
   try {
-    await tab.send(text);
+    await tab.send(msg, images);
   } catch (e) {
     toast(errMsg(e), "err");
     elInput.value = text;
@@ -355,6 +361,7 @@ export function wireChatView() {
   });
   elDefault.addEventListener("click", toggleDefault);
   wireSlashMenu(elInput, $("slash-menu"), elSlash);
+  wireComposerTools(elInput);
   wireVoice({
     input: elInput,
     mic: elMic,

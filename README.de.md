@@ -25,8 +25,13 @@ MIT-Lizenz
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
   Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
-- **Skills und Befehle**: `/` in der Eingabe tippen (oder auf `/` klicken) zeigt Skills, Prompt-Vorlagen und
+- **Werkzeugleiste** an der Eingabe: ein dezentes `+`; kommt die Maus in die Nähe, blenden weitere Knöpfe ein –
+  **Dateien anhängen** (Textdateien und Bilder, auch per Drag & Drop oder Einfügen; als Chips über der Eingabe),
+  **Screenshot**, **Skills** und **Tools**
+- **Skills und Befehle**: `/` in der Eingabe tippen (oder über die Werkzeugleiste) zeigt Skills, Prompt-Vorlagen und
   Erweiterungsbefehle der Session
+- **Tools pro Session**: wählen, welche Pi-Tools (read, bash, edit, write, grep, find, ls) eine Session nutzen darf; Pi
+  startet dafür in derselben Session neu, der Verlauf bleibt
 - **Frühere Nachrichten**: unter jeder eigenen Nachricht – _bearbeiten und neu senden_ (direkt in der Nachricht), _ab
   hier neu ausführen_ oder _bis hierher zurück_ (das Gespräch springt auf den Stand nach dieser Nachricht und ihrer
   Antwort). Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung:

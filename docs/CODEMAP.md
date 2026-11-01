@@ -85,6 +85,7 @@ flowchart LR
 | [`sessionSelect.ts`](../src/main/sessionSelect.ts) | Multi-selection (⌘/⇧-click), drag & drop onto groups and drop zones, selection bar | [`selectClick`](../src/main/sessionSelect.ts), [`dragStart`](../src/main/sessionSelect.ts), [`dropTarget`](../src/main/sessionSelect.ts), [`renderSelectionBar`](../src/main/sessionSelect.ts), [`wireSessionSelect`](../src/main/sessionSelect.ts) |
 | [`diagnose.ts`](../src/main/diagnose.ts) | Diagnosis dialog: error, Pi's stderr, hints for typical causes, report; tested in `diagnose.test.ts` | [`diagnoseDialog`](../src/main/diagnose.ts), [`diagnoseHints`](../src/main/diagnose.ts) |
 | [`voiceSettings.ts`](../src/main/voiceSettings.ts) | Settings section "Voice": dictation, read aloud, text improvement | [`voiceEditor`](../src/main/voiceSettings.ts) |
+| [`composerTools.ts`](../src/main/composerTools.ts) | Tool dock at the input (fades in near the mouse): attach files, screenshot, skills, tools of a session; attachment chips | [`wireComposerTools`](../src/main/composerTools.ts), [`addFiles`](../src/main/composerTools.ts), [`takeAttachments`](../src/main/composerTools.ts), [`renderDock`](../src/main/composerTools.ts) |
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
 | [`usageStats.ts`](../src/main/usageStats.ts) | Token info in the header and its hover panel (counters, speed, context) | [`usageSummary`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
 | [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
@@ -213,6 +214,15 @@ puts the text into the input ([`fillInput`](../src/main/chatView.ts)).
 `ui.defaultPreset` or `ui.defaultModel` + `ui.defaultThinking`, set with the star in the header
 ([`renderToolbar`](../src/main/chatView.ts)) or in the settings. [`openSession`](../src/main/sessions.ts) applies it to
 new sessions ([`applyDefaults`](../src/main/sessions.ts)); the quick bar shows it as "Model: default (…)".
+
+### Tool dock, attachments and tools
+
+[`wireComposerTools`](../src/main/composerTools.ts) opens the dock when the mouse is within ~70 px (class `near`) and
+fades it out with a short delay. Files come from the file picker, drag & drop or paste ([`addFiles`](../src/main/composerTools.ts)):
+images are sent as Pi images, text files are appended as `<file name="…">` blocks ([`withFiles`](../src/shared/format.ts));
+the chat shows them as cards again ([`splitFiles`](../src/shared/format.ts)). Tools: `SessionTab.toolset` (null = Pi's
+default) is passed to `pi_open` and turned into `--tools` / `--no-tools` ([`tool_args`](../src-tauri/src/pi.rs));
+changing it restarts Pi in the same session and stores it in `sessionMeta.tools`.
 
 ### Skills ("/" menu)
 

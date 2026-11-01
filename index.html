@@ -128,21 +128,99 @@
         </div>
         <form id="composer" class="composer">
           <div id="slash-menu" class="slash-menu" hidden></div>
-          <button
-            type="button"
-            id="btn-slash"
-            class="icon-btn slash-btn"
-            data-i18n-title="Skills and commands (type /)"
-            disabled
-          >
-            /
-          </button>
-          <textarea
-            id="input"
-            rows="1"
-            data-i18n-placeholder="Message to Pi …  (Enter to send, Shift+Enter for a new line)"
-            disabled
-          ></textarea>
+          <div class="dock" id="dock">
+            <div class="dock-pop" id="dock-pop">
+              <button
+                type="button"
+                id="btn-attach"
+                class="icon-btn"
+                data-i18n-title="Attach files (also drag & drop or paste)"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                  stroke-linecap="round"
+                >
+                  <path
+                    d="M13 7.5l-5.2 5.2a3.2 3.2 0 0 1-4.5-4.5L8.6 2.9a2.1 2.1 0 0 1 3 3L6.4 11.1a1 1 0 0 1-1.5-1.5L9.7 4.8"
+                  />
+                </svg>
+              </button>
+              <button type="button" id="btn-shot" class="icon-btn" data-i18n-title="Screenshot: drag an area">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                  stroke-linecap="round"
+                >
+                  <path
+                    d="M2 5.5V3.5A1.5 1.5 0 0 1 3.5 2h2M10.5 2h2A1.5 1.5 0 0 1 14 3.5v2M14 10.5v2a1.5 1.5 0 0 1-1.5 1.5h-2M5.5 14h-2A1.5 1.5 0 0 1 2 12.5v-2"
+                  />
+                  <circle cx="8" cy="8" r="2.3" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                id="btn-slash"
+                class="icon-btn slash-btn"
+                data-i18n-title="Skills and commands (type /)"
+                disabled
+              >
+                /
+              </button>
+              <button type="button" id="btn-tools" class="icon-btn" data-i18n-title="Tools of this session" disabled>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M10.2 2.2a3.3 3.3 0 0 0-3.9 4.4L2.2 10.7a1.4 1.4 0 0 0 2 2l4.1-4.1a3.3 3.3 0 0 0 4.4-3.9l-1.9 1.9-1.6-.4-.4-1.6z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <button
+              type="button"
+              id="btn-dock"
+              class="icon-btn dock-main"
+              data-i18n-title="More: attach files, screenshot, skills, tools"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.4"
+                stroke-linecap="round"
+              >
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            </button>
+          </div>
+          <div class="input-wrap">
+            <div id="attach-row" class="attach-row" hidden></div>
+            <textarea
+              id="input"
+              rows="1"
+              data-i18n-placeholder="Message to Pi …  (Enter to send, Shift+Enter for a new line)"
+              disabled
+            ></textarea>
+          </div>
+          <input type="file" id="file-input" multiple hidden />
           <div class="composer-actions">
             <button
               type="button"

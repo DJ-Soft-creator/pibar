@@ -24,6 +24,26 @@ struct PiProc {
     stderr_tail: Arc<Mutex<String>>,
 }
 
+/// Pi's tool flags: None = Pi's default, empty = no tools, otherwise an allowlist ("read,bash,…")
+pub fn tool_args(tools: Option<&[String]>) -> Vec<String> {
+    match tools {
+        None => vec![],
+        Some([]) => vec!["--no-tools".into()],
+        Some(list) => {
+            let clean: Vec<&str> = list
+                .iter()
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+                .collect();
+            if clean.is_empty() {
+                vec!["--no-tools".into()]
+            } else {
+                vec!["--tools".into(), clean.join(",")]
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct PiManager {
     procs: Mutex<HashMap<u32, Arc<PiProc>>>,
@@ -38,12 +58,14 @@ impl PiManager {
         host: &HostCfg,
         cwd: &str,
         session_path: Option<String>,
+        tools: Option<Vec<String>>,
     ) -> Result<u32, String> {
         let mut args = Vec::new();
         if let Some(p) = session_path {
             args.push("--session".to_string());
             args.push(p);
         }
+        args.extend(tool_args(tools.as_deref()));
         let mut child = hostexec::spawn_pi(host, cwd, &args)?;
         let stdin = child.stdin.take().ok_or("no stdin")?;
         let stdout = child.stdout.take().ok_or("no stdout")?;
@@ -152,5 +174,18 @@ impl PiManager {
         for h in all {
             self.close(h);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tool_args;
+
+    #[test]
+    fn builds_tool_flags() {
+        assert!(tool_args(None).is_empty());
+        assert_eq!(tool_args(Some(&[])), vec!["--no-tools"]);
+        let l = vec!["read".to_string(), "grep".to_string(), "bad;rm".to_string()];
+        assert_eq!(tool_args(Some(&l)), vec!["--tools", "read,grep"]);
     }
 }

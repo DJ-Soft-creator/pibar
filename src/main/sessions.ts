@@ -485,6 +485,7 @@ export async function openSession(
   title: string,
 ): Promise<SessionTab> {
   const tab = new SessionTab(hostId, cwd, path, title, tabCallbacks);
+  if (path) tab.toolset = state.config.sessionMeta?.[`${hostId}|${path}`]?.tools ?? null;
   activate(tab);
   try {
     await tab.start(tabCallbacks.onHandle);
