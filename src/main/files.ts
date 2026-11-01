@@ -11,6 +11,7 @@ import { allChanges, gitInline, gitLine, gitMark, gitStatusFor } from "../shared
 import { openMenu } from "./menu";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
+import { fileHistory, repoHistory } from "./gitHistory";
 
 const elFileTree = $("file-tree");
 const elEditor = $("editor");
@@ -106,6 +107,7 @@ function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
     [
       { label: t("Add to context"), onSelect: () => addContextPath("folder", path) },
       { label: t("New file or folder"), onSelect: () => createMenu(anchor, tab, path) },
+      { label: t("Git history"), onSelect: () => repoHistory(tab.hostId, path) },
     ],
     "left",
     { x: e.clientX, y: e.clientY },
@@ -183,6 +185,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
                 ...(isImage(full)
                   ? []
                   : [{ label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") }]),
+                { label: t("History (Git)"), onSelect: () => fileHistory(tab.hostId, full) },
               ],
               "left",
               { x: e.clientX, y: e.clientY },
@@ -301,7 +304,14 @@ function renderTree() {
         }
       }
       const own = repos.find((r) => r.dir === "");
-      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, own ? gitLine(own) : null, ...body);
+      // the Git line opens the history of the repository
+      const line = own ? gitLine(own) : null;
+      if (line) {
+        line.classList.add("clickable");
+        line.title += `\n${t("Click: Git history")}`;
+        line.addEventListener("click", () => repoHistory(tab.hostId, l.root));
+      }
+      return h("div", { class: `folder ${l.missing ? "missing" : ""}` }, head, line, ...body);
     }),
   );
 }

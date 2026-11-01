@@ -21,6 +21,7 @@ import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, reloadFiles, renderFiles } from "./files";
 import { refreshBranches } from "./branchNav";
 import { questionDialog, uiRequest } from "./answerDialog";
+import { answerStarted } from "./autoScroll";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
 import {
@@ -612,6 +613,7 @@ async function applyDefaults(tab: SessionTab) {
 
 const tabCallbacks: TabCallbacks = {
   onUserAction: (tab, index, action, text, edited) => void onUserAction(tab, index, action, text, edited),
+  onAnswerStart: (x) => x === state.active && answerStarted(),
   onUiRequest: (x, req) => {
     // Pi waits for its dialogs: show the session they belong to
     if (["select", "confirm", "input", "editor"].includes(req.method) && x !== state.active) activate(x);
@@ -744,7 +746,10 @@ export function newSessionDialog(hostId?: string) {
   inDir.addEventListener("input", syncRemember);
   inDir.addEventListener("change", syncRemember);
   setDefault();
+  let started = false;
   const go = async () => {
+    if (started) return; // Enter in a field and ⌘Enter in the dialog must not start two sessions
+    started = true;
     close();
     const host = hostOf();
     const dir = inDir.value.trim() || "~";
@@ -756,7 +761,13 @@ export function newSessionDialog(hostId?: string) {
     const tab = await openSession(selHost.value, null, inDir.value.trim() || "~", name || t("New session"));
     if (name && tab.alive) await nameNewSession(tab, name);
   };
-  for (const i of [inName, inDir]) i.addEventListener("keydown", (e) => e.key === "Enter" && go());
+  for (const i of [inName, inDir, selHost] as HTMLElement[])
+    i.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        go();
+      }
+    });
   setTimeout(() => inName.focus(), 0);
   const close = openModal(
     t("New session"),
@@ -773,10 +784,19 @@ export function newSessionDialog(hostId?: string) {
       ),
       h("div", { class: "row" }, h("label", {}, ""), h("label", { class: "check" }, remember, rememberLabel)),
       h("p", { class: "hint" }, t("Pi starts in this folder. You can add more folders on the right afterwards.")),
+      h("p", { class: "hint" }, t("⌘Enter starts · ⌥↓ in the folder field: choose folder")),
     ),
     [
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
       h("button", { class: "primary", onclick: go }, t("Start")),
     ],
   );
+  // ⌘Enter anywhere in the dialog starts the session
+  inName.closest(".modal")?.addEventListener("keydown", (e) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key === "Enter" && (ke.metaKey || ke.ctrlKey)) {
+      ke.preventDefault();
+      go();
+    }
+  });
 }

@@ -10,16 +10,17 @@ import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
-import { isEditorOpen, reloadFiles, saveEditor } from "./files";
+import { renderAutoScroll, showEnd, wireAutoScroll } from "./autoScroll";
+import { wireShortcuts } from "./shortcuts";
 import type { QueueItem, QueueWhen } from "./sessionTab";
-import { applyLayout, togglePanel } from "./layout";
+import { applyLayout } from "./layout";
 import { openMenu } from "./menu";
 import { cleanupDialog } from "./cleanup";
 import { displayTitle } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { renderUsage, wireUsage } from "./usageStats";
 import type { SessionTab } from "./sessionTab";
-import { closeSession, defaultHostId, loadAllSessions, newSessionDialog, openQuestions, undoBranch } from "./sessions";
+import { defaultHostId, loadAllSessions, newSessionDialog, openQuestions, undoBranch } from "./sessions";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
 
@@ -149,7 +150,7 @@ export function showTab(tab: SessionTab) {
   elEmpty.hidden = true;
   elChatScroll.querySelectorAll(".messages").forEach((m) => m !== tab.el && m.remove());
   if (tab.el.parentElement !== elChatScroll) elChatScroll.append(tab.el);
-  elChatScroll.scrollTop = elChatScroll.scrollHeight;
+  showEnd();
   elInput.focus();
 }
 
@@ -183,6 +184,7 @@ export function renderToolbar() {
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
+  renderAutoScroll();
   renderQueue(tab);
   $("question-bar").hidden = !tab?.questions.length || tab.streaming;
 
@@ -385,6 +387,7 @@ async function sendInput(when: QueueWhen = "followUp") {
 
 /** Wire header, input and global keyboard shortcuts */
 export function wireChatView() {
+  wireAutoScroll();
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
     sendInput();
@@ -393,7 +396,7 @@ export function wireChatView() {
     if (slashKey(e)) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      // while Pi works: Enter queues the message (after Pi is done), ⌥Enter puts it in between
+      // while Pi works: Enter (and ⌘Enter) queue the message (after Pi is done), ⌥Enter puts it in between
       sendInput(e.altKey ? "steer" : "followUp");
     }
   });
@@ -503,28 +506,7 @@ export function wireChatView() {
   $("btn-new-empty").addEventListener("click", () => newSessionDialog(defaultHostId()));
   $("btn-new").addEventListener("click", () => newSessionDialog(defaultHostId()));
 
-  document.addEventListener("keydown", (e) => {
-    const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.code === "KeyB") {
-      e.preventDefault();
-      togglePanel(e.altKey ? "right" : "left");
-    } else if (mod && e.shiftKey && e.code === "KeyR") {
-      e.preventDefault();
-      reloadFiles();
-    } else if (mod && e.key === "s" && isEditorOpen()) {
-      e.preventDefault();
-      saveEditor();
-    } else if (mod && e.key === "n") {
-      e.preventDefault();
-      newSessionDialog(defaultHostId());
-    } else if (mod && e.key === "w" && state.active) {
-      // ⌘W closes the active session, not the window
-      e.preventDefault();
-      closeSession(state.active);
-    } else if (e.key === "Escape" && state.active?.streaming && document.activeElement === elInput) {
-      state.active.abort().catch(() => {});
-    }
-  });
+  wireShortcuts({ input: elInput, fillInput });
 }
 
 /** Change the colour scheme in both windows and save it */

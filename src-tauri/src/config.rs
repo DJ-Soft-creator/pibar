@@ -134,6 +134,9 @@ pub struct UiPrefs {
     pub default_model: String,
     #[serde(default)]
     pub default_thinking: String,
+    /// Auto scroll at the start of an answer: "on" or "off" (switched on by hand)
+    #[serde(default = "default_auto_scroll")]
+    pub auto_scroll: String,
     /// File tree: only Markdown, HTML and images instead of all files
     #[serde(default)]
     pub files_docs_only: bool,
@@ -143,6 +146,10 @@ pub struct UiPrefs {
     /// Sections of the session list: "none", "date" or "folder"
     #[serde(default = "default_session_group")]
     pub session_group: String,
+}
+
+pub fn default_auto_scroll() -> String {
+    "on".into()
 }
 
 pub fn default_session_sort() -> String {
@@ -206,6 +213,7 @@ impl Default for UiPrefs {
             default_preset: String::new(),
             default_model: String::new(),
             default_thinking: String::new(),
+            auto_scroll: default_auto_scroll(),
             files_docs_only: false,
             session_sort: default_session_sort(),
             session_group: default_session_group(),

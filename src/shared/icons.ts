@@ -19,6 +19,7 @@ const PATHS = {
   folder: '<path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.5h5.6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/>',
   file: '<path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3"/>',
   up: '<path d="M8 13V3.5M4 7.5l4-4 4 4"/>',
+  down: '<path d="M8 3v9.5M4 8.5l4 4 4-4"/>',
   home: '<path d="M2.5 7.5 8 2.5l5.5 5"/><path d="M4 6.5v7h8v-7"/>',
   plus: '<path d="M8 3.5v9M3.5 8h9"/>',
   star: '<path d="M8 2l1.8 3.8 4.2.5-3.1 2.9.8 4.1L8 11.3l-3.7 2 .8-4.1L2 6.3l4.2-.5z"/>',
