@@ -354,10 +354,45 @@ function sessionSections(rows: ListRow[]): HTMLElement[] {
   // sessions without a group: sorted and, if chosen, in sections by date or folder
   const loose = rest.filter((r) => !ids.has(meta(r.ref).group ?? ""));
   for (const sec of sectionRows(loose, sortMode(), groupMode())) {
-    if (sec.key) out.push(h("div", { class: "sec-head date-head" }, sectionLabel(sec.key)));
-    out.push(...sec.rows.map((r) => sessionItem(r.ref, rowTs(r))));
+    if (!sec.key) {
+      out.push(...sec.rows.map((r) => sessionItem(r.ref, rowTs(r))));
+      continue;
+    }
+    // sections can be collapsed (per host, per kind of sections); the choice is saved
+    const id = `${sec.rows[0].ref.hostId}|${groupMode()}|${sec.key}`;
+    const closed = collapsedSections().has(id);
+    out.push(
+      h(
+        "button",
+        {
+          type: "button",
+          class: `sec-head date-head ${closed ? "collapsed" : ""}`,
+          title: closed ? t("Expand") : t("Collapse"),
+          "aria-expanded": closed ? "false" : "true",
+          onclick: () => toggleSection(id),
+        },
+        h("span", { class: "chev" }, "▾"),
+        h("span", { class: "sec-name" }, sectionLabel(sec.key)),
+        h("span", { class: "count" }, String(sec.rows.length)),
+      ),
+    );
+    if (!closed) out.push(...sec.rows.map((r) => sessionItem(r.ref, rowTs(r))));
   }
   return out;
+}
+
+function collapsedSections(): Set<string> {
+  return new Set(state.config.ui.collapsedSections ?? []);
+}
+
+/** Open or close a date or folder section of the session list */
+function toggleSection(id: string) {
+  const c = collapsedSections();
+  if (c.has(id)) c.delete(id);
+  else c.add(id);
+  state.config.ui.collapsedSections = [...c];
+  saveConfig();
+  renderHosts();
 }
 
 /** One row in the session list: colour, pin, "remind", "⋯" (context menu) and "close" on hover */
