@@ -250,6 +250,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(PiManager::default())
         .setup(|app| {
+            // read the user's shell environment in the background, so the first local Pi start does not wait
+            std::thread::spawn(|| {
+                hostexec::user_env();
+            });
             let handle = app.handle().clone();
             let cfg = config::load(&handle);
             i18n::set(&cfg.ui.language);
