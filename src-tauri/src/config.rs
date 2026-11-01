@@ -88,6 +88,9 @@ pub struct UiPrefs {
     /// Hosts collapsed in the "All" view
     #[serde(default)]
     pub collapsed_hosts: Vec<String>,
+    /// Collapsed date or folder sections of the session list: "<hostId>|<date|folder>|<section>"
+    #[serde(default)]
+    pub collapsed_sections: Vec<String>,
     #[serde(default)]
     pub left_collapsed: bool,
     #[serde(default)]
@@ -196,6 +199,7 @@ impl Default for UiPrefs {
             language: auto(),
             selected_host: all(),
             collapsed_hosts: vec![],
+            collapsed_sections: vec![],
             left_collapsed: false,
             right_collapsed: false,
             quick_hotkey: default_hotkey(),

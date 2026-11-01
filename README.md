@@ -44,7 +44,7 @@ License
 - **Questions with options**: when Pi ends an answer with a choice question, a dialog opens with the options to
   tick and a field for your own answer (also for dialogs of Pi extensions)
 - **Session list in order**: button in the header – sort by last activity, creation, name or folder; sections by
-  date (today, yesterday, last 7 days, …), by folder or none
+  date (today, yesterday, last 7 days, …), by folder or none; a click on a section heading collapses it
 - **Messages while Pi works**: Enter queues the message (Pi gets it when done), ⌥Enter puts it in between (before
   Pi's next step); waiting messages stay visible above the input and can be switched, taken back or removed
 - **Git history**: click the Git line under a folder for the commits of the repository (changed files and diff per

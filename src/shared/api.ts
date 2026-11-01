@@ -131,6 +131,8 @@ export interface AppConfig {
     showThinking: boolean;
     selectedHost?: string;
     collapsedHosts?: string[];
+    /** Collapsed date or folder sections of the session list: "<hostId>|<date|folder>|<section>" */
+    collapsedSections?: string[];
     leftCollapsed?: boolean;
     rightCollapsed?: boolean;
     quickHotkey?: string;

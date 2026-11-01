@@ -46,7 +46,8 @@ MIT-Lizenz
 - **Fragen mit Optionen**: endet eine Antwort mit einer Auswahlfrage, öffnet sich ein Dialog mit anhakbaren Optionen
   und einem Feld für eine eigene Antwort (auch für Dialoge von Pi-Erweiterungen)
 - **Session-Liste geordnet**: Knopf im Kopf – sortieren nach letzter Aktivität, Erstellung, Name oder Ordner;
-  Abschnitte nach Datum (heute, gestern, letzte 7 Tage, …), nach Ordner oder keine
+  Abschnitte nach Datum (heute, gestern, letzte 7 Tage, …), nach Ordner oder keine; ein Klick auf eine Überschrift klappt
+  den Abschnitt zu
 - **Nachrichten, während Pi arbeitet**: Enter reiht ein (Pi bekommt sie, wenn es fertig ist), ⌥Enter schiebt sie
   dazwischen (vor Pis nächstem Schritt); wartende Nachrichten bleiben über dem Eingabefeld sichtbar und lassen sich
   umstellen, zurückholen oder löschen
