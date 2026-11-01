@@ -88,3 +88,7 @@ memory-bank/
 .github/copilot-instructions.md
 .github/instructions/
 .github/prompts/
+
+# ---------- Lokale Skripte ----------
+# persönliches Deploy-Skript (dev, prod, github)
+deploy.sh
