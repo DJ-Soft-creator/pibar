@@ -38,9 +38,15 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
+/**
+ * Model output is untrusted: no styles, forms or embedded frames. The page's CSP (tauri.conf.json) is the second
+ * line of defence, e.g. it blocks remote images that could leak data.
+ */
+const PURIFY = { FORBID_TAGS: ["style", "form", "iframe", "frame", "object", "embed", "base", "meta", "link"] };
+
 export function renderMarkdown(target: HTMLElement, text: string) {
   const html = marked.parse(text, { async: false }) as string;
-  target.innerHTML = DOMPurify.sanitize(html);
+  target.innerHTML = DOMPurify.sanitize(html, PURIFY);
   target.querySelectorAll("pre code").forEach((code) => {
     try {
       hljs.highlightElement(code as HTMLElement);
@@ -48,7 +54,10 @@ export function renderMarkdown(target: HTMLElement, text: string) {
       /* highlighting is optional */
     }
   });
-  target.querySelectorAll("a").forEach((a) => a.setAttribute("target", "_blank"));
+  target.querySelectorAll("a").forEach((a) => {
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener noreferrer");
+  });
 }
 
 export function toast(
