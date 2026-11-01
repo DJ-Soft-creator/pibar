@@ -263,6 +263,8 @@ export const api = {
   listModels: (hostId: string) => invoke<ModelInfo[]>("list_models", { hostId }),
   getConfig: () => invoke<AppConfig>("get_config"),
   saveConfig: (cfg: AppConfig) => invoke<void>("save_config", { cfg }),
+  /** Problem with the settings file at start (damaged file reset, backup path), null = all fine */
+  configLoadError: () => invoke<string | null>("config_load_error"),
   testHost: (hostId: string) => invoke<string>("test_host", { hostId }),
   listSessions: (hostId: string) => invoke<SessionInfo[]>("list_sessions", { hostId }),
   /** Delete session files (only paths inside Pi's sessions folder) */

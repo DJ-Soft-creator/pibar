@@ -32,6 +32,12 @@ fn save_config(app: AppHandle, mut cfg: AppConfig) -> Result<(), String> {
     config::save(&app, &cfg)
 }
 
+/// Problem with the settings file at start (e.g. damaged and reset), shown once by the UI
+#[tauri::command]
+fn config_load_error() -> Option<String> {
+    config::take_load_error()
+}
+
 // ---------- Hosts ----------
 
 /// Test a connection: returns the host's Pi version.
@@ -327,6 +333,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_config,
             save_config,
+            config_load_error,
             test_host,
             list_sessions,
             delete_sessions,
