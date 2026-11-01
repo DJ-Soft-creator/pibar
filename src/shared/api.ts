@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { PiResult } from "./piProtocol";
 import type { SessionOutline } from "./branches";
+import type { SessionGroupBy, SessionSort } from "./sessionOrder";
 
 /** Answer of read_file_head, see src-tauri/src/files.rs */
 export interface HeadVersion {
@@ -155,6 +156,9 @@ export interface AppConfig {
     defaultPreset?: string;
     defaultModel?: string;
     defaultThinking?: string;
+    /** Session list: order and sections (src/shared/sessionOrder.ts) */
+    sessionSort?: SessionSort;
+    sessionGroup?: SessionGroupBy;
   };
 }
 
@@ -167,6 +171,8 @@ export interface SessionInfo {
   name: string | null;
   /** Session this one was branched from (Pi's fork), null = none */
   parent?: string | null;
+  /** Last change of the file (last activity), seconds since the epoch; 0 = unknown */
+  modified?: number;
 }
 
 export interface FolderListing {
