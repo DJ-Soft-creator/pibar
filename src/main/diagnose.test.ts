@@ -3,12 +3,18 @@ import { diagnoseHints } from "./diagnose";
 
 describe("diagnosis hints", () => {
   it("points to the macOS local network permission", () => {
-    const r = "http://192.168.178.250:1234/v1 -> curl: (7) Failed to connect: No route to host HTTP 000";
+    const r =
+      "node http://192.168.170.211:8080/v1 -> TypeError: fetch failed | cause: EHOSTUNREACH connect EHOSTUNREACH 192.168.170.211:8080";
     expect(diagnoseHints(r).join(" ")).toContain("Local Network");
+  });
+  it("ignores services that are just not running on this computer", () => {
+    const r =
+      "curl http://127.0.0.1:1234/v1 -> curl: (7) Failed\nnode http://127.0.0.1:1234/v1 -> TypeError: fetch failed | cause: ECONNREFUSED connect ECONNREFUSED 127.0.0.1:1234";
+    expect(diagnoseHints(r)).toEqual([]);
   });
   it("detects a refused connection and a missing key variable", () => {
     const r =
-      "models.json: provider x apiKey=env KEY (NOT SET)\nhttp://localhost:1234/v1 -> curl: (7) Connection refused";
+      "models.json: provider x apiKey=env KEY (NOT SET)\nnode http://10.0.0.5:1234/v1 -> fetch failed | cause: ECONNREFUSED connect ECONNREFUSED 10.0.0.5:1234";
     const h = diagnoseHints(r);
     expect(h.some((x) => x.includes("refuses"))).toBe(true);
     expect(h.some((x) => x.includes("API key variable"))).toBe(true);

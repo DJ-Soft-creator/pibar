@@ -11,7 +11,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 const OPENAI: &str = "https://api.openai.com/v1";
@@ -69,7 +69,7 @@ fn curl_quote(s: &str) -> String {
 
 /// POST with curl; returns the response body. HTTP errors return the body as the error text.
 fn curl(url: &str, key: &str, args: &[String]) -> Result<Vec<u8>, String> {
-    let mut cmd = Command::new("curl");
+    let mut cmd = crate::disclaim::command("curl");
     cmd.args(["-sS", "--fail-with-body", "--max-time", "180", "--config", "-"])
         .args(args)
         .arg(url)

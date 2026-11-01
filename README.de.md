@@ -123,7 +123,9 @@ API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischena
 
 ## macOS-Rechte
 
-- **Lokales Netzwerk**: nötig, wenn Pi einen Modellserver oder Host im eigenen Netz anspricht: Systemeinstellungen →
+- **Lokales Netzwerk**: macOS sperrt bei selbst gebauten Apps Adressen im lokalen Netz oft ohne Nachfrage (Chats mit
+  Modellservern im LAN scheitern dann mit „Connection error“). PiBar startet Pi, SSH und curl deshalb als eigenständige
+  Programme, die wie aus dem Terminal gestartet behandelt werden. Falls es trotzdem auftritt: Systemeinstellungen →
   Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten.
 - **Umgebung**: Eine aus dem Finder gestartete App sieht keine Variablen aus `~/.zshrc` (API-Schlüssel, Basis-URLs von
   Modellservern, Proxys). PiBar liest die Umgebung deiner interaktiven Shell einmal beim Start ein und gibt sie an

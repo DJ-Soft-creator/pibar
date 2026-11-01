@@ -3,6 +3,7 @@
 //! Local commands get the environment of the user's interactive shell (see [`user_env`]).
 
 use crate::config::HostCfg;
+use crate::disclaim;
 use crate::i18n::tr;
 use std::io::Write;
 use std::process::{Child, Command, Stdio};
@@ -90,7 +91,7 @@ fn login_shell() -> String {
 }
 
 fn ssh_command(h: &HostCfg) -> Command {
-    let mut c = Command::new("ssh");
+    let mut c = disclaim::command("ssh");
     c.args([
         "-T",
         "-o",
@@ -132,7 +133,7 @@ pub fn shell_command(h: &HostCfg, script: &str) -> Command {
         c.arg(format!("bash -lc {}", sq(script)));
         c
     } else {
-        let mut c = Command::new(login_shell());
+        let mut c = disclaim::command(&login_shell());
         c.envs(user_env().iter().map(|(k, v)| (k.as_str(), v.as_str())));
         c.arg("-lc").arg(script);
         c

@@ -1,5 +1,6 @@
 mod config;
 mod diag;
+mod disclaim;
 mod doubletap;
 mod files;
 mod hostexec;
@@ -258,6 +259,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // started as helper for a child process (see disclaim.rs): becomes that program, never returns
+    disclaim::run_if_requested();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())

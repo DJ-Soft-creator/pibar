@@ -1,6 +1,6 @@
 // Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
 import { api } from "../shared/api";
-import { $, h, errMsg, openModal, toast } from "../shared/dom";
+import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
 import { cleanTitle, relTime, shortPath, splitScreenText, stripAnswerStyle } from "../shared/format";
 import { splitModelKey } from "../shared/presets";
@@ -348,7 +348,7 @@ function rekey(tab: SessionTab, before: string, inherit = false) {
 
 async function onUserAction(tab: SessionTab, index: number, action: UserAction, shown: string, edited?: string) {
   if (action === "copy") {
-    await navigator.clipboard.writeText(shown).then(
+    await copyText(shown).then(
       () => toast(t("Copied")),
       (e) => toast(errMsg(e), "err"),
     );
