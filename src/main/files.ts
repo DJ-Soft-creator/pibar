@@ -1,5 +1,6 @@
 // Right column: folders of the active session as a tree of Markdown files, and the editor.
 import { folderField } from "./folderPicker";
+import { addContextPath, PATH_DRAG } from "./composerTools";
 import { api, FolderListing, GitInfo } from "../shared/api";
 import { $, h, errMsg, openModal, renderMarkdown, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
@@ -69,6 +70,34 @@ function dirGit(path: string): HTMLElement[] {
   return gitStatusFor(changes, `${path}/`) ? [h("span", { class: "gdot", title: t("Contains changes") })] : [];
 }
 
+/** Tree rows can be dragged into the input (context of the next message) */
+function pathDrag(kind: "folder" | "file", path: string) {
+  return {
+    draggable: "true",
+    ondragstart: (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      e.dataTransfer.setData(PATH_DRAG, JSON.stringify({ kind, path }));
+      e.dataTransfer.setData("text/plain", path);
+      e.dataTransfer.effectAllowed = "copy";
+    },
+  };
+}
+
+/** Right click on a folder: into the context, or create something in it */
+function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
+  e.preventDefault();
+  const anchor = e.currentTarget as HTMLElement;
+  openMenu(
+    anchor,
+    [
+      { label: t("Add to context"), onSelect: () => addContextPath("folder", path) },
+      { label: t("New file or folder"), onSelect: () => createMenu(anchor, tab, path) },
+    ],
+    "left",
+    { x: e.clientX, y: e.clientY },
+  );
+}
+
 function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): HTMLElement[] {
   const rows: HTMLElement[] = [];
   const pad = `padding-left:${8 + depth * 14}px`;
@@ -87,6 +116,8 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
             class: "trow tdir",
             style: pad,
             title: full,
+            ...pathDrag("folder", full),
+            oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, full),
             onclick: () => {
               if (open) openDirs.delete(key);
               else openDirs.add(key);
@@ -127,12 +158,14 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
           title: full,
           "data-path": full,
           onclick: () => openFile(tab.hostId, full),
+          ...pathDrag("file", full),
           oncontextmenu: (e: MouseEvent) => {
             e.preventDefault();
             openMenu(
               e.currentTarget as HTMLElement,
               [
                 { label: t("Open"), onSelect: () => openFile(tab.hostId, full) },
+                { label: t("Add to context"), onSelect: () => addContextPath("file", full) },
                 { label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") },
               ],
               "left",
@@ -169,6 +202,8 @@ function renderTree() {
           {
             class: "trow troot",
             title: root,
+            ...pathDrag("folder", root),
+            oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, root),
             onclick: () => {
               if (open) closedRoots.add(root);
               else closedRoots.delete(root);

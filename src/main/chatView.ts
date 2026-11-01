@@ -3,7 +3,7 @@
 import { emit } from "@tauri-apps/api/event";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { $, h, errMsg, toast } from "../shared/dom";
-import { cleanTitle, shortPath, thinkingLabel, withFiles } from "../shared/format";
+import { cleanTitle, shortPath, thinkingLabel, withContext, withFiles } from "../shared/format";
 import { hasAttachments, renderDock, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
 import { matchPreset, splitModelKey } from "../shared/presets";
@@ -278,9 +278,23 @@ function toggleDefault() {
   renderToolbar();
 }
 
+/** Lines the input grows to before it scrolls */
+const INPUT_LINES = 6;
+
+/** Input grows with its text up to INPUT_LINES lines, then scrolls */
 function autoGrow() {
+  const cs = getComputedStyle(elInput);
+  const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.5;
+  const extra =
+    parseFloat(cs.paddingTop) +
+    parseFloat(cs.paddingBottom) +
+    parseFloat(cs.borderTopWidth) +
+    parseFloat(cs.borderBottomWidth);
+  const max = Math.round(line * INPUT_LINES + extra);
   elInput.style.height = "auto";
-  elInput.style.height = `${Math.min(elInput.scrollHeight, 240)}px`;
+  const want = elInput.scrollHeight + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  elInput.style.height = `${Math.min(want, max)}px`;
+  elInput.classList.toggle("scrolls", want > max);
 }
 
 /** Put a text into the input (earlier message to edit or reuse) */
@@ -302,7 +316,14 @@ async function sendInput() {
   const files = takeAttachments();
   const texts = files.filter((f) => f.kind === "text").map((f) => ({ name: f.name, text: f.text ?? "" }));
   const images = files.filter((f) => f.kind === "image").map((f) => ({ data: f.data ?? "", mimeType: f.mimeType }));
-  const msg = withFiles(text || t("Have a look at the attached files."), texts);
+  const refs = files.flatMap((f) =>
+    f.path && (f.kind === "folder" || f.kind === "fileref")
+      ? [{ kind: f.kind === "folder" ? ("folder" as const) : ("file" as const), path: f.path }]
+      : [],
+  );
+  const fallback =
+    texts.length || images.length ? t("Have a look at the attached files.") : t("Have a look at the context.");
+  const msg = withContext(withFiles(text || fallback, texts), refs);
   try {
     await tab.send(msg, images);
   } catch (e) {

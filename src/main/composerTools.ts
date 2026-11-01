@@ -1,6 +1,7 @@
 // Tool dock at the input: a quiet "+" that fades in more buttons (attach files, screenshot, skills, tools) while the
 // mouse is near; attachments as chips above the input (also by drag & drop or paste); the Pi tools of a session.
 import { api } from "../shared/api";
+import { baseName } from "../shared/format";
 import { $, h, errMsg, openModal, toast } from "../shared/dom";
 import { icon } from "../shared/icons";
 import { t } from "../shared/i18n";
@@ -11,7 +12,10 @@ import { state } from "./state";
 /** A file waiting to be sent with the next message */
 export interface Attachment {
   name: string;
-  kind: "image" | "text";
+  /** folder / fileref: only the path goes into the message (context) */
+  kind: "image" | "text" | "folder" | "fileref";
+  /** path on the host (folder, fileref) */
+  path?: string;
   mimeType: string;
   /** base64 for images */
   data?: string;
@@ -80,6 +84,17 @@ export async function addFiles(files: FileList | File[]) {
   renderChips();
 }
 
+/** Drag type for folders and files dragged from the tree */
+export const PATH_DRAG = "application/x-pibar-path";
+
+/** Put a folder or file of the tree into the context of the next message */
+export function addContextPath(kind: "folder" | "file", path: string) {
+  if (attachments.some((a) => a.path === path)) return;
+  attachments.push({ name: baseName(path), kind: kind === "folder" ? "folder" : "fileref", mimeType: "", path });
+  renderChips();
+  ($("input") as HTMLTextAreaElement).focus();
+}
+
 // ---------- Chips ----------
 
 function renderChips() {
@@ -89,10 +104,10 @@ function renderChips() {
     ...attachments.map((a, i) =>
       h(
         "span",
-        { class: "chip", title: a.name },
+        { class: `chip ${a.path ? "chip-ctx" : ""}`, title: a.path ?? a.name },
         a.kind === "image"
           ? h("img", { class: "chip-thumb", src: `data:${a.mimeType};base64,${a.data}`, alt: "" })
-          : icon("copy", 12, "chip-icon"),
+          : icon(a.kind === "folder" ? "folder" : a.kind === "fileref" ? "file" : "copy", 12, "chip-icon"),
         h("span", { class: "chip-name" }, a.name),
         h(
           "button",
@@ -222,7 +237,8 @@ export function wireComposerTools(input: HTMLTextAreaElement) {
   // drag & drop files onto the input area, paste images
   const composer = $("composer");
   composer.addEventListener("dragover", (e) => {
-    if (!e.dataTransfer?.types.includes("Files")) return;
+    const types = e.dataTransfer?.types ?? [];
+    if (!types.includes("Files") && !types.includes(PATH_DRAG)) return;
     e.preventDefault();
     composer.classList.add("drop-files");
   });
@@ -230,6 +246,14 @@ export function wireComposerTools(input: HTMLTextAreaElement) {
     if (!composer.contains(e.relatedTarget as Node)) composer.classList.remove("drop-files");
   });
   composer.addEventListener("drop", (e) => {
+    const ref = e.dataTransfer?.getData(PATH_DRAG);
+    if (ref) {
+      e.preventDefault();
+      composer.classList.remove("drop-files");
+      const { kind, path } = JSON.parse(ref) as { kind: "folder" | "file"; path: string };
+      if (state.active?.alive) addContextPath(kind, path);
+      return;
+    }
     if (!e.dataTransfer?.files.length) return;
     e.preventDefault();
     composer.classList.remove("drop-files");

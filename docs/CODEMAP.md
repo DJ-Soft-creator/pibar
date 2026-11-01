@@ -90,7 +90,7 @@ flowchart LR
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
 | [`usageStats.ts`](../src/main/usageStats.ts) | Token info in the header and its hover panel (counters, speed, context) | [`usageSummary`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
 | [`folderPicker.ts`](../src/main/folderPicker.ts) | Folder picker for local and SSH hosts (new session, add folder) | [`pickFolder`](../src/main/folderPicker.ts), [`folderField`](../src/main/folderPicker.ts), [`tildePath`](../src/main/folderPicker.ts) |
-| [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
+| [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`folderMenu`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
 | [`settings.ts`](../src/main/settings.ts) | Settings dialog: language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
 | [`quickBridge.ts`](../src/main/quickBridge.ts) | Accept messages from the quick bar | [`handleQuick`](../src/main/quickBridge.ts), [`broadcastActive`](../src/main/quickBridge.ts) |
 | [`styles.css`](../src/main/styles.css) | Main window look; light/dark via CSS variables and `data-theme` on `<html>` | – |
@@ -185,6 +185,10 @@ which browses the host through [`list_dirs`](../src-tauri/src/files.rs) (same sh
 The editor has three modes: edit, preview and diff. [`renderDiff`](../src/main/files.ts) compares the editor text
 (including unsaved changes) with the file in Git HEAD ([`read_head`](../src-tauri/src/files.rs)) or with the saved file,
 using the line diff in [`diffLines`](../src/shared/diff.ts) and [`hunks`](../src/shared/diff.ts) (3 lines of context).
+Folders and files of the tree can be dragged into the input or added by right click ([`folderMenu`](../src/main/files.ts),
+[`addContextPath`](../src/main/composerTools.ts)). Only their paths go with the message, as a `<context>` block
+([`withContext`](../src/shared/format.ts)); Pi reads them with its tools. [`splitContext`](../src/shared/format.ts) turns
+the block back into chips in the chat.
 With `ui.showGit` the same script also runs `git status --porcelain --branch` ([`parse_git`](../src-tauri/src/files.rs));
 for the session folder's own repository and for repositories in subfolders (up to 30, depth 5). The tree shows a quiet
 line under a session folder that is a repository ([`gitLine`](../src/shared/git.ts): branch, ↑ not pushed, ↓ to pull,

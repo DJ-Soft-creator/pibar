@@ -337,6 +337,8 @@ const de = {
   "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Choose folder": "Ordner auswählen",
+  "Add to context": "Zum Kontext hinzufügen",
+  "Have a look at the context.": "Sieh dir den Kontext an.",
   Diff: "Diff",
   Open: "Öffnen",
   "Show changes (diff)": "Änderungen anzeigen (Diff)",
