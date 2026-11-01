@@ -42,8 +42,10 @@ MIT-Lizenz
   Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der
   aktuellen Session) oder Einstellungen → Allgemein
-- **Token-Statistik**: Tokens, Kosten und Geschwindigkeit in der Kopfzeile; beim Überfahren Ein-/Ausgabe-/Cache-Tokens,
-  Tokens pro Sekunde, Zeit bis zum ersten Token und Kontextbelegung
+- **Statuszeile unter der Eingabe**, wie Pis Fußzeile und mit Pis Zahlen: `↑` Eingabe, `↓` Ausgabe, `R` aus dem Cache
+  gelesen (mit Anteil an der Eingabe in %), `W` in den Cache geschrieben, Kosten, belegter Kontext/Kontextfenster (orange
+  ab 70 %, rot ab 90 %); rechts Modell und Denkaufwand. Beim Überfahren Tokens pro Sekunde, Zeit bis zum ersten Token und
+  mehr
 
 ### Sprache
 

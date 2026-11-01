@@ -41,8 +41,9 @@ License
   message_ or _copy_
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General
-- **Token statistics**: tokens, cost and speed in the header; hover for input/output/cache tokens, tokens per second,
-  time to first token and context use
+- **Status line under the input**, as in Pi's footer and with Pi's numbers: `↑` input, `↓` output, `R` cache read
+  (with its share of the input in %), `W` cache write, cost, context used/window (orange above 70 %, red above 90 %);
+  model and thinking level on the right. Hover for tokens per second, time to first token and more
 
 ### Voice
 

@@ -145,6 +145,8 @@ export class SessionTab {
   /** Preset chosen in the toolbar or quick bar: id, "" = individual choice, null = derive from model/thinking */
   presetId: string | null = null;
   stats: TabStats = emptyStats();
+  /** Pi's get_session_stats (tokens, cost, context use of the whole session), null = not loaded */
+  piStats: any = null;
   /** Skills, prompt templates and extension commands (for the "/" menu) */
   commands: PiCommand[] = [];
   /** Name of the tool that is running right now ("" = none) */
@@ -262,7 +264,19 @@ export class SessionTab {
     this.streaming = false;
   }
 
+  /** Reload Pi's session statistics (status line under the input) */
+  async refreshStats() {
+    if (!this.alive) return;
+    try {
+      this.piStats = await api.pi(this.handle, { type: "get_session_stats" });
+      this.cb.onStateChange(this);
+    } catch {
+      /* older Pi: the live counters stay */
+    }
+  }
+
   async refreshState() {
+    void this.refreshStats();
     const st = await api.pi(this.handle, { type: "get_state" });
     this.model = st.model ?? null;
     this.thinkingLevel = st.thinkingLevel ?? "";
@@ -414,6 +428,7 @@ export class SessionTab {
         if (ev.message?.role === "assistant") {
           this.measure(ev.message);
           this.endAssistant(ev.message);
+          void this.refreshStats();
         }
         break;
       case "tool_execution_start":
