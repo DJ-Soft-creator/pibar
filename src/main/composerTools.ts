@@ -27,6 +27,8 @@ const MAX_TEXT = 200_000;
 const MAX_IMAGE = 10_000_000;
 /** Distance in pixels at which the dock opens */
 const NEAR = 70;
+/** Reach of the dock upwards (towards the chat) */
+const NEAR_UP = 16;
 /** Pi's built-in tools (default: read, bash, edit, write) */
 export const PI_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
 
@@ -202,12 +204,13 @@ export function wireComposerTools(input: HTMLTextAreaElement) {
       raf = 0;
       const r = dock.getBoundingClientRect();
       const p = $("dock-pop").getBoundingClientRect();
-      const near = (b: DOMRect) =>
+      // only a little reach upwards: the chat above (e.g. "read aloud" under the last answer) stays clickable
+      const near = (b: DOMRect, up: number) =>
         e.clientX > b.left - NEAR &&
         e.clientX < b.right + NEAR &&
-        e.clientY > b.top - NEAR &&
+        e.clientY > b.top - up &&
         e.clientY < b.bottom + NEAR;
-      dock.classList.toggle("near", near(r) || (dock.classList.contains("near") && near(p)));
+      dock.classList.toggle("near", near(r, NEAR_UP) || (dock.classList.contains("near") && near(p, NEAR_UP)));
     });
   });
   $("btn-dock").addEventListener("click", () => dock.classList.toggle("open"));
