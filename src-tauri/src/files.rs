@@ -3,7 +3,30 @@
 
 use crate::config::HostCfg;
 use crate::hostexec::{self, shell_path, sq};
+use crate::i18n::tr;
 use serde::Serialize;
+
+/// The file panel only shows and edits Markdown. The file commands accept nothing else, so a bug or injected script
+/// in the UI cannot read keys or overwrite shell profiles through them: absolute (or "~/") paths to `.md`/`.markdown`
+/// files, without ".." segments or control characters.
+pub fn check_markdown_path(path: &str) -> Result<(), String> {
+    let bad =
+        |why: &str| Err(tr(format!("Path not allowed ({why}): {path}"), format!("Pfad nicht erlaubt ({why}): {path}")));
+    if path.chars().any(char::is_control) {
+        return bad("control character");
+    }
+    if !(path.starts_with('/') || path.starts_with("~/")) {
+        return bad("not absolute");
+    }
+    if path.split('/').any(|seg| seg == "..") {
+        return bad("..");
+    }
+    let lower = path.to_lowercase();
+    if !(lower.ends_with(".md") || lower.ends_with(".markdown")) {
+        return bad("no Markdown file");
+    }
+    Ok(())
+}
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -166,6 +189,7 @@ pub fn list(host: &HostCfg, folders: &[String], with_git: bool) -> Vec<FolderLis
 }
 
 pub fn read(host: &HostCfg, path: &str) -> Result<String, String> {
+    check_markdown_path(path)?;
     hostexec::run_shell(host, &format!("cat {}", sq(path)), None)
 }
 
@@ -194,6 +218,7 @@ pub fn parse_head(out: &str) -> HeadVersion {
 }
 
 pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
+    check_markdown_path(path)?;
     let (dir, name) = path.rsplit_once('/').unwrap_or((".", path));
     let dir = if dir.is_empty() { "/" } else { dir };
     let script = format!(
@@ -206,6 +231,7 @@ pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
 }
 
 pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
+    check_markdown_path(path)?;
     let p = sq(path);
     // write to a temp file, then rename: no half-written files on failure
     let script = format!("cat > {p}.pibar-tmp && mv {p}.pibar-tmp {p}");
@@ -213,6 +239,7 @@ pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
 }
 
 pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
+    check_markdown_path(path)?;
     let p = sq(path);
     let script = format!("mkdir -p \"$(dirname {p})\" && [ ! -e {p} ] && : > {p}");
     hostexec::run_shell(host, &script, None).map(|_| ())
@@ -325,5 +352,23 @@ mod tests {
         assert!(l.missing);
         assert!(l.files.is_empty());
         assert_eq!(l.root, "");
+    }
+
+    #[test]
+    fn only_markdown_paths_are_allowed() {
+        for ok in ["/home/u/notes/a.md", "~/notes/Plan.MD", "/repo/docs/x.markdown", "/a b/ä.md"] {
+            assert!(check_markdown_path(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "notes/a.md",
+            "/home/u/.ssh/id_ed25519",
+            "/home/u/.zshrc",
+            "/home/u/notes/../.ssh/x.md",
+            "~/../etc/passwd.md",
+            "/home/u/a.md\nrm -rf ~",
+            "/home/u/a.md.sh",
+        ] {
+            assert!(check_markdown_path(bad).is_err(), "{bad}");
+        }
     }
 }
