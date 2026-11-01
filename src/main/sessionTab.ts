@@ -33,8 +33,11 @@ export interface TabCallbacks {
   onHandle: (tab: SessionTab) => void;
   onStateChange: (tab: SessionTab) => void;
   onSettled: (tab: SessionTab) => void;
-  /** Button under an own message; `index` = position among the user messages of this chat */
-  onUserAction: (tab: SessionTab, index: number, action: UserAction, text: string) => void;
+  /**
+   * Button under an own message; `index` = position among the user messages of this chat, `text` = the message as
+   * sent, `edited` = new text for "edit"
+   */
+  onUserAction: (tab: SessionTab, index: number, action: UserAction, text: string, edited?: string) => void;
 }
 
 const MAX_RESULT = 20000;
@@ -449,31 +452,77 @@ export class SessionTab {
       );
     }
     const index = this.userCount++;
-    const act = (name: IconName, title: string, action: UserAction) => {
-      const b = h("button", {
-        class: "msg-act",
-        title,
-        "aria-label": title,
-        onclick: () => this.cb.onUserAction(this, index, action, text),
-      });
+    const bubble = h("div", { class: "bubble" }, ...imgs, text, ocrCard);
+    const panel = h("div", { class: "branch-panel", hidden: true });
+    const act = (name: IconName, title: string, fn: () => void) => {
+      const b = h("button", { class: "msg-act", title, "aria-label": title, onclick: fn });
       b.append(icon(name, 13));
       return b;
     };
-    this.el.append(
+    const acts = h(
+      "div",
+      { class: "msg-acts user-acts" },
+      act("edit", t("Edit and resend (new branch from here)"), () => this.branchPanel(panel, acts, index, text, true)),
+      act("redo", t("Run again from here (new branch)"), () => this.branchPanel(panel, acts, index, text, false)),
+      act("insert", t("Use as new message"), () => this.cb.onUserAction(this, index, "reuse", text)),
+      act("copy", t("Copy"), () => this.cb.onUserAction(this, index, "copy", text)),
+    );
+    this.el.append(h("div", { class: "msg user" }, bubble, panel, acts));
+  }
+
+  /**
+   * Inline panel under an own message: edit the text (or just confirm "run again"), then branch – or cancel
+   * (button or Esc) and nothing changes. The fork only happens on "send".
+   */
+  private branchPanel(panel: HTMLElement, acts: HTMLElement, index: number, text: string, editable: boolean) {
+    const close = () => {
+      panel.hidden = true;
+      panel.replaceChildren();
+      acts.hidden = false;
+    };
+    const area = editable
+      ? (h("textarea", {
+          class: "branch-text",
+          rows: Math.min(10, text.split("\n").length + 1),
+        }) as HTMLTextAreaElement)
+      : null;
+    if (area) area.value = text;
+    const go = () => {
+      const msg = area ? area.value.trim() : text;
+      if (!msg) return;
+      close();
+      this.cb.onUserAction(this, index, editable ? "edit" : "rerun", text, msg);
+    };
+    area?.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      } else if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        go();
+      }
+    });
+    panel.replaceChildren(
+      area ?? h("div", { class: "branch-q" }, t("Run this message again from here?")),
       h(
         "div",
-        { class: "msg user" },
-        h("div", { class: "bubble" }, ...imgs, text, ocrCard),
+        { class: "branch-bar" },
+        h("span", { class: "branch-hint" }, t("Creates a new branch; the original session stays unchanged.")),
+        h("button", { class: "ghost small", type: "button", onclick: close }, t("Cancel")),
         h(
-          "div",
-          { class: "msg-acts user-acts" },
-          act("edit", t("Edit and resend (new branch from here)"), "edit"),
-          act("redo", t("Run again from here (new branch)"), "rerun"),
-          act("insert", t("Use as new message"), "reuse"),
-          act("copy", t("Copy"), "copy"),
+          "button",
+          { class: "primary small", type: "button", onclick: go },
+          editable ? t("Send as new branch") : t("Run again"),
         ),
       ),
     );
+    panel.hidden = false;
+    acts.hidden = true;
+    if (area) {
+      area.focus();
+      area.setSelectionRange(area.value.length, area.value.length);
+    } else panel.querySelector<HTMLButtonElement>(".primary")?.focus();
   }
 
   private beginAssistant() {

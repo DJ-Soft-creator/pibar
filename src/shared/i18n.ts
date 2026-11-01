@@ -271,6 +271,11 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "Run this message again from here?": "Diese Nachricht ab hier erneut ausführen?",
+  "Creates a new branch; the original session stays unchanged.":
+    "Erzeugt eine neue Verzweigung; die ursprüngliche Session bleibt unverändert.",
+  "Send as new branch": "Als neue Verzweigung senden",
+  "Run again": "Erneut ausführen",
   Branch: "Verzweigen",
   Copied: "Kopiert",
   Copy: "Kopieren",
@@ -279,8 +284,6 @@ const de = {
   "Default for new sessions: {name}": "Standard für neue Sessions: {name}",
   "Default model": "Standardmodell",
   "Edit and resend (new branch from here)": "Bearbeiten und neu senden (neue Verzweigung ab hier)",
-  "New branch – edit the message and send it. The original session stays unchanged.":
-    "Neue Verzweigung – Nachricht bearbeiten und senden. Die ursprüngliche Session bleibt unverändert.",
   "Pi is still working – stop it first or wait.": "Pi arbeitet noch – erst stoppen oder abwarten.",
   "Run again from here (new branch)": "Ab hier neu ausführen (neue Verzweigung)",
   "This message cannot be branched from.": "Ab dieser Nachricht lässt sich nicht verzweigen.",
