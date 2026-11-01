@@ -146,10 +146,10 @@ API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischena
 - **Eingabeüberwachung** (für den Doppeltipp): macOS fragt beim ersten Start. Im Entwicklungsmodus gilt sie für das
   Terminal. Systemeinstellungen → Datenschutz & Sicherheit → Eingabeüberwachung. Danach PiBar neu starten. Ist der
   Schalter an, der Doppeltipp reagiert aber nicht: PiBar dort entfernen (−), wieder hinzufügen und PiBar neu starten.
-- **Berechtigungen und Neubauen**: macOS bindet Berechtigungen an die Code-Signatur. `npm run app:install` signiert
-  PiBar mit einem lokalen Zertifikat („PiBar Local Signing“, einmalig im Anmelde-Schlüsselbund angelegt; macOS fragt
-  dabei eventuell nach dem Passwort, um ihm zu vertrauen), damit Berechtigungen ein Neubauen überstehen. Ist das
-  Zertifikat neu, setzt das Skript die alten Berechtigungen einmal zurück und macOS fragt erneut.
+- **Berechtigungen und Neubauen**: macOS bindet Berechtigungen an die Code-Signatur, und jede selbst gebaute Version
+  bekommt eine neue. `npm run app:install` setzt deshalb standardmäßig die alten Berechtigungen zurück, und macOS fragt
+  nach jedem Neubau erneut. Optional, siehe unten: eine gleichbleibende lokale Signatur, damit Berechtigungen ein
+  Neubauen überstehen.
 - **Quick-Bar öffnet nicht**: PiBar meldet beim Start, wenn das Tastenkürzel belegt ist (von einer anderen App oder
   einem PiBar, das noch im Terminal läuft) oder dem Doppeltipp die Berechtigung fehlt; Menüleisten-Symbol →
   Quick-Launcher geht immer.
@@ -193,6 +193,25 @@ sie. Zum Aktualisieren nach `git pull` einfach erneut ausführen. Einstellungen,
 liegen im Konfigurationsordner der App). macOS fragt Mikrofon, Bildschirmaufnahme und Eingabeüberwachung noch einmal ab,
 jetzt für PiBar selbst statt fürs Terminal. Beim Anmelden starten: Systemeinstellungen → Allgemein → Anmeldeobjekte →
 PiBar hinzufügen.
+
+### Optional: gleichbleibende Signatur (`PIBAR_SIGN=1`)
+
+```bash
+PIBAR_SIGN=1 npm run app:install
+```
+
+Legt einmalig ein eigenes Zertifikat „PiBar Local Signing“ im Anmelde-Schlüsselbund an und signiert PiBar damit. Dann
+behält macOS die Berechtigungen (Eingabeüberwachung, Mikrofon, Bildschirmaufnahme, lokales Netzwerk) über Neubauten
+hinweg. Es ist nicht deine Apple-ID und kein Apple-Entwicklerzertifikat; vertraut wird ihm nur für Code-Signatur und
+nur für deinen Benutzer. Entfernen: `security delete-certificate -c "PiBar Local Signing"`.
+
+> **Hinweis zu Passwortabfragen.** PiBar und sein Installationsskript lesen, sammeln oder versenden keine Passwörter und
+> keine persönlichen Daten – alles, was sie tun, steht in [`scripts/install-mac.sh`](scripts/install-mac.sh) und lässt
+> sich nachprüfen. Ohne `PIBAR_SIGN=1` wird der Schlüsselbund gar nicht angefasst. Mit `PIBAR_SIGN=1` fragt **macOS
+> selbst** eventuell nach dem Passwort des Anmelde-Schlüsselbunds (um das Zertifikat abzulegen, ihm für Code-Signatur zu
+> vertrauen oder wenn `codesign` es benutzt); PiBar sieht dieses Passwort nie. Das Schlüsselbund-Passwort ist meist dein
+> Mac-Anmeldepasswort, kann aber abweichen (z. B. nachdem das Anmeldepasswort zurückgesetzt wurde). Im Zweifel die
+> Abfrage abbrechen: Das Skript installiert PiBar dann ohne gleichbleibende Signatur, sonst ändert sich nichts.
 
 Nur bauen, ohne zu installieren: `npm run app:build` (`.app` unter `src-tauri/target/release/bundle/macos/`); zusätzlich
 mit `.dmg`: `npm run tauri build`.

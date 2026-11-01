@@ -138,10 +138,9 @@ puts everything on the clipboard.
 - **Input Monitoring** (for the double tap): macOS asks on first start. In development mode it belongs to the terminal.
   System Settings → Privacy & Security → Input Monitoring. Restart PiBar afterwards. If the switch is on but the double
   tap does not react: remove PiBar there (−), add it again and restart PiBar.
-- **Permissions and rebuilds**: macOS ties permissions to the code signature. `npm run app:install` signs PiBar with a
-  local certificate ("PiBar Local Signing", created once in the login keychain; macOS may ask for your password to
-  trust it), so permissions survive rebuilds. When the certificate is new, the script resets the old permissions once
-  and macOS asks again.
+- **Permissions and rebuilds**: macOS ties permissions to the code signature, and every self-built version gets a new
+  one. By default `npm run app:install` therefore resets the old permissions and macOS asks again after each rebuild.
+  Optional, see below: a stable local signature, so permissions survive rebuilds.
 - **Quick bar does not open**: PiBar shows a message at start if the shortcut is taken (by another app or by a PiBar
   still running from the terminal) or the double tap lacks the permission; the tray menu → Quick-Launcher always
   works.
@@ -184,6 +183,25 @@ npm run app:install
 Run it again after `git pull` to update. Settings, hosts and groups stay (they live in the app's config folder).
 macOS asks once more for microphone, screen recording and input monitoring, now for PiBar itself instead of the
 terminal. To start PiBar at login: System Settings → General → Login Items → add PiBar.
+
+### Optional: stable signature (`PIBAR_SIGN=1`)
+
+```bash
+PIBAR_SIGN=1 npm run app:install
+```
+
+Creates once a certificate of its own, "PiBar Local Signing", in your login keychain and signs PiBar with it. Then
+macOS keeps the permissions (input monitoring, microphone, screen recording, local network) across rebuilds. It is
+not your Apple ID and not an Apple developer certificate; it is trusted for code signing only, for your user only. To
+remove it: `security delete-certificate -c "PiBar Local Signing"`.
+
+> **Note on password prompts.** PiBar and its install script do not read, collect or send any passwords or personal
+> data – everything they do is in [`scripts/install-mac.sh`](scripts/install-mac.sh) and can be checked. Without
+> `PIBAR_SIGN=1` the keychain is not touched at all. With it, **macOS itself** may ask for the password of the login
+> keychain (to store the certificate, to trust it for code signing, or when `codesign` uses it); PiBar never sees that
+> password. The keychain password is usually your Mac login password, but it can differ (e.g. after the login
+> password was reset). If you are unsure, cancel the prompt: the script then installs PiBar without the stable
+> signature, nothing else changes.
 
 Only build without installing: `npm run app:build` (`.app` in `src-tauri/target/release/bundle/macos/`); with a
 `.dmg` as well: `npm run tauri build`.
