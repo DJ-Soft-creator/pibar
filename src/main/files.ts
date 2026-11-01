@@ -229,7 +229,7 @@ function renderTree() {
                 },
                 "＋",
               ),
-          h("button", { class: "icon-btn", title: t("Reload"), onclick: () => renderFiles() }, "↻"),
+          h("button", { class: "icon-btn", title: t("Reload"), onclick: () => reloadFiles() }, "↻"),
           removable
             ? h(
                 "button",
@@ -312,8 +312,34 @@ export async function renderFiles() {
     return;
   }
   if (tab !== state.active) return; // another session was selected meanwhile
+  loadedAt = Date.now();
   last = { tab, listings };
   renderTree();
+}
+
+/** Time of the last load, so a refresh on window focus does not run again and again */
+let loadedAt = 0;
+
+/**
+ * Reload tree and Git status, and the open file if it has no unsaved changes (Pi may have changed it).
+ * Button in the panel header, ⌘⇧R, after each run of the active session and when the window gets the focus again.
+ */
+export async function reloadFiles() {
+  loadedAt = Date.now();
+  await renderFiles();
+  const path = editor.path;
+  if (!path || !isEditorOpen() || elEdText.value !== editor.original) return;
+  try {
+    const text = await api.readFile(editor.hostId, path);
+    if (editor.path !== path || elEdText.value !== editor.original || text === editor.original) return;
+    editor.original = text;
+    editor.head = undefined; // Git HEAD may have moved too (commit)
+    elEdText.value = text;
+    elEdSave.disabled = true;
+    setMode(editor.mode);
+  } catch {
+    /* file gone or unreadable: the tree shows the current state */
+  }
 }
 
 // ---------- Create menus ----------
@@ -598,6 +624,11 @@ export async function saveEditor() {
 
 export function wireFiles() {
   $("btn-add-folder").addEventListener("click", (e) => headMenu(e.currentTarget as HTMLElement));
+  $("btn-reload-files").addEventListener("click", () => reloadFiles());
+  // back in PiBar after working elsewhere (editor, terminal, git): show the current state
+  window.addEventListener("focus", () => {
+    if (state.active && Date.now() - loadedAt > 5000) void reloadFiles();
+  });
   $("ed-edit").addEventListener("click", () => setMode("edit"));
   $("ed-preview").addEventListener("click", () => setMode("preview"));
   $("ed-diff").addEventListener("click", () => setMode("diff"));

@@ -10,7 +10,7 @@ import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
-import { isEditorOpen, saveEditor } from "./files";
+import { isEditorOpen, reloadFiles, saveEditor } from "./files";
 import { applyLayout, togglePanel } from "./layout";
 import { openMenu } from "./menu";
 import { cleanupDialog } from "./cleanup";
@@ -67,6 +67,7 @@ const elUsageModel = $("usage-model");
 const elDefault = $("btn-default") as HTMLButtonElement;
 const elTbSession = $("tb-session");
 const elAddFolder = $("btn-add-folder") as HTMLButtonElement;
+const elReloadFiles = $("btn-reload-files") as HTMLButtonElement;
 
 const VIEWS: [ChatMode, Msg, Msg][] = [
   ["natural", "Natural", "Only Pi's answers, no thinking or tool blocks"],
@@ -177,6 +178,7 @@ export function renderToolbar() {
   elInput.disabled = !ready;
   renderSendButton();
   elAddFolder.disabled = !tab;
+  elReloadFiles.disabled = !tab;
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
@@ -454,6 +456,9 @@ export function wireChatView() {
     if (mod && e.code === "KeyB") {
       e.preventDefault();
       togglePanel(e.altKey ? "right" : "left");
+    } else if (mod && e.shiftKey && e.code === "KeyR") {
+      e.preventDefault();
+      reloadFiles();
     } else if (mod && e.key === "s" && isEditorOpen()) {
       e.preventDefault();
       saveEditor();
