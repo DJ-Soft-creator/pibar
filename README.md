@@ -55,6 +55,8 @@ License
 
 - Left column grouped by host (local and SSH); start (optionally with a name right away), open, load history, several
   sessions in parallel
+- **Folder picker** for the working folder of a new session and for extra folders: browses the host (local and SSH),
+  up/home, new folder, hidden folders on request
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
 - **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
 - **Multi-select** with ⌘-click and ⇧-click: move, colour, pin, close or delete several sessions at once (bar at the
@@ -70,6 +72,8 @@ License
 
 - Right column: the session's folders as a tree; create files and folders (`+`), read, edit, preview and save `.md`
   files (⌘S)
+- **Diff view** next to edit and preview: the changes against the last Git commit or against the saved file, including
+  unsaved edits (+/− lines, 3 lines of context); right click on a file → Show changes
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
 - Optional **Git status** (Settings → General): for the session folder and for repositories in its subfolders the
   branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)

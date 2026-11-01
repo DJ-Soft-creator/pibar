@@ -1,4 +1,5 @@
 // Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
+import { folderField } from "./folderPicker";
 import { api } from "../shared/api";
 import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
@@ -567,7 +568,12 @@ export function newSessionDialog(hostId?: string) {
       {},
       h("div", { class: "row" }, h("label", {}, t("Name")), inName),
       h("div", { class: "row" }, h("label", {}, t("Host")), selHost),
-      h("div", { class: "row" }, h("label", {}, t("Working folder")), inDir),
+      h(
+        "div",
+        { class: "row" },
+        h("label", {}, t("Working folder")),
+        folderField(inDir, () => selHost.value),
+      ),
       h("p", { class: "hint" }, t("Pi starts in this folder. You can add more folders on the right afterwards.")),
     ),
     [

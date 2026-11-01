@@ -169,6 +169,42 @@ pub fn read(host: &HostCfg, path: &str) -> Result<String, String> {
     hostexec::run_shell(host, &format!("cat {}", sq(path)), None)
 }
 
+/// Version of a file in Git (HEAD), for the diff view
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeadVersion {
+    /// The file lies in a Git repository
+    pub in_git: bool,
+    /// Content in HEAD; None if the file is new (not yet committed)
+    pub text: Option<String>,
+}
+
+const HEAD_MARK: &str = "__PIBAR_HEAD__";
+const NOGIT_MARK: &str = "__PIBAR_NOGIT__";
+const NEW_MARK: &str = "__PIBAR_NEW__";
+
+/// First line: marker; with HEAD_MARK the rest is the file content in HEAD
+pub fn parse_head(out: &str) -> HeadVersion {
+    let (first, rest) = out.split_once('\n').unwrap_or((out, ""));
+    match first.trim() {
+        HEAD_MARK => HeadVersion { in_git: true, text: Some(rest.to_string()) },
+        NEW_MARK => HeadVersion { in_git: true, text: None },
+        _ => HeadVersion { in_git: false, text: None },
+    }
+}
+
+pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
+    let (dir, name) = path.rsplit_once('/').unwrap_or((".", path));
+    let dir = if dir.is_empty() { "/" } else { dir };
+    let script = format!(
+        "cd {} 2>/dev/null && git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {{ echo {NOGIT_MARK}; exit 0; }}; \
+         if git cat-file -e HEAD:./{n} 2>/dev/null; then echo {HEAD_MARK}; git show HEAD:./{n}; else echo {NEW_MARK}; fi",
+        shell_path(dir),
+        n = sq(name)
+    );
+    hostexec::run_shell(host, &script, None).map(|out| parse_head(&out))
+}
+
 pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
     let p = sq(path);
     // write to a temp file, then rename: no half-written files on failure
@@ -180,6 +216,38 @@ pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
     let p = sq(path);
     let script = format!("mkdir -p \"$(dirname {p})\" && [ ! -e {p} ] && : > {p}");
     hostexec::run_shell(host, &script, None).map(|_| ())
+}
+
+/// Subfolders of a folder on the host, for the folder picker
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DirListing {
+    /// Resolved absolute path
+    pub path: String,
+    /// Home folder of the host (to show and store paths as "~/…")
+    pub home: String,
+    /// Names of the subfolders, sorted
+    pub dirs: Vec<String>,
+}
+
+/// Output: absolute path, home folder, then one subfolder name per line
+pub fn parse_dirs(out: &str) -> Option<DirListing> {
+    let mut lines = out.lines();
+    let path = lines.next()?.trim().to_string();
+    let home = lines.next()?.trim().to_string();
+    let mut dirs: Vec<String> = lines.map(str::to_string).filter(|l| !l.is_empty()).collect();
+    dirs.sort_by_key(|d| d.to_lowercase());
+    Some(DirListing { path, home, dirs })
+}
+
+pub fn list_dirs(host: &HostCfg, folder: &str, hidden: bool) -> Result<DirListing, String> {
+    let filter = if hidden { "" } else { "! -name '.*'" };
+    let script = format!(
+        "cd {} && pwd && echo \"$HOME\" && find . -mindepth 1 -maxdepth 1 -type d {filter} 2>/dev/null | sed 's|^\\./||' | head -n 2000",
+        shell_path(folder)
+    );
+    let out = hostexec::run_shell(host, &script, None)?;
+    parse_dirs(&out).ok_or_else(|| "empty answer".into())
 }
 
 /// Create a folder (with parents), e.g. a session folder that does not exist yet
@@ -232,6 +300,23 @@ mod tests {
         assert_eq!((l.git[0].dir.as_str(), l.git[0].ahead), ("projects/app", 1));
         assert_eq!(l.git[0].changes[0].path, "projects/app/README.md");
         assert_eq!(l.git[1].branch, "main");
+    }
+
+    #[test]
+    fn parses_head_version() {
+        let v = parse_head("__PIBAR_HEAD__\n# Title\n\ntext\n");
+        assert_eq!(v, HeadVersion { in_git: true, text: Some("# Title\n\ntext\n".into()) });
+        assert_eq!(parse_head("__PIBAR_NEW__\n"), HeadVersion { in_git: true, text: None });
+        assert_eq!(parse_head("__PIBAR_NOGIT__\n"), HeadVersion { in_git: false, text: None });
+    }
+
+    #[test]
+    fn parses_dir_listing() {
+        let d = parse_dirs("/home/u/proj\n/home/u\nsrc\nDocs\nassets\n").unwrap();
+        assert_eq!(d.path, "/home/u/proj");
+        assert_eq!(d.home, "/home/u");
+        assert_eq!(d.dirs, vec!["assets", "Docs", "src"]);
+        assert!(parse_dirs("").is_none());
     }
 
     #[test]

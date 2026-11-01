@@ -1,6 +1,23 @@
 // Interface to the Rust core: types and all invoke() calls (counterpart: src-tauri/src/lib.rs)
 import { invoke } from "@tauri-apps/api/core";
 
+/** Answer of read_file_head, see src-tauri/src/files.rs */
+export interface HeadVersion {
+  /** The file lies in a Git repository */
+  inGit: boolean;
+  /** Content in HEAD; null if the file is not committed yet */
+  text: string | null;
+}
+
+/** Answer of list_dirs, see src-tauri/src/files.rs */
+export interface DirListing {
+  /** Resolved absolute path */
+  path: string;
+  /** Home folder of the host */
+  home: string;
+  dirs: string[];
+}
+
 export interface HostCfg {
   id: string;
   name: string;
@@ -257,9 +274,13 @@ export const api = {
   listFiles: (hostId: string, folders: string[], git = false) =>
     invoke<FolderListing[]>("list_files", { hostId, folders, git }),
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
+  /** File content in Git HEAD, for the diff view */
+  readFileHead: (hostId: string, path: string) => invoke<HeadVersion>("read_file_head", { hostId, path }),
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
+  /** Subfolders of a folder on the host, for the folder picker (src/main/folderPicker.ts) */
+  listDirs: (hostId: string, path: string, hidden = false) => invoke<DirListing>("list_dirs", { hostId, path, hidden }),
   /** Screenshot: "region" (drag an area) or "screen"; null if cancelled */
   captureScreen: (mode: "region" | "screen") =>
     invoke<{ path: string; data: string; mimeType: string } | null>("capture_screen", { mode }),

@@ -56,6 +56,8 @@ MIT-Lizenz
 
 - Linke Spalte nach Host gruppiert (lokal und SSH); starten (auf Wunsch gleich mit Namen), öffnen, Verlauf laden,
   mehrere Sessions parallel
+- **Ordnerauswahl** für den Arbeitsordner einer neuen Session und für weitere Ordner: durchsucht den Host (lokal und
+  SSH), nach oben/Benutzerordner, neuer Ordner, auf Wunsch versteckte Ordner
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
 - **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue
@@ -73,6 +75,9 @@ MIT-Lizenz
 
 - Rechte Spalte: Ordner der Session als Baum; Dateien und Ordner anlegen (`+`), `.md`-Dateien lesen, bearbeiten,
   Vorschau, speichern (⌘S)
+- **Diff-Ansicht** neben Bearbeiten und Vorschau: Änderungen gegenüber dem letzten Git-Commit oder der gespeicherten
+  Datei, inklusive ungespeicherter Änderungen (+/−-Zeilen, 3 Zeilen Kontext); Rechtsklick auf eine Datei → Änderungen
+  anzeigen
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
 - Optional **Git-Status** (Einstellungen → Allgemein): für den Session-Ordner und für Repositories in seinen

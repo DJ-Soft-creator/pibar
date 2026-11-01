@@ -69,8 +69,9 @@ export function openModal(title: string, body: HTMLElement, actions: HTMLElement
     backdrop.remove();
     document.removeEventListener("keydown", onKey);
   };
+  // Only the topmost dialog closes on Escape (a picker opened from a dialog)
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === "Escape") close();
+    if (e.key === "Escape" && root.lastElementChild === backdrop) close();
   };
   const backdrop = h(
     "div",

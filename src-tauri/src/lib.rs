@@ -141,6 +141,12 @@ async fn read_file(app: AppHandle, host_id: String, path: String) -> Result<Stri
 }
 
 #[tauri::command]
+async fn read_file_head(app: AppHandle, host_id: String, path: String) -> Result<files::HeadVersion, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || files::read_head(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn write_file(app: AppHandle, host_id: String, path: String, content: String) -> Result<(), String> {
     let host = config::find_host(&app, &host_id)?;
     tauri::async_runtime::spawn_blocking(move || files::write(&host, &path, &content))
@@ -152,6 +158,20 @@ async fn write_file(app: AppHandle, host_id: String, path: String, content: Stri
 async fn create_file(app: AppHandle, host_id: String, path: String) -> Result<(), String> {
     let host = config::find_host(&app, &host_id)?;
     tauri::async_runtime::spawn_blocking(move || files::create(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn list_dirs(
+    app: AppHandle,
+    host_id: String,
+    path: String,
+    hidden: Option<bool>,
+) -> Result<files::DirListing, String> {
+    let host = config::find_host(&app, &host_id)?;
+    let hidden = hidden.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || files::list_dirs(&host, &path, hidden))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -316,6 +336,8 @@ pub fn run() {
             write_file,
             create_file,
             create_dir,
+            list_dirs,
+            read_file_head,
             quick_hide,
             quick_reset_pos,
             quick_resize,
