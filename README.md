@@ -247,4 +247,4 @@ Commands and events flow as JSON lines over stdin/stdout. Nothing but Pi needs t
 
 ## License
 
-[MIT](https://github.com/DJ-Soft-creator/pibar/blob/master/LICENSE)
+[MIT](https://github.com/DJ-Soft-creator/pibar/blob/main/LICENSE)
