@@ -25,7 +25,32 @@ const elChatScroll = $("chat-scroll");
 const elEmpty = $("empty");
 const elInput = $("input") as HTMLTextAreaElement;
 const elSend = $("btn-send") as HTMLButtonElement;
-const elStop = $("btn-stop") as HTMLButtonElement;
+
+const SEND_ICON: Record<"send" | "steer" | "stop", string> = {
+  send: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2"/></svg>',
+  steer:
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 12.5V9a3.5 3.5 0 0 1 3.5-3.5h5.5M9.5 2.5l3 3-3 3"/></svg>',
+  stop: '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" rx="1.6" fill="currentColor"/></svg>',
+};
+let sendMode: "send" | "steer" | "stop" | "" = "";
+
+/** One round button: send · while Pi works: stop, or steer as soon as something is typed */
+function renderSendButton() {
+  const tab = state.active;
+  const typed = !!elInput.value.trim() || hasAttachments();
+  const mode = tab?.streaming ? (typed ? "steer" : "stop") : "send";
+  elSend.disabled = !tab?.alive || (mode === "send" && !typed);
+  if (mode === sendMode) return;
+  sendMode = mode;
+  elSend.innerHTML = SEND_ICON[mode];
+  elSend.className = `send-btn ${mode}`;
+  elSend.title =
+    mode === "stop"
+      ? t("Stop (Esc)")
+      : mode === "steer"
+        ? t("Steer: send while Pi is working (Enter)")
+        : t("Send (Enter)");
+}
 const elPreset = $("sel-preset") as HTMLSelectElement;
 const elModel = $("sel-model") as HTMLSelectElement;
 const elThinking = $("sel-thinking") as HTMLSelectElement;
@@ -147,9 +172,7 @@ export function renderToolbar() {
 
   const ready = !!tab && tab.alive;
   elInput.disabled = !ready;
-  elSend.disabled = !ready;
-  elSend.textContent = tab?.streaming ? t("Steer") : t("Send");
-  elStop.hidden = !tab?.streaming;
+  renderSendButton();
   elAddFolder.disabled = !tab;
   elSlash.disabled = !ready;
   renderDock();
@@ -302,7 +325,12 @@ export function wireChatView() {
     }
   });
   elInput.addEventListener("input", autoGrow);
-  elStop.addEventListener("click", () => state.active?.abort().catch((e) => toast(errMsg(e), "err")));
+  elSend.addEventListener("click", (e) => {
+    if (sendMode !== "stop") return; // submit → sendInput
+    e.preventDefault();
+    state.active?.abort().catch((err) => toast(errMsg(err), "err"));
+  });
+  elInput.addEventListener("input", renderSendButton);
 
   elPreset.addEventListener("change", async () => {
     const tab = state.active;

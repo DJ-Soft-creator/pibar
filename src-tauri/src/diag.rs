@@ -40,8 +40,16 @@ if command -v node >/dev/null 2>&1; then
   ' "$d"
 fi
 echo
+echo "== Server addresses in Pi's configuration and extensions"
+# providers can also come from extensions (e.g. a custom provider with its own config or cache file)
+found=$( (find "$d" -maxdepth 3 \( -name sessions -o -name node_modules -o -name '*.bak*' \) -prune -o -type f \( -name '*.json' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' -o -name '*.yaml' -o -name '*.toml' -o -name '*.env' \) -size -2000k -print 2>/dev/null \
+  | while IFS= read -r f; do grep -oE 'https?://[A-Za-z0-9._~:@%-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?' "$f" 2>/dev/null | sed "s#^#${f#$d/}: #"; done) \
+  | grep -vE 'json-schema|schemas?\.|github\.com|npmjs|example\.(com|org)|w3\.org|mozilla\.org|localhost/?$' | sort -u | head -n 40)
+echo "${found:-none found}"
+echo
 echo "== Reachability (from this app, same rights as Pi)"
-urls=$( (node -e '
+urls=$( (echo "$found" | sed -E 's/^[^ ]+: //' | sed -E 's#^(https?://[^/]+)(/v[0-9]+)?.*#\1\2#'
+  node -e '
     try { const m = JSON.parse(require("fs").readFileSync(process.argv[1] + "/models.json", "utf8"));
       for (const pr of Object.values(m.providers ?? {})) if (pr.baseUrl) console.log(pr.baseUrl); } catch {}' "$d" 2>/dev/null
   env | grep -E '_BASE_URL=' | cut -d= -f2-
@@ -75,6 +83,15 @@ for u in $urls; do
   h=$(echo "$u" | sed -E 's#^https?://([^/:]+).*#\1#')
   case "$h" in *[a-zA-Z]*) node -e 'require("dns").lookup(process.argv[1], { all: true }, (e, a) => console.log(process.argv[1] + " -> " + (e ? e.code + " " + e.message : a.map((x) => x.address + " (IPv" + x.family + ")").join(", "))))' "$h" 2>&1 | tail -n 1 ;; esac
 done
+echo
+echo "== Test request through Pi (model of the session, 60 s limit)"
+if [ -n "$PIBAR_PROVIDER" ] && [ -n "$PIBAR_MODEL" ] && command -v pi >/dev/null 2>&1; then
+  # perl alarm = timeout without coreutils (macOS); --no-session: nothing is saved
+  perl -e 'alarm 60; exec @ARGV' pi --no-session --provider "$PIBAR_PROVIDER" --model "$PIBAR_MODEL" -p "Reply with the single word OK." 2>&1 \
+    | tail -n 25
+else
+  echo "skipped (no model or pi not found)"
+fi
 "#;
 
 /// Run the diagnosis on the host. For local hosts the report also says how much of the shell environment PiBar loaded.
