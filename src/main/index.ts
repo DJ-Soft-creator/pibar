@@ -3,6 +3,7 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
 import { api, QuickSubmit } from "../shared/api";
+import type { PiEvent } from "../shared/piProtocol";
 import { errMsg, toast } from "../shared/dom";
 import { getLang, setLang, t, translateDom } from "../shared/i18n";
 import { applyTheme } from "../shared/theme";
@@ -34,7 +35,7 @@ async function init() {
   wireFiles();
 
   // Pi events (from src-tauri/src/pi.rs) go to the session with that process handle
-  await listen<{ handle: number; event: any }>("pi-event", (e) => {
+  await listen<{ handle: number; event: PiEvent }>("pi-event", (e) => {
     state.tabsByHandle.get(e.payload.handle)?.onEvent(e.payload.event);
   });
   await listen<{ handle: number; stderr: string }>("pi-exit", (e) => {

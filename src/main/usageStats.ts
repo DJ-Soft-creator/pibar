@@ -4,6 +4,7 @@
 import { h } from "../shared/dom";
 import { footerParts, tokensPerSecond, type FooterPart, type FooterStats } from "../shared/format";
 import { t, type Msg } from "../shared/i18n";
+import type { PiSessionStats } from "../shared/piProtocol";
 import type { SessionTab } from "./sessionTab";
 import { state } from "./state";
 
@@ -66,7 +67,7 @@ function row(label: string, value: string, cls = "") {
 }
 
 /** Fill the hover panel; `pi` = answer of get_session_stats (if already loaded) */
-function render(pop: HTMLElement, tab: SessionTab, pi: any) {
+function render(pop: HTMLElement, tab: SessionTab, pi: PiSessionStats | null) {
   const s = tab.stats;
   const tok = pi?.tokens ?? {};
   const input = tok.input ?? s.input;

@@ -1,5 +1,6 @@
 // Interface to the Rust core: types and all invoke() calls (counterpart: src-tauri/src/lib.rs)
 import { invoke } from "@tauri-apps/api/core";
+import type { PiResult } from "./piProtocol";
 
 /** Answer of read_file_head, see src-tauri/src/files.rs */
 export interface HeadVersion {
@@ -214,7 +215,8 @@ export interface PiResponse {
   type: "response";
   command: string;
   success: boolean;
-  data?: any;
+  /** Typed per command by `api.pi` */
+  data?: unknown;
   error?: string;
 }
 
@@ -299,10 +301,10 @@ export const api = {
   /** Text → speech (mp3, base64) through the API */
   speakText: (text: string) => invoke<{ data: string; mimeType: string }>("speak_text", { text }),
 
-  /** Send an RPC command to Pi; throws if success=false */
-  async pi(handle: number, cmd: Record<string, unknown>): Promise<any> {
+  /** Send an RPC command to Pi; throws if success=false. The result type follows the command (piProtocol.ts). */
+  async pi<K extends string>(handle: number, cmd: { type: K; [key: string]: unknown }): Promise<PiResult<K>> {
     const res = await invoke<PiResponse>("pi_send", { handle, cmd });
     if (!res.success) throw new Error(res.error || `Pi command ${res.command} failed`);
-    return res.data;
+    return res.data as PiResult<K>;
   },
 };
