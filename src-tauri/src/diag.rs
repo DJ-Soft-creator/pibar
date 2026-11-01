@@ -57,7 +57,23 @@ urls=$( (node -e '
 if [ -z "$urls" ]; then echo "no server addresses found"; fi
 for u in $urls; do
   r=$(curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code} in %{time_total}s' "$u" 2>&1 | tr '\n' ' ')
-  echo "$u -> $r"
+  echo "curl $u -> $r"
+  # Pi talks through Node (fetch/undici), which resolves names, IPv6 and proxies differently than curl
+  if command -v node >/dev/null 2>&1; then
+    node -e '
+      const u = process.argv[1];
+      fetch(u, { signal: AbortSignal.timeout(8000) })
+        .then((r) => console.log("node " + u + " -> HTTP " + r.status))
+        .catch((e) => { const c = e.cause || {}; console.log("node " + u + " -> " + e.name + ": " + e.message +
+          (c.code || c.message ? " | cause: " + [c.code, c.message, c.address, c.port].filter(Boolean).join(" ") : "")); });
+    ' "$u" 2>&1 | tail -n 2
+  fi
+done
+echo
+echo "== Name resolution"
+for u in $urls; do
+  h=$(echo "$u" | sed -E 's#^https?://([^/:]+).*#\1#')
+  case "$h" in *[a-zA-Z]*) node -e 'require("dns").lookup(process.argv[1], { all: true }, (e, a) => console.log(process.argv[1] + " -> " + (e ? e.code + " " + e.message : a.map((x) => x.address + " (IPv" + x.family + ")").join(", "))))' "$h" 2>&1 | tail -n 1 ;; esac
 done
 "#;
 

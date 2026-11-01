@@ -13,6 +13,11 @@ describe("diagnosis hints", () => {
     expect(h.some((x) => x.includes("refuses"))).toBe(true);
     expect(h.some((x) => x.includes("API key variable"))).toBe(true);
   });
+  it("notices when curl works but Node does not", () => {
+    const r =
+      "curl http://mini.local:1234/v1 -> HTTP 200 in 0.1s\nnode http://mini.local:1234/v1 -> TypeError: fetch failed | cause: ENOTFOUND";
+    expect(diagnoseHints(r).some((x) => x.includes("Node"))).toBe(true);
+  });
   it("stays quiet when all is fine", () => {
     expect(diagnoseHints("https://api.anthropic.com -> HTTP 404 in 0.1s")).toEqual([]);
   });

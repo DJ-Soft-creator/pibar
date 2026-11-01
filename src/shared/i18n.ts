@@ -271,6 +271,10 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "curl reaches the server but Node (which Pi uses) does not – see the node line and its cause in the report.":
+    "curl erreicht den Server, Node (das Pi nutzt) aber nicht – siehe die node-Zeile und ihre Ursache im Bericht.",
+  "localhost resolves to IPv6 (::1) where the server does not listen: use 127.0.0.1 in the base URL.":
+    "localhost wird zu IPv6 (::1) aufgelöst, wo der Server nicht lauscht: in der Basis-URL 127.0.0.1 verwenden.",
   "Go back to here (later messages are removed from this view)":
     "Bis hierher zurück (spätere Nachrichten verschwinden aus dieser Ansicht)",
   "Go back to the state after this message and its answer?":
