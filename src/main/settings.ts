@@ -11,6 +11,7 @@ import { renderFiles } from "./files";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 import { voiceEditor } from "./voiceSettings";
+import { diagnoseDialog } from "./diagnose";
 
 function tapOptions(): [string, string][] {
   return [
@@ -175,6 +176,18 @@ export function settingsDialog() {
             { class: "hc-head" },
             h("strong", {}, host.name || t("(unnamed)")),
             h("button", { class: "ghost", onclick: test }, t("Test connection")),
+            h(
+              "button",
+              {
+                class: "ghost",
+                onclick: async () => {
+                  state.config.hosts = draft;
+                  await saveConfig();
+                  diagnoseDialog(host.id);
+                },
+              },
+              t("Diagnose"),
+            ),
             h("button", { class: "ghost", onclick: () => (draft.splice(idx, 1), render()) }, t("Remove")),
           ),
           field(t("Name"), text(host, "name", "my-server")),

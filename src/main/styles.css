@@ -2242,3 +2242,45 @@ button.ghost.danger-text {
   font-size: 11.5px;
   color: var(--muted);
 }
+
+/* ---------- Diagnosis ---------- */
+.error-acts {
+  margin-top: 6px;
+}
+.diag-hints ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  font-size: 13px;
+}
+.diag-hints li {
+  margin: 3px 0;
+}
+.diag-pre {
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--code-bg);
+  border-radius: 6px;
+  font: 11.5px/1.45 var(--mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.undo-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 860px;
+  width: calc(100% - 48px);
+  margin: 0 auto 4px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.undo-bar span {
+  flex: 1;
+  min-width: 0;
+}

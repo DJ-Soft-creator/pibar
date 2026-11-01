@@ -245,6 +245,11 @@ export const api = {
   piOpen: (hostId: string, cwd: string, sessionPath?: string) =>
     invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),
+  /** What a Pi process wrote to stderr (tail) */
+  piStderr: (handle: number) => invoke<string>("pi_stderr", { handle }),
+  /** Diagnosis report for a host (Pi, environment, model config, reachability), see src-tauri/src/diag.rs */
+  diagnose: (hostId: string, provider: string, model: string) =>
+    invoke<string>("diagnose", { hostId, provider, model }),
   piCloseAll: () => invoke<void>("pi_close_all"),
   listFiles: (hostId: string, folders: string[], git = false) =>
     invoke<FolderListing[]>("list_files", { hostId, folders, git }),

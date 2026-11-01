@@ -271,6 +271,45 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "Go back to here (later messages are removed from this view)":
+    "Bis hierher zurück (spätere Nachrichten verschwinden aus dieser Ansicht)",
+  "Go back to the state after this message and its answer?":
+    "Zum Stand nach dieser Nachricht und ihrer Antwort zurückkehren?",
+  "Go back": "Zurück",
+  "This is already the latest state.": "Das ist bereits der neueste Stand.",
+  "Undone – back to the previous version.": "Rückgängig gemacht – zurück zur vorherigen Fassung.",
+  Undo: "Rückgängig",
+  "You are in a new branch; the previous version is kept.":
+    "Du bist in einer neuen Verzweigung; die vorherige Fassung bleibt erhalten.",
+  "Keep the branch": "Verzweigung behalten",
+  "A proxy is set but NO_PROXY is not: local model servers may be sent through the proxy.":
+    "Ein Proxy ist gesetzt, NO_PROXY aber nicht: lokale Modellserver laufen eventuell über den Proxy.",
+  "A server name cannot be resolved. Names ending in .local also need the local network permission; otherwise use the IP address.":
+    "Ein Servername lässt sich nicht auflösen. Namen auf .local brauchen ebenfalls die Freigabe „Lokales Netzwerk“; sonst die IP-Adresse verwenden.",
+  "An API key variable used in models.json is not set in this environment (see Pi configuration).":
+    "Eine in models.json verwendete API-Schlüssel-Variable ist in dieser Umgebung nicht gesetzt (siehe Pi-Konfiguration).",
+  "Certificate problem: for your own certificates set NODE_EXTRA_CA_CERTS.":
+    "Zertifikatsproblem: für eigene Zertifikate NODE_EXTRA_CA_CERTS setzen.",
+  "Copy report": "Bericht kopieren",
+  Diagnose: "Diagnose",
+  Diagnosis: "Diagnose",
+  "Likely causes": "Wahrscheinliche Ursachen",
+  "No answer in time: server switched off, wrong address, firewall or VPN.":
+    "Keine Antwort in der Zeit: Server aus, falsche Adresse, Firewall oder VPN.",
+  "No obvious cause found – see the report below.": "Keine eindeutige Ursache gefunden – siehe Bericht unten.",
+  "Pi is not found in this environment. Enter the full path as Pi command in the host settings.":
+    "Pi wird in dieser Umgebung nicht gefunden. Den vollständigen Pfad als Pi-Befehl in den Host-Einstellungen eintragen.",
+  "PiBar could not read your shell environment; variables from ~/.zshrc are missing for Pi.":
+    "PiBar konnte die Shell-Umgebung nicht einlesen; Variablen aus ~/.zshrc fehlen für Pi.",
+  Report: "Bericht",
+  "Running diagnosis …": "Diagnose läuft …",
+  "The server answers but rejects the login: check the API key.":
+    "Der Server antwortet, lehnt die Anmeldung aber ab: API-Schlüssel prüfen.",
+  "The server refuses the connection: is the model server running, and are address and port right?":
+    "Der Server lehnt die Verbindung ab: Läuft der Modellserver, stimmen Adresse und Port?",
+  "macOS blocks the local network for PiBar: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.":
+    "macOS blockiert das lokale Netz für PiBar: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten, dann PiBar neu starten.",
+  "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Run this message again from here?": "Diese Nachricht ab hier erneut ausführen?",
   "Creates a new branch; the original session stays unchanged.":

@@ -27,9 +27,11 @@ License
 - **Answer style** (header): short, normal, or as short as possible with technical details
 - **Skills and commands**: type `/` in the input (or click `/`) for the session's skills, prompt templates and
   extension commands
-- **Earlier messages**: under each own message – _edit and resend_ (edit right in the message) or _run again from
-  here_; both start a new branch from that point only when you confirm, _Cancel_ or Esc leaves everything as it is,
-  and the original session always stays. Also _use as new message_ or _copy_
+- **Earlier messages**: under each own message – _edit and resend_ (edit right in the message), _run again from here_
+  or _go back to here_ (the conversation returns to the state after that message and its answer). Each of these only
+  happens after you confirm (_Cancel_ or Esc leaves everything as it is) and works in a new branch: the original
+  session always stays. Right after it an **Undo** bar takes you back to the previous version. Also _use as new
+  message_ or _copy_
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General
 - **Token statistics**: tokens, cost and speed in the header; hover for input/output/cache tokens, tokens per second,
@@ -98,6 +100,14 @@ Gear icon → **Voice**. Every part is optional.
 
 API keys are stored only in the local settings file of the app, never in the repository. Requests go through `curl`;
 the key is passed on stdin, not on the command line.
+
+## When something fails
+
+Chat errors such as "Connection error" have a **Diagnose** button (also per host in the settings). It runs on the host
+with the same rights and environment as Pi and shows Pi's own error output, the Pi and Node versions, relevant
+environment variables (secrets hidden), Pi's model configuration and whether the model servers can be reached – plus
+plain hints for typical causes (local network permission, server not running, missing API key, proxy). "Copy report"
+puts everything on the clipboard.
 
 ## macOS permissions
 
