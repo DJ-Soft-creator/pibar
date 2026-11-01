@@ -362,6 +362,7 @@ A new command needs both.
 
 ## Known gaps
 
-- No Content Security Policy header (`security.csp` is `null`); Markdown is sanitized with DOMPurify.
+- Remote images in chat Markdown are blocked by the Content Security Policy (`security.csp` in `tauri.conf.json`), on
+  purpose: an image URL from model output could leak data.
 - Double tap, area screenshot and OCR with Apple Vision are macOS only.
 - Reminders are only checked while PiBar is running (missed ones show as due on the next start).
