@@ -4,10 +4,11 @@ import { emit } from "@tauri-apps/api/event";
 import { api, DoubleTapStatus, HostCfg, ModelPreset, Theme } from "../shared/api";
 import { h, errMsg, openModal, toast, type KeysWith } from "../shared/dom";
 import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
-import { LANGUAGES, t } from "../shared/i18n";
+import { LANGUAGES, t, type Msg } from "../shared/i18n";
 import { cleanPresets } from "../shared/presets";
 import { applyUiPrefs, defaultLabel, renderToolbar, setTheme } from "./chatView";
 import { renderFiles } from "./files";
+import { scrollMode, type ScrollMode } from "./autoScroll";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 import { voiceEditor } from "./voiceSettings";
@@ -283,11 +284,17 @@ export function settingsDialog() {
     style: "width:auto",
   }) as HTMLInputElement;
 
-  const autoScroll = h("input", {
-    type: "checkbox",
-    checked: state.config.ui.autoScroll !== "off",
-    style: "width:auto",
-  }) as HTMLInputElement;
+  const autoScroll = h(
+    "select",
+    {},
+    ...(
+      [
+        ["auto", "Automatic"],
+        ["always", "Always"],
+        ["off", "Off"],
+      ] as [ScrollMode, Msg][]
+    ).map(([v, l]) => h("option", { value: v, selected: scrollMode() === v }, t(l))),
+  ) as HTMLSelectElement;
 
   const showGit = h("input", {
     type: "checkbox",
@@ -364,7 +371,7 @@ export function settingsDialog() {
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
     state.config.ui.showTimes = showTimes.checked;
-    state.config.ui.autoScroll = autoScroll.checked ? "on" : "off";
+    state.config.ui.autoScroll = autoScroll.value as ScrollMode;
     state.config.ui.notifyDone = notifyDone.checked;
     await saveConfig();
     close();
@@ -402,7 +409,7 @@ export function settingsDialog() {
           "div",
           {},
           h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
-          h("label", { class: "check" }, autoScroll, ` ${t("Follow new answers (auto scroll)")}`),
+          h("label", { class: "check" }, `${t("Auto scroll")}: `, autoScroll),
         ),
       ),
       h(

@@ -52,9 +52,9 @@ MIT-Lizenz
   umstellen, zurückholen oder löschen
 - **Git-Verlauf**: Klick auf die Git-Zeile unter einem Ordner zeigt die Commits des Repositories (geänderte Dateien
   und Diff pro Commit, nicht gepushte mit ↑); Rechtsklick auf eine Datei → Verlauf zeigt die Commits dieser Datei
-- **Auto-Scroll** folgt der Antwort bis ans Ende (auch bei großen Tool-Ausgaben); nach oben scrollen oder der runde
-  Knopf hält ihn an, ans Ende scrollen startet ihn wieder; Einstellungen → Chat: neue Antworten ohne starten (schnelle
-  Modelle)
+- **Auto-Scroll** mit drei Modi (runder Knopf unten rechts oder Einstellungen → Chat): _automatisch_ folgt der
+  Antwort bis ans Ende und pausiert beim Hochscrollen, _immer_ erzwingt bei jeder Änderung das Ende, _aus_ scrollt nie
+  von selbst (gut für schnelle Modelle); ⌘J springt ans Ende
 - **Tastatur**: ⌘/ zeigt alle Kürzel – ⌘⇧N neue Session im selben Ordner, ⌘[ / ⌘] und ⌘1…9 wechseln Sessions, ⌘↑ holt
   die letzte eigene Nachricht zurück, ⌘L in die Eingabe, ⌘. stoppt; Dialoge und Ordnerauswahl gehen per Tastatur
 - **Versionen einer Nachricht**: wo sich Verzweigungen trennen, wechselt „‹ 2/3 ›“ unter der eigenen Nachricht

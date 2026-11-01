@@ -3058,10 +3058,27 @@ button.ghost.danger-text {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
   cursor: pointer;
 }
+/* following: filled; "always" gets a ring as well; paused or off: quiet */
 .autoscroll.on {
   color: #fff;
   background: var(--accent);
   border-color: var(--accent);
+}
+.autoscroll.mode-always {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--accent);
+}
+.autoscroll.mode-off {
+  opacity: 0.7;
+}
+.autoscroll.mode-off::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 1.5px;
+  background: currentColor;
+  transform: rotate(-45deg);
 }
 .autoscroll:hover {
   filter: brightness(1.05);
