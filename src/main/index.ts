@@ -13,6 +13,7 @@ import { wireSessionSelect } from "./sessionSelect";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
 import { loadAllSessions, renderHosts } from "./sessions";
+import { wireActivity } from "./activity";
 import { state } from "./state";
 
 async function init() {
@@ -46,6 +47,8 @@ async function init() {
   await listen("quick-request-active", () => broadcastActive());
 
   startReminderClock();
+  wireActivity();
+  window.addEventListener("pibar-activity", () => renderHosts());
   warnQuickBar();
   await loadAllSessions();
 }

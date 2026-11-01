@@ -60,6 +60,10 @@ MIT-Lizenz
 
 ### Sessions
 
+- **Aktivität auf einen Blick**: Eine Session, in der Pi arbeitet, zeigt einen Kreisel und „arbeitet · Werkzeug“; eine,
+  die fertig wurde, während du woanders warst, ist mit „Fertig“ (oder „Fehler“) markiert, bis du sie öffnest. Zähler an
+  jedem Host und Host-Reiter, die Zahl fertiger Sessions am App-Symbol und eine Mitteilung, wenn PiBar im Hintergrund
+  ist (in den Einstellungen abschaltbar)
 - Linke Spalte nach Host gruppiert (lokal und SSH); starten (auf Wunsch gleich mit Namen), öffnen, Verlauf laden,
   mehrere Sessions parallel
 - **Ordnerauswahl** für den Arbeitsordner einer neuen Session und für weitere Ordner: durchsucht den Host (lokal und

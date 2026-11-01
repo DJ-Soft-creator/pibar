@@ -271,6 +271,12 @@ export function settingsDialog() {
     ...defOpts.map(([v, l]) => h("option", { value: v, selected: v === curDefault }, l)),
   ) as HTMLSelectElement;
 
+  const notifyDone = h("input", {
+    type: "checkbox",
+    checked: state.config.ui.notifyDone !== false,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
   const showTimes = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.showTimes,
@@ -352,6 +358,7 @@ export function settingsDialog() {
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
     state.config.ui.showTimes = showTimes.checked;
+    state.config.ui.notifyDone = notifyDone.checked;
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -385,6 +392,17 @@ export function settingsDialog() {
         { class: "row" },
         h("label", {}, t("Chat")),
         h("label", { class: "check" }, showTimes, ` ${t("Show the time of each message")}`),
+      ),
+      h(
+        "div",
+        { class: "row" },
+        h("label", {}, ""),
+        h(
+          "label",
+          { class: "check" },
+          notifyDone,
+          ` ${t("Notify me when Pi is done (while PiBar is in the background)")}`,
+        ),
       ),
       h(
         "div",

@@ -121,6 +121,9 @@ pub struct UiPrefs {
     /// Show the time of each chat message
     #[serde(default)]
     pub show_times: bool,
+    /// System notification when a session finishes while PiBar is in the background
+    #[serde(default = "yes")]
+    pub notify_done: bool,
     /// Default for new sessions: a preset id, or a model "<provider>/<id>" with a thinking level; empty = Pi's default
     #[serde(default)]
     pub default_preset: String,
@@ -179,6 +182,7 @@ impl Default for UiPrefs {
             files_split: None,
             show_git: false,
             show_times: false,
+            notify_done: true,
             default_preset: String::new(),
             default_model: String::new(),
             default_thinking: String::new(),

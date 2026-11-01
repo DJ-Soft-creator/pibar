@@ -2717,3 +2717,109 @@ button.ghost.danger-text {
 .msg.assistant .msg-acts {
   justify-content: flex-end;
 }
+
+/* ---------- Session activity: working / done / error (activity.ts) ---------- */
+.sess-state {
+  position: absolute;
+  left: 7px;
+  top: 11px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.sess-state.open {
+  left: 9px;
+  top: 13px;
+  width: 6px;
+  height: 6px;
+  background: var(--ok);
+  opacity: 0.7;
+}
+.sess-state.busy {
+  border: 1.6px solid var(--accent);
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+.sess-state.done {
+  background: var(--ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent);
+}
+.sess-state.failed {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 22%, transparent);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.sess.working {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.sess.working.active {
+  background: var(--bg-active);
+}
+.sess.unseen .sess-title {
+  font-weight: 650;
+}
+.sess-meta.working {
+  color: var(--accent);
+}
+.sess-pill {
+  position: absolute;
+  right: 6px;
+  top: 7px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  line-height: 16px;
+  font-weight: 600;
+}
+.sess-pill.busy {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.sess-pill.done {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.sess-pill.failed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+}
+/* the row's buttons replace the pill on hover */
+.sess:hover .sess-pill,
+.sess:focus-within .sess-pill {
+  display: none;
+}
+.sess:has(.sess-pill) .sess-title {
+  padding-right: 58px;
+}
+.act-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.act-count .sess-state {
+  position: static;
+}
+.act-count.busy {
+  color: var(--accent);
+}
+.act-count.done {
+  color: var(--ok);
+}
+.act-count.failed {
+  color: var(--danger);
+}
+.host-tab .act-count {
+  margin-left: 2px;
+}
+.host-tab .act-count .sess-state {
+  width: 7px;
+  height: 7px;
+}
