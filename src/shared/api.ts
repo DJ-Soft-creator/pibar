@@ -156,6 +156,8 @@ export interface AppConfig {
     defaultPreset?: string;
     defaultModel?: string;
     defaultThinking?: string;
+    /** File tree: only Markdown, HTML and images (default: all files) */
+    filesDocsOnly?: boolean;
     /** Session list: order and sections (src/shared/sessionOrder.ts) */
     sessionSort?: SessionSort;
     sessionGroup?: SessionGroupBy;
@@ -292,8 +294,9 @@ export const api = {
   diagnose: (hostId: string, provider: string, model: string) =>
     invoke<string>("diagnose", { hostId, provider, model }),
   piCloseAll: () => invoke<void>("pi_close_all"),
-  listFiles: (hostId: string, folders: string[], git = false) =>
-    invoke<FolderListing[]>("list_files", { hostId, folders, git }),
+  /** `docsOnly`: only Markdown, HTML and images instead of all files */
+  listFiles: (hostId: string, folders: string[], git = false, docsOnly = false) =>
+    invoke<FolderListing[]>("list_files", { hostId, folders, git, docsOnly }),
   readFile: (hostId: string, path: string) => invoke<string>("read_file", { hostId, path }),
   /** Image of the file panel (png, jpeg, gif, webp) as base64; read only */
   readImage: (hostId: string, path: string) =>

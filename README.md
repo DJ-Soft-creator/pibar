@@ -89,8 +89,9 @@ License
 
 ### Files
 
-- Right column: the session's folders as a tree; create files and folders (`+`), read, edit, preview and save `.md`
-  files (⌘S); **HTML** files open rendered (sandboxed: no scripts, no files from the web), **images** (PNG, JPEG, GIF,
+- Right column: the session's folders as a tree with **all files** (filter button: only Markdown, HTML and images);
+  files Pi changed in the session are marked ✎. Create files and folders (`+`), read, edit and save text files (⌘S),
+  preview Markdown; **HTML** files open rendered (sandboxed: no scripts, no files from the web), **images** (PNG, JPEG, GIF,
   WebP) are shown
 - **Diff view** next to edit and preview: the changes against the last Git commit or against the saved file, including
   unsaved edits (+/− lines, 3 lines of context); right click on a file → Show changes

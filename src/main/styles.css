@@ -3022,3 +3022,16 @@ button.ghost.danger-text {
   height: 22px;
   font-size: 14px;
 }
+
+/* File tree: changed by Pi in this session; filter button on = only documents */
+.tedited {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--accent);
+}
+.tedited + .gmark {
+  margin-left: 4px;
+}
+#btn-files-filter.on {
+  color: var(--accent);
+}

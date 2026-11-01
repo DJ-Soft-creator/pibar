@@ -6,23 +6,9 @@ use crate::hostexec::{self, shell_path, sq};
 use crate::i18n::tr;
 use serde::Serialize;
 
-/// The file panel only shows and edits Markdown and HTML. The file commands accept nothing else, so a bug or injected
-/// script in the UI cannot read keys or overwrite shell profiles through them: absolute (or "~/") paths to
-/// `.md`/`.markdown`/`.html`/`.htm` files, without ".." segments or control characters.
-pub fn check_doc_path(path: &str) -> Result<(), String> {
-    check_path_shape(path)?;
-    let lower = path.to_lowercase();
-    if ![".md", ".markdown", ".html", ".htm"].iter().any(|ext| lower.ends_with(ext)) {
-        return Err(tr(
-            format!("Path not allowed (no Markdown or HTML file): {path}"),
-            format!("Pfad nicht erlaubt (keine Markdown- oder HTML-Datei): {path}"),
-        ));
-    }
-    Ok(())
-}
-
-/// Absolute (or "~/") path without ".." segments or control characters
-fn check_path_shape(path: &str) -> Result<(), String> {
+/// Paths for the file commands: absolute (or "~/"), without ".." segments or control characters, so nothing
+/// can be smuggled into the shell commands or out of the given folder by "..".
+pub fn check_path_shape(path: &str) -> Result<(), String> {
     let bad =
         |why: &str| Err(tr(format!("Path not allowed ({why}): {path}"), format!("Pfad nicht erlaubt ({why}): {path}")));
     if path.chars().any(char::is_control) {
@@ -80,11 +66,14 @@ pub struct GitChange {
 /// First output line when the folder does not exist
 const MISSING: &str = "__PIBAR_MISSING__";
 
-/// Lists the current folder: its absolute path, then Markdown, HTML and image files, then folders (with a trailing "/", so empty
+/// Lists the current folder: its absolute path, then all files (or only documents and images, [`DOCS_FILTER`]), then folders (with a trailing "/", so empty
 /// folders show in the tree too). Build output, dependencies and hidden folders are skipped.
 const LIST: &str = r#"pwd
-find . -maxdepth 5 \( -name node_modules -o -name .git -o -name target \) -prune -o -type f \( -name '*.md' -o -name '*.markdown' -o -name '*.html' -o -name '*.htm' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \) -print | sed 's|^\./||' | sort | head -n 1000
+find . -maxdepth 6 \( -name node_modules -o -name .git -o -name target -o -name dist -o -name build -o -name '.*' ! -name . \) -prune -o -type f __FILTER__ -print | sed 's|^\./||' | sort | head -n 3000
 find . -mindepth 1 -maxdepth 4 \( -name node_modules -o -name target -o -name '.*' \) -prune -o -type d -print | sed 's|^\./||; s|$|/|' | sort | head -n 500"#;
+
+/// Only documents and images (option "Markdown, HTML and images only" of the file panel)
+const DOCS_FILTER: &str = r#"\( -name '*.md' -o -name '*.markdown' -o -name '*.html' -o -name '*.htm' -o -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.gif' -o -iname '*.webp' \)"#;
 
 /// Marks the start of the Git part of the output
 const GIT_MARK: &str = "__PIBAR_GIT__";
@@ -176,13 +165,14 @@ fn parse_listing(folder: &str, out: &str) -> FolderListing {
     FolderListing { folder: folder.into(), root: first, files, missing: false, error: None, git }
 }
 
-pub fn list(host: &HostCfg, folders: &[String], with_git: bool) -> Vec<FolderListing> {
+pub fn list(host: &HostCfg, folders: &[String], with_git: bool, docs_only: bool) -> Vec<FolderListing> {
     let git = if with_git { GIT } else { "" };
+    let list = LIST.replace("__FILTER__", if docs_only { DOCS_FILTER } else { "" });
     folders
         .iter()
         .map(|folder| {
             let script =
-                format!("if ! cd {} 2>/dev/null; then echo {MISSING}; exit 0; fi; {LIST}{git}", shell_path(folder));
+                format!("if ! cd {} 2>/dev/null; then echo {MISSING}; exit 0; fi; {list}{git}", shell_path(folder));
             match hostexec::run_shell(host, &script, None) {
                 Ok(out) => parse_listing(folder, &out),
                 Err(e) => FolderListing {
@@ -210,7 +200,7 @@ const IMAGE_TYPES: &[(&str, &str)] = &[
 /// Largest image the panel loads (it travels base64-encoded through the UI)
 const MAX_IMAGE: u64 = 20_000_000;
 
-/// MIME type of an image path the panel may show; same rules as [`check_doc_path`] otherwise
+/// MIME type of an image path the panel may show; same path rules as [`check_path_shape`] otherwise
 pub fn image_type(path: &str) -> Result<&'static str, String> {
     let lower = path.to_lowercase();
     let Some((_, mime)) = IMAGE_TYPES.iter().find(|(ext, _)| lower.ends_with(ext)) else {
@@ -242,9 +232,27 @@ pub fn read_image(host: &HostCfg, path: &str) -> Result<ImageData, String> {
     Ok(ImageData { mime_type: mime.into(), data: out.trim().to_string() })
 }
 
+/// Largest text file the panel opens
+const MAX_TEXT: u64 = 2_000_000;
+const BINARY: &str = "__PIBAR_BINARY__";
+const TOO_LARGE: &str = "__PIBAR_TOO_LARGE__";
+
+/// Read a text file for the editor (any file in the tree; binary files and files over 2 MB are refused)
 pub fn read(host: &HostCfg, path: &str) -> Result<String, String> {
-    check_doc_path(path)?;
-    hostexec::run_shell(host, &format!("cat {}", sq(path)), None)
+    check_path_shape(path)?;
+    let p = sq(path);
+    let script = format!(
+        "s=$(wc -c < {p} | tr -d ' ') && [ -n \"$s\" ] || exit 1; \
+         if [ \"$s\" -gt {MAX_TEXT} ]; then echo {TOO_LARGE}; elif [ \"$s\" -gt 0 ] && ! grep -Iq '' {p}; then echo {BINARY}; \
+         else printf x; cat {p}; fi"
+    );
+    let out = hostexec::run_shell(host, &script, None)?;
+    match out.trim_end() {
+        TOO_LARGE => Err(tr("File too large to show (max. 2 MB)", "Datei zu groß zum Anzeigen (max. 2 MB)")),
+        BINARY => Err(tr("Binary file – cannot be shown", "Binärdatei – kann nicht angezeigt werden")),
+        // "x" in front keeps content that happens to look like a marker apart from the markers
+        _ => Ok(out.strip_prefix('x').unwrap_or(&out).to_string()),
+    }
 }
 
 /// Version of a file in Git (HEAD), for the diff view
@@ -272,7 +280,7 @@ pub fn parse_head(out: &str) -> HeadVersion {
 }
 
 pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
-    check_doc_path(path)?;
+    check_path_shape(path)?;
     let (dir, name) = path.rsplit_once('/').unwrap_or((".", path));
     let dir = if dir.is_empty() { "/" } else { dir };
     let script = format!(
@@ -285,7 +293,7 @@ pub fn read_head(host: &HostCfg, path: &str) -> Result<HeadVersion, String> {
 }
 
 pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
-    check_doc_path(path)?;
+    check_path_shape(path)?;
     let p = sq(path);
     // write to a temp file, then rename: no half-written files on failure
     let script = format!("cat > {p}.pibar-tmp && mv {p}.pibar-tmp {p}");
@@ -293,7 +301,7 @@ pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
 }
 
 pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
-    check_doc_path(path)?;
+    check_path_shape(path)?;
     let p = sq(path);
     let script = format!("mkdir -p \"$(dirname {p})\" && [ ! -e {p} ] && : > {p}");
     hostexec::run_shell(host, &script, None).map(|_| ())
@@ -409,28 +417,12 @@ mod tests {
     }
 
     #[test]
-    fn only_markdown_paths_are_allowed() {
-        for ok in [
-            "/home/u/notes/a.md",
-            "~/notes/Plan.MD",
-            "/repo/docs/x.markdown",
-            "/a b/ä.md",
-            "/r/report.html",
-            "/r/i.HTM",
-        ] {
-            assert!(check_doc_path(ok).is_ok(), "{ok}");
+    fn paths_must_be_absolute_and_plain() {
+        for ok in ["/home/u/notes/a.md", "~/notes/Plan.MD", "/a b/ä.ts", "/r/report.html"] {
+            assert!(check_path_shape(ok).is_ok(), "{ok}");
         }
-        for bad in [
-            "notes/a.md",
-            "/home/u/.ssh/id_ed25519",
-            "/home/u/.zshrc",
-            "/home/u/notes/../.ssh/x.md",
-            "~/../etc/passwd.md",
-            "/home/u/a.md\nrm -rf ~",
-            "/home/u/a.md.sh",
-            "/home/u/page.html.js",
-        ] {
-            assert!(check_doc_path(bad).is_err(), "{bad}");
+        for bad in ["notes/a.md", "/home/u/notes/../.ssh/x", "~/../etc/passwd", "/home/u/a.md\nrm -rf ~"] {
+            assert!(check_path_shape(bad).is_err(), "{bad}");
         }
     }
 
@@ -449,6 +441,5 @@ mod tests {
         assert_eq!(image_type("~/a.png"), Ok("image/png"));
         assert!(image_type("/home/u/../x.png").is_err());
         assert!(image_type("/home/u/a.svg").is_err());
-        assert!(check_doc_path("/home/u/a.png").is_err(), "images cannot be written");
     }
 }

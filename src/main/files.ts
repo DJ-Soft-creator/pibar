@@ -72,6 +72,18 @@ function dirGit(path: string): HTMLElement[] {
   return gitStatusFor(changes, `${path}/`) ? [h("span", { class: "gdot", title: t("Contains changes") })] : [];
 }
 
+/** Pi changed this file in the session (edit/write); Pi's paths may be relative to the working folder or "~/…" */
+function edited(tab: SessionTab, full: string): boolean {
+  if (!tab.touched.size) return false;
+  const work = last?.listings[0]?.root ?? "";
+  for (const p of tab.touched) {
+    if (p === full) return true;
+    if (p.startsWith("~/") && full.endsWith(p.slice(1))) return true;
+    if (!p.startsWith("/") && work && full === `${work}/${p.replace(/^\.\//, "")}`) return true;
+  }
+  return false;
+}
+
 /** Tree rows can be dragged into the input (context of the next message) */
 function pathDrag(kind: "folder" | "file", path: string) {
   return {
@@ -179,6 +191,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
         },
         icon(/\.(png|jpe?g|gif|webp)$/i.test(f.name) ? ICON_IMAGE : ICON_FILE),
         h("span", { class: "tname" }, f.name),
+        edited(tab, full) ? h("span", { class: "tedited", title: t("Changed by Pi in this session") }, "✎") : null,
         changes.length ? gitMark(gitStatusFor(changes, f.path)) : null,
       ),
     );
@@ -278,7 +291,13 @@ function renderTree() {
           body =
             tree.dirs.length || tree.files.length
               ? treeRows(tab, l.root, tree, 1)
-              : [h("div", { class: "hint-line" }, t("No Markdown or HTML files"))];
+              : [
+                  h(
+                    "div",
+                    { class: "hint-line" },
+                    state.config.ui.filesDocsOnly ? t("No Markdown or HTML files") : t("No files"),
+                  ),
+                ];
         }
       }
       const own = repos.find((r) => r.dir === "");
@@ -310,7 +329,12 @@ export async function renderFiles() {
   if (last?.tab !== tab) elFileTree.replaceChildren(h("p", { class: "muted pad" }, t("Loading files …")));
   let listings: FolderListing[];
   try {
-    listings = await api.listFiles(tab.hostId, sessionFolders(tab), !!state.config.ui.showGit);
+    listings = await api.listFiles(
+      tab.hostId,
+      sessionFolders(tab),
+      !!state.config.ui.showGit,
+      !!state.config.ui.filesDocsOnly,
+    );
   } catch (e) {
     elFileTree.replaceChildren(h("p", { class: "pad host-err" }, errMsg(e)));
     return;
@@ -470,7 +494,7 @@ function newFileDialog(tab: SessionTab, root: string) {
   const create = async () => {
     let name = input.value.trim();
     if (!name) return;
-    if (!/\.(md|markdown)$/i.test(name)) name += ".md";
+    if (!/\.[a-z0-9]+$/i.test(name)) name += ".md"; // own extension stays, none → Markdown
     const path = `${root}/${name}`;
     try {
       await api.createFile(tab.hostId, path);
@@ -573,6 +597,7 @@ export function closeEditor() {
 }
 
 const isHtml = (path: string) => /\.html?$/i.test(path);
+const isMarkdown = (path: string) => /\.(md|markdown)$/i.test(path);
 
 /**
  * HTML preview in a sandboxed frame: no scripts, forms or popups, no access to PiBar. It keeps the page's
@@ -595,6 +620,10 @@ function setMode(mode: EditorMode) {
   elEdRender.hidden = mode !== "preview";
   elEdDiff.hidden = mode !== "diff";
   const html = isHtml(editor.path);
+  // other text files (code, JSON, …): edit and diff, no preview
+  const plain = !html && !isMarkdown(editor.path);
+  ($("ed-preview") as HTMLButtonElement).hidden = plain;
+  if (plain && mode === "preview") return setMode("edit");
   elEdRender.classList.toggle("md", !html);
   elEdRender.classList.toggle("html", html);
   if (mode === "preview") {
@@ -687,6 +716,14 @@ export async function saveEditor() {
 export function wireFiles() {
   $("btn-add-folder").addEventListener("click", (e) => headMenu(e.currentTarget as HTMLElement));
   $("btn-reload-files").addEventListener("click", () => reloadFiles());
+  const filter = $("btn-files-filter");
+  filter.classList.toggle("on", !!state.config.ui.filesDocsOnly);
+  filter.addEventListener("click", () => {
+    state.config.ui.filesDocsOnly = !state.config.ui.filesDocsOnly;
+    filter.classList.toggle("on", state.config.ui.filesDocsOnly);
+    saveConfig();
+    void renderFiles();
+  });
   // back in PiBar after working elsewhere (editor, terminal, git): show the current state
   window.addEventListener("focus", () => {
     if (state.active && Date.now() - loadedAt > 5000) void reloadFiles();

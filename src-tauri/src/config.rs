@@ -134,6 +134,9 @@ pub struct UiPrefs {
     pub default_model: String,
     #[serde(default)]
     pub default_thinking: String,
+    /// File tree: only Markdown, HTML and images instead of all files
+    #[serde(default)]
+    pub files_docs_only: bool,
     /// Order of the session list: "activity" (last change), "created", "name" or "folder"
     #[serde(default = "default_session_sort")]
     pub session_sort: String,
@@ -203,6 +206,7 @@ impl Default for UiPrefs {
             default_preset: String::new(),
             default_model: String::new(),
             default_thinking: String::new(),
+            files_docs_only: false,
             session_sort: default_session_sort(),
             session_group: default_session_group(),
         }

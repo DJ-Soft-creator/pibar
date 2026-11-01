@@ -300,6 +300,9 @@ const de = {
   "Sort and sections": "Sortierung und Abschnitte",
   "HTML preview": "HTML-Vorschau",
   "No Markdown or HTML files": "Keine Markdown- oder HTML-Dateien",
+  "No files": "Keine Dateien",
+  "Changed by Pi in this session": "In dieser Session von Pi geändert",
+  "Show only Markdown, HTML and images": "Nur Markdown, HTML und Bilder zeigen",
   "Own answer …": "Eigene Antwort …",
   "Send answer": "Antwort senden",
   "Tick one or more answers or write your own. ⌘Enter sends.":

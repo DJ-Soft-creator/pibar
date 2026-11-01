@@ -154,10 +154,14 @@ async fn list_files(
     host_id: String,
     folders: Vec<String>,
     git: Option<bool>,
+    docs_only: Option<bool>,
 ) -> Result<Vec<files::FolderListing>, String> {
     let host = config::find_host(&app, &host_id)?;
     let git = git.unwrap_or(false);
-    tauri::async_runtime::spawn_blocking(move || files::list(&host, &folders, git)).await.map_err(|e| e.to_string())
+    let docs_only = docs_only.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || files::list(&host, &folders, git, docs_only))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
