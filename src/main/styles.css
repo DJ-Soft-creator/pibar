@@ -2692,3 +2692,23 @@ button.ghost.danger-text {
   font: 11px var(--mono);
   color: var(--muted);
 }
+
+/* Time of a message (Settings → Chat), quiet and small */
+.msg-time {
+  display: none;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.show-times .msg-time {
+  display: block;
+}
+.msg.user .msg-time {
+  margin-right: 4px;
+}
+.msg.assistant .msg-time {
+  margin: 2px 0 0;
+}

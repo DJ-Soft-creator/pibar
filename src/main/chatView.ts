@@ -130,6 +130,7 @@ export function applyUiPrefs() {
   applyLayout();
   const mode = chatMode();
   for (const [m] of VIEWS) elChatScroll.classList.toggle(`mode-${m}`, m === mode);
+  elChatScroll.classList.toggle("show-times", !!ui.showTimes);
   const answer = answerMode();
   ddLabel(elView, VIEWS, mode);
   ddLabel(elAnswer, ANSWERS, answer);

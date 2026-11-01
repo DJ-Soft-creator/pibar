@@ -59,6 +59,26 @@ pub fn resize_quick(app: &AppHandle, height: f64) {
         let _ = w.set_size(size);
         let _ = w.set_resizable(false);
     }
+    keep_on_screen(&w, height);
+}
+
+/// The bar grows downwards; if it would leave the screen at the bottom, move it up so everything stays reachable
+fn keep_on_screen(w: &tauri::WebviewWindow, height: f64) {
+    let (Ok(pos), Ok(Some(m))) = (w.outer_position(), w.current_monitor()) else { return };
+    let scale = m.scale_factor();
+    let bottom = m.position().y + m.size().height as i32;
+    if let Some(y) = fit_y(pos.y, (height * scale) as i32, m.position().y, bottom, (12.0 * scale) as i32) {
+        let _ = w.set_position(PhysicalPosition::new(pos.x, y));
+    }
+}
+
+/// New top edge if a window at `y` with `height` sticks out below `bottom` (keeping `margin`); never above `top`
+pub fn fit_y(y: i32, height: i32, top: i32, bottom: i32, margin: i32) -> Option<i32> {
+    let limit = bottom - margin;
+    if y + height <= limit {
+        return None;
+    }
+    Some((limit - height).max(top))
 }
 
 /// Forget the remembered position: the next opening uses the default spot again
@@ -293,4 +313,17 @@ pub fn ocr(app: &AppHandle, path: &str) -> Result<String, String> {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit_y;
+
+    #[test]
+    fn bar_moves_up_only_when_it_leaves_the_screen() {
+        // screen 0..1000, margin 10
+        assert_eq!(fit_y(700, 200, 0, 1000, 10), None);
+        assert_eq!(fit_y(700, 400, 0, 1000, 10), Some(590));
+        assert_eq!(fit_y(700, 1200, 0, 1000, 10), Some(0));
+    }
 }

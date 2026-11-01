@@ -3,6 +3,7 @@ import { api, PiCommand, PiModel } from "../shared/api";
 import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
 import {
   baseName,
+  msgTime,
   splitContext,
   splitFiles,
   shortModel,
@@ -365,7 +366,7 @@ export class SessionTab {
   private renderStored(m: any) {
     switch (m.role) {
       case "user":
-        this.userBubble(m.content);
+        this.userBubble(m.content, m.timestamp);
         break;
       case "assistant": {
         this.beginAssistant();
@@ -410,7 +411,7 @@ export class SessionTab {
         this.cb.onSettled(this);
         break;
       case "message_start":
-        if (ev.message?.role === "user") this.userBubble(ev.message.content);
+        if (ev.message?.role === "user") this.userBubble(ev.message.content, ev.message.timestamp ?? Date.now());
         else if (ev.message?.role === "assistant") this.beginAssistant();
         break;
       case "message_update": {
@@ -501,7 +502,7 @@ export class SessionTab {
     this.el.append(h("div", { class: "msg note loading" }, text));
   }
 
-  private userBubble(content: any) {
+  private userBubble(content: any, ts?: number) {
     let text = "";
     const imgs: HTMLElement[] = [];
     if (typeof content === "string") text = content;
@@ -591,7 +592,7 @@ export class SessionTab {
       act("insert", t("Use as new message"), () => this.cb.onUserAction(this, index, "reuse", text)),
       act("copy", t("Copy"), () => this.cb.onUserAction(this, index, "copy", text)),
     );
-    this.el.append(h("div", { class: "msg user" }, bubble, panel, acts));
+    this.el.append(h("div", { class: "msg user" }, bubble, timeLabel(ts), panel, acts));
   }
 
   /**
@@ -717,6 +718,8 @@ export class SessionTab {
       b.innerHTML = ICON_SPEAK;
       btn = b;
     }
+    const time = timeLabel(msg?.timestamp);
+    if (time) cur.el.append(time);
     if (btn || used) cur.el.append(h("div", { class: "msg-acts" }, btn, used));
     this.cur = null;
   }
@@ -887,6 +890,21 @@ export class SessionTab {
     this.firstToken = 0;
     this.reqStart = now;
   }
+}
+
+/** Small time under a message (visible with Settings → Chat → show times); full date as tooltip */
+function timeLabel(ts: unknown): HTMLElement | null {
+  const n = typeof ts === "number" ? ts : typeof ts === "string" ? Date.parse(ts) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return h(
+    "time",
+    {
+      class: "msg-time",
+      datetime: new Date(n).toISOString(),
+      title: new Date(n).toLocaleString(getLang(), { dateStyle: "full", timeStyle: "medium" }),
+    },
+    msgTime(n),
+  );
 }
 
 function argPreview(args: any): string {

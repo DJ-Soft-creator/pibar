@@ -70,7 +70,8 @@ textarea {
 }
 .qrow {
   display: flex;
-  align-items: center;
+  /* buttons stay on the first line: the send button does not wander while the text grows */
+  align-items: flex-start;
   gap: 10px;
 }
 .qlogo {

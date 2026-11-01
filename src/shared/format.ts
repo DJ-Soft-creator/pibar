@@ -152,6 +152,22 @@ export function relTime(iso: string | number, now = Date.now()): string {
   return new Date(ts).toLocaleDateString(getLang());
 }
 
+/** Time of a chat message: "14:32" today, "Yesterday 14:32", "31 Oct, 14:32" this year, else with the year */
+export function msgTime(ts: number, now = Date.now()): string {
+  const d = new Date(ts);
+  const lang = getLang();
+  const time = d.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const today = day(new Date(now));
+  if (day(d) === today) return time;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1); // calendar day, also across daylight saving changes
+  if (day(d) === day(yesterday)) return `${t("Yesterday")} ${time}`;
+  const sameYear = d.getFullYear() === new Date(now).getFullYear();
+  const date = d.toLocaleDateString(lang, sameYear ? { day: "numeric", month: "short" } : { dateStyle: "medium" });
+  return `${date}, ${time}`;
+}
+
 /** Date and time in the UI language, e.g. for reminders */
 export function dateTime(ts: number): string {
   return new Date(ts).toLocaleString(getLang(), {

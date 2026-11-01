@@ -147,3 +147,14 @@ describe("status line like Pi's footer", () => {
     expect(p.map((x) => x.text)).toEqual(["0.0%/128k"]);
   });
 });
+
+describe("message times", () => {
+  it("today, yesterday, this year, older", async () => {
+    const { msgTime } = await import("./format");
+    const now = new Date(2026, 10, 1, 15, 0).getTime();
+    expect(msgTime(new Date(2026, 10, 1, 9, 5).getTime(), now)).toMatch(/^0?9:05/);
+    expect(msgTime(new Date(2026, 9, 31, 23, 50).getTime(), now)).toMatch(/^(Yesterday|Gestern) (23:50|11:50)/);
+    expect(msgTime(new Date(2026, 5, 3, 8, 0).getTime(), now)).toMatch(/3.*,\s*0?8:00/);
+    expect(msgTime(new Date(2025, 5, 3, 8, 0).getTime(), now)).toMatch(/2025/);
+  });
+});
