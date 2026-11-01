@@ -187,6 +187,21 @@ impl PiManager {
         }
     }
 
+    /// Write one message to Pi without waiting for an answer (answers to Pi's dialogs: `extension_ui_response`)
+    pub fn reply(&self, handle: u32, msg: &Value) -> Result<(), String> {
+        let proc = lock(&self.procs)
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| tr("Pi process not found", "Pi-Prozess nicht gefunden"))?;
+        let line = serde_json::to_string(msg).map_err(|e| e.to_string())?;
+        let mut stdin = lock(&proc.stdin);
+        stdin
+            .write_all(line.as_bytes())
+            .and_then(|_| stdin.write_all(b"\n"))
+            .and_then(|_| stdin.flush())
+            .map_err(|e| tr(format!("Pi not reachable: {e}"), format!("Pi nicht erreichbar: {e}")))
+    }
+
     /// What the Pi process wrote to stderr so far (tail), for the error details in the chat
     pub fn stderr(&self, handle: u32) -> String {
         lock(&self.procs).get(&handle).map(|p| lock(&p.stderr_tail).clone()).unwrap_or_default()

@@ -43,6 +43,8 @@ MIT-Lizenz
   Antwort). Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung:
   die ursprüngliche Session bleibt immer erhalten. Direkt danach führt eine Leiste **Rückgängig** zur vorherigen
   Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_. Das gewählte Modell bleibt beim Verzweigen.
+- **Fragen mit Optionen**: endet eine Antwort mit einer Auswahlfrage, öffnet sich ein Dialog mit anhakbaren Optionen
+  und einem Feld für eine eigene Antwort (auch für Dialoge von Pi-Erweiterungen)
 - **Versionen einer Nachricht**: wo sich Verzweigungen trennen, wechselt „‹ 2/3 ›“ unter der eigenen Nachricht
   zwischen den Versionen
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der

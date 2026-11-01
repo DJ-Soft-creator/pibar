@@ -11,6 +11,7 @@ import { t } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, reloadFiles, renderFiles } from "./files";
 import { refreshBranches } from "./branchNav";
+import { questionDialog, uiRequest } from "./answerDialog";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
 import {
@@ -417,6 +418,17 @@ async function nameNewSession(tab: SessionTab, name: string) {
   renderHosts();
 }
 
+// ---------- Choice questions in answers ----------
+
+/** Dialog for the choice questions of the last answer; the answer is sent as the next message */
+export function openQuestions(tab: SessionTab) {
+  questionDialog(tab.questions, async (text) => {
+    tab.undo = null;
+    await tab.send(text);
+    renderToolbar();
+  });
+}
+
 // ---------- Versions of a message (branches) ----------
 
 /** "‹ 2/3 ›" under own messages that exist in other branches (src/main/branchNav.ts) */
@@ -503,6 +515,11 @@ async function applyDefaults(tab: SessionTab) {
 
 const tabCallbacks: TabCallbacks = {
   onUserAction: (tab, index, action, text, edited) => void onUserAction(tab, index, action, text, edited),
+  onUiRequest: (x, req) => {
+    // Pi waits for its dialogs: show the session they belong to
+    if (["select", "confirm", "input", "editor"].includes(req.method) && x !== state.active) activate(x);
+    uiRequest(x, req, fillInput);
+  },
   onHandle: (x) => {
     state.tabsByHandle.set(x.handle, x);
   },
@@ -532,6 +549,8 @@ const tabCallbacks: TabCallbacks = {
     if (info && (x.title === t("New session") || !x.title)) x.title = info.name || info.title;
     if (x === state.active) renderToolbar();
     renderHosts();
+    // the answer ends with a choice question: open the answer dialog right away (the bar above the input reopens it)
+    if (x === state.active && x.questions.length && document.hasFocus()) openQuestions(x);
   },
 };
 

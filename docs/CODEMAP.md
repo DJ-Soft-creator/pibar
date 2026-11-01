@@ -80,6 +80,7 @@ flowchart LR
 | [`reminders.ts`](../src/main/reminders.ts) | Reminders on sessions: dialog, list at the top left, notifications | [`reminderDialog`](../src/main/reminders.ts), [`presetTimes`](../src/main/reminders.ts), [`renderReminders`](../src/main/reminders.ts), [`openReminder`](../src/main/reminders.ts), [`startReminderClock`](../src/main/reminders.ts) |
 | [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
 | [`branchNav.ts`](../src/main/branchNav.ts) | Versions of a message: "‹ 2/3 ›" under own messages that exist in other branches | [`refreshBranches`](../src/main/branchNav.ts), [`SessionTab.showBranches`](../src/main/sessionTab.ts), [`SessionTab.scrollToUser`](../src/main/sessionTab.ts), [`switchBranch`](../src/main/sessions.ts) |
+| [`answerDialog.ts`](../src/main/answerDialog.ts) | Questions to the user: choice questions at the end of an answer (tick options, own answer) and Pi's own dialogs (extension UI) | [`questionDialog`](../src/main/answerDialog.ts), [`uiRequest`](../src/main/answerDialog.ts), [`openQuestions`](../src/main/sessions.ts) |
 | [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, theme), chat area, input, shortcuts | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts) |
 | [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts) |
 | [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
@@ -106,6 +107,7 @@ flowchart LR
 | [`shared/api.ts`](../src/shared/api.ts) | Types and `invoke` calls into the Rust core | [`api`](../src/shared/api.ts), [`QuickSubmit`](../src/shared/api.ts), [`AppConfig`](../src/shared/api.ts), [`Reminder`](../src/shared/api.ts) |
 | [`shared/piProtocol.ts`](../src/shared/piProtocol.ts) | Types of Pi's RPC protocol: events, messages, content parts, answers per command (`api.pi` returns the matching type) | [`PiEvent`](../src/shared/piProtocol.ts), [`PiMessage`](../src/shared/piProtocol.ts), [`ContentPart`](../src/shared/piProtocol.ts), [`PiRpcResults`](../src/shared/piProtocol.ts), [`PiSessionStats`](../src/shared/piProtocol.ts) |
 | [`shared/branches.ts`](../src/shared/branches.ts) | Where branches part: related sessions via `parent`, versions per message by comparing entry ids (tested) | [`branchFamily`](../src/shared/branches.ts), [`branchesAt`](../src/shared/branches.ts) |
+| [`shared/questions.ts`](../src/shared/questions.ts) | Find choice questions with options at the end of an answer, compose the answer message (tested) | [`findQuestions`](../src/shared/questions.ts), [`composeAnswer`](../src/shared/questions.ts) |
 | [`shared/attach.ts`](../src/shared/attach.ts) | Read attached files (main window and quick bar): images as images, text files as text | [`readAttachment`](../src/shared/attach.ts) |
 | [`shared/i18n.ts`](../src/shared/i18n.ts) | Translations: English text is the key, German dictionary; tested in `i18n.test.ts` | [`t`](../src/shared/i18n.ts), [`setLang`](../src/shared/i18n.ts), [`resolveLang`](../src/shared/i18n.ts), [`translateDom`](../src/shared/i18n.ts), [`LANGUAGES`](../src/shared/i18n.ts) |
 | [`shared/dom.ts`](../src/shared/dom.ts) | Element builder, Markdown (marked + DOMPurify), toasts, modals | [`h`](../src/shared/dom.ts), [`renderMarkdown`](../src/shared/dom.ts), [`openModal`](../src/shared/dom.ts) |
@@ -245,6 +247,16 @@ reads their user messages (`session_outlines`) and compares them with the fork p
 "‹ 2/3 ›" under the message; a click calls [`switchBranch`](../src/main/sessions.ts), which switches the tab to that file
 and scrolls to the same message.
 
+### Questions to the user
+
+At `agent_settled` [`SessionTab`](../src/main/sessionTab.ts) looks for choice questions at the end of the last answer
+([`findQuestions`](../src/shared/questions.ts)): a question followed by a list, or a list followed by "which of these…?".
+If there are some, [`openQuestions`](../src/main/sessions.ts) opens [`questionDialog`](../src/main/answerDialog.ts):
+options to tick and always a field for an own answer; the bar above the input reopens it. The answer goes out as the
+next message ([`composeAnswer`](../src/shared/questions.ts)). Dialogs of Pi extensions (`extension_ui_request`:
+select, confirm, input, editor) open [`uiRequest`](../src/main/answerDialog.ts) and are answered with `pi_reply`;
+`notify` becomes a toast, `set_editor_text` fills the input.
+
 ### Default model for new sessions
 
 `ui.defaultPreset` or `ui.defaultModel` + `ui.defaultThinking`, set with the star in the header
@@ -336,6 +348,7 @@ A new command needs both.
 | `delete_sessions` | Delete session files (paths must lie in Pi's `sessions` folder) |
 | `session_outlines` | User messages (entry ids) of session files, for the versions of a message |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
+| `pi_reply` | Answer to a dialog of a Pi extension (`extension_ui_response`, Pi sends no response) |
 | `list_files`, `read_file`, `write_file`, `create_file`, `create_dir` | Markdown files and folders |
 | `list_dirs` | Subfolders of a folder on the host, for the folder picker |
 | `read_file_head` | Content of a file in Git HEAD, for the diff view |

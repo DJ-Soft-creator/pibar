@@ -308,6 +308,9 @@ export const api = {
   /** Text → speech (mp3, base64) through the API */
   speakText: (text: string) => invoke<{ data: string; mimeType: string }>("speak_text", { text }),
 
+  /** Answer a dialog Pi asked for (extension_ui_request); Pi sends no response to it */
+  piReply: (handle: number, msg: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean }) =>
+    invoke<void>("pi_reply", { handle, msg: { type: "extension_ui_response", ...msg } }),
   /** Send an RPC command to Pi; throws if success=false. The result type follows the command (piProtocol.ts). */
   async pi<K extends string>(handle: number, cmd: { type: K; [key: string]: unknown }): Promise<PiResult<K>> {
     const res = await invoke<PiResponse>("pi_send", { handle, cmd });

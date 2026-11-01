@@ -1,7 +1,9 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, PiCommand, PiModel } from "../shared/api";
 import type { BranchChoice } from "../shared/branches";
+import { findQuestions, type QuestionGroup } from "../shared/questions";
 import type {
+  UiRequest,
   AssistantMessage,
   Content,
   PiEvent,
@@ -67,6 +69,8 @@ export interface TabCallbacks {
    * sent, `edited` = new text for "edit"
    */
   onUserAction: (tab: SessionTab, index: number, action: UserAction, text: string, edited?: string) => void;
+  /** Dialog or notice from a Pi extension (Pi waits for dialogs to be answered) */
+  onUiRequest: (tab: SessionTab, req: UiRequest) => void;
 }
 
 const MAX_RESULT = 20000;
@@ -174,6 +178,8 @@ export class SessionTab {
   toolset: string[] | null = null;
   /** Text of the last answer of the current run (for auto read) */
   private lastText = "";
+  /** Choice questions at the end of the last answer (answer dialog, src/main/answerDialog.ts); [] = none */
+  questions: QuestionGroup[] = [];
 
   readonly el: HTMLElement;
   private cur: { el: HTMLElement; parts: Map<number, Part> } | null = null;
@@ -364,6 +370,7 @@ export class SessionTab {
   // ---------- Actions ----------
 
   async send(text: string, images: { data: string; mimeType: string }[] = []) {
+    this.questions = [];
     await this.settling.catch(() => {});
     const cmd: { type: "prompt"; [key: string]: unknown } = {
       type: "prompt",
@@ -410,8 +417,11 @@ export class SessionTab {
 
   async loadHistory() {
     const data = await api.pi(this.handle, { type: "get_messages" });
-    for (const m of data.messages ?? []) this.renderStored(m);
+    const list = data.messages ?? [];
+    for (const m of list) this.renderStored(m);
     this.flush();
+    // an open choice question only if the session ends with that answer
+    this.questions = list[list.length - 1]?.role === "assistant" ? findQuestions(this.lastText) : [];
   }
 
   private renderStored(m: PiMessage) {
@@ -459,6 +469,7 @@ export class SessionTab {
       case "agent_settled":
         this.streaming = false;
         this.activity = "";
+        this.questions = findQuestions(this.lastText);
         this.autoRead();
         this.flush();
         this.cb.onSettled(this);
@@ -506,6 +517,9 @@ export class SessionTab {
         this.reqStart = performance.now(); // the next model call starts now
         this.firstToken = 0;
         this.cb.onStateChange(this);
+        break;
+      case "extension_ui_request":
+        this.cb.onUiRequest(this, ev);
         break;
       default:
         break;

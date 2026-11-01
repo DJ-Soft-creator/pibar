@@ -81,7 +81,24 @@ export interface ToolOutput {
   content?: Content;
 }
 
+/** Dialog or notice from a Pi extension (RPC extension UI). Dialogs (select, confirm, input, editor) wait for an answer. */
+export interface UiRequest {
+  type: "extension_ui_request";
+  id: string;
+  method: string;
+  title?: string;
+  message?: string;
+  options?: string[];
+  placeholder?: string;
+  prefill?: string;
+  /** Pi answers by itself after this many ms */
+  timeout?: number;
+  notifyType?: "info" | "warning" | "error";
+  text?: string;
+}
+
 export type PiEvent =
+  | UiRequest
   | { type: "agent_start" | "turn_start" | "agent_settled" }
   | { type: "message_start" | "message_end"; message?: PiMessage }
   | { type: "message_update"; assistantMessageEvent?: AssistantMessageEvent }
