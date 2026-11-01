@@ -6,7 +6,7 @@
 import { $, h } from "../shared/dom";
 import { icon } from "../shared/icons";
 import { t, type Msg } from "../shared/i18n";
-import { openMenu } from "./menu";
+import { openMenu, type MenuEntry } from "./menu";
 import { saveConfig, state } from "./state";
 
 export type ScrollMode = "auto" | "always" | "off";
@@ -81,7 +81,8 @@ export function showEnd() {
   jumpToEnd();
 }
 
-function modeMenu() {
+/** Menu entries for the modes (button menu and the view menu in the header) */
+export function scrollModeItems(): MenuEntry[] {
   const mode = scrollMode();
   const item = (m: ScrollMode, label: Msg, desc: Msg) => ({
     label: t(label),
@@ -89,16 +90,18 @@ function modeMenu() {
     selected: mode === m,
     onSelect: () => setScrollMode(m),
   });
+  return [
+    { heading: t("Auto scroll") },
+    item("auto", "Automatic", "Follows the answer, pauses when you scroll up"),
+    item("always", "Always", "Forced: every change jumps to the end"),
+    item("off", "Off", "Never scrolls by itself"),
+  ];
+}
+
+function modeMenu() {
   openMenu(
     button,
-    [
-      { heading: t("Auto scroll") },
-      item("auto", "Automatic", "Follows the answer, pauses when you scroll up"),
-      item("always", "Always", "Forced: every change jumps to the end"),
-      item("off", "Off", "Never scrolls by itself"),
-      { separator: true },
-      { label: t("Jump to the end"), onSelect: jumpToEnd },
-    ],
+    [...scrollModeItems(), { separator: true }, { label: t("Jump to the end"), onSelect: jumpToEnd }],
     "right",
   );
 }
