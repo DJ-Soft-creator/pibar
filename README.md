@@ -116,6 +116,31 @@ License
 
 Not yet: short answers directly in the bar, J-Tracker, herdr.
 
+## AI and privacy
+
+PiBar itself sends no data anywhere: it only talks to Pi on your own machines, locally or over SSH. Which model sees
+your prompts, file contents and tool output is decided by Pi's configuration on each host. A local model (e.g. on an
+LLM server in your network) keeps everything in-house; a cloud model receives what the session sends it.
+
+**Shared skills with Syncthing.** Keep `~/.pi/agent/skills/`, `prompts/` and, if you use them, `extensions/` in a
+[Syncthing](https://syncthing.net) folder. It syncs directly between your machines, without a cloud service in
+between, so every host has the same skills and slash commands. Do not sync `auth.json` (API keys, OAuth tokens), the
+`sessions/` folder or `trust.json`: credentials and conversations stay on the machine they belong to. Review
+extensions before sharing them, they run inside the Pi process.
+
+**Spread the work over dedicated VMs.** An agent can only reach what its machine can reach. Instead of one Pi with
+access to everything, give each purpose its own VM (or host) with only the rights it needs, and add each one as a
+host in PiBar:
+
+- a coding VM with the project repositories, but none of your private documents or mail
+- a VM for notes and documents, without SSH keys to servers and without push rights to repositories
+- a local LLM server without access to the internet, for anything that must not leave the house
+- your own computer only for work you actually want done there
+
+Per VM: its own Linux user and SSH key, its own narrowly scoped API keys, snapshots before larger changes. In PiBar
+you can also limit Pi's tools per session (tool dock → tools). If a prompt injection or a wrong command happens, the
+damage stays inside that one VM.
+
 ## Voice settings
 
 Gear icon → **Voice**. Every part is optional.
