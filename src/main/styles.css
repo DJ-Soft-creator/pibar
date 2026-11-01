@@ -2712,3 +2712,8 @@ button.ghost.danger-text {
 .msg.assistant .msg-time {
   margin: 2px 0 0;
 }
+
+/* Actions under answers on the right, like under own messages: nothing clickable on the left edge of the chat */
+.msg.assistant .msg-acts {
+  justify-content: flex-end;
+}
