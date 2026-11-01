@@ -42,8 +42,13 @@ fi
 echo
 echo "== Server addresses in Pi's configuration and extensions"
 # providers can also come from extensions (e.g. a custom provider with its own config or cache file)
-found=$( (find "$d" -maxdepth 3 \( -name sessions -o -name node_modules -o -name '*.bak*' \) -prune -o -type f \( -name '*.json' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' -o -name '*.yaml' -o -name '*.toml' -o -name '*.env' \) -size -2000k -print 2>/dev/null \
-  | while IFS= read -r f; do grep -oE 'https?://[A-Za-z0-9._~:@%-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?' "$f" 2>/dev/null | sed "s#^#${f#$d/}: #"; done) \
+found=$( (find "$d" -maxdepth 6 \( -name sessions -o -name node_modules -o -name '.git' -o -name '*.bak*' \) -prune -o -type f \( -name '*.json' -o -name '*.ts' -o -name '*.js' -o -name '*.mjs' -o -name '*.cjs' -o -name '*.yaml' -o -name '*.yml' -o -name '*.toml' -o -name '*.env' \) -size -2000k -print 2>/dev/null \
+  | while IFS= read -r f; do
+      rel=${f#"$d"/}
+      grep -oE 'https?://[A-Za-z0-9._~:@%-]+(:[0-9]+)?(/[A-Za-z0-9._~/%-]*)?' "$f" 2>/dev/null | sed "s#^#$rel: #"
+      # addresses without scheme, e.g. "192.168.1.20:1234" or "macmini.local:1234"
+      grep -oE '"[A-Za-z0-9.-]+(\.local|\.lan|\.home|\.fritz\.box|\.[0-9]+):[0-9]{2,5}"' "$f" 2>/dev/null | tr -d '"' | sed "s#^#$rel: http://#"
+    done) \
   | grep -vE 'json-schema|schemas?\.|github\.com|npmjs|example\.(com|org)|w3\.org|mozilla\.org|localhost/?$' | sort -u | head -n 40)
 echo "${found:-none found}"
 echo
@@ -63,7 +68,9 @@ urls=$( (echo "$found" | sed -E 's/^[^ ]+: //' | sed -E 's#^(https?://[^/]+)(/v[
     xai) echo https://api.x.ai/v1 ;;
   esac) | grep -oE 'https?://[^" ]+' | sort -u)
 if [ -z "$urls" ]; then echo "no server addresses found"; fi
-for u in $urls; do
+# line by line: zsh (the default shell on macOS) does not split $urls into words
+echo "$urls" | while IFS= read -r u; do
+  [ -n "$u" ] || continue
   r=$(curl -sS -m 8 -o /dev/null -w 'HTTP %{http_code} in %{time_total}s' "$u" 2>&1 | tr '\n' ' ')
   echo "curl $u -> $r"
   # Pi talks through Node (fetch/undici), which resolves names, IPv6 and proxies differently than curl
@@ -79,7 +86,8 @@ for u in $urls; do
 done
 echo
 echo "== Name resolution"
-for u in $urls; do
+echo "$urls" | while IFS= read -r u; do
+  [ -n "$u" ] || continue
   h=$(echo "$u" | sed -E 's#^https?://([^/:]+).*#\1#')
   case "$h" in *[a-zA-Z]*) node -e 'require("dns").lookup(process.argv[1], { all: true }, (e, a) => console.log(process.argv[1] + " -> " + (e ? e.code + " " + e.message : a.map((x) => x.address + " (IPv" + x.family + ")").join(", "))))' "$h" 2>&1 | tail -n 1 ;; esac
 done
