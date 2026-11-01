@@ -1,9 +1,11 @@
 // Right column: folders of the active session as a tree of Markdown files, and the editor.
+import { folderField } from "./folderPicker";
 import { api, FolderListing, GitInfo } from "../shared/api";
 import { $, h, errMsg, openModal, renderMarkdown, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
 import { buildTree, countFiles, TreeDir } from "../shared/tree";
+import { diffLines, diffStats, hunks, type DiffLine } from "../shared/diff";
 import { allChanges, gitInline, gitLine, gitMark, gitStatusFor } from "../shared/git";
 import { openMenu } from "./menu";
 import type { SessionTab } from "./sessionTab";
@@ -13,10 +15,23 @@ const elFileTree = $("file-tree");
 const elEditor = $("editor");
 const elEdText = $("ed-text") as HTMLTextAreaElement;
 const elEdRender = $("ed-render");
+const elEdDiff = $("ed-diff-view");
 const elEdSave = $("ed-save") as HTMLButtonElement;
 
+type EditorMode = "edit" | "preview" | "diff";
+/** Base of the diff view: Git HEAD or the file as saved */
+type DiffBase = "head" | "saved";
+
 /** File open in the editor */
-const editor = { hostId: "", path: "", original: "", preview: false };
+const editor = {
+  hostId: "",
+  path: "",
+  original: "",
+  mode: "edit" as EditorMode,
+  diffBase: "head" as DiffBase,
+  /** Content in Git HEAD of the open file; undefined = not loaded yet */
+  head: undefined as { inGit: boolean; text: string | null } | undefined,
+};
 
 /** Working folder plus folders added by hand to a session */
 function sessionFolders(tab: SessionTab): string[] {
@@ -112,6 +127,18 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
           title: full,
           "data-path": full,
           onclick: () => openFile(tab.hostId, full),
+          oncontextmenu: (e: MouseEvent) => {
+            e.preventDefault();
+            openMenu(
+              e.currentTarget as HTMLElement,
+              [
+                { label: t("Open"), onSelect: () => openFile(tab.hostId, full) },
+                { label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") },
+              ],
+              "left",
+              { x: e.clientX, y: e.clientY },
+            );
+          },
         },
         icon(ICON_FILE),
         h("span", { class: "tname" }, f.name),
@@ -349,7 +376,12 @@ function addFolderDialog() {
     h(
       "div",
       {},
-      h("div", { class: "row" }, h("label", {}, t("Folder on the host")), input),
+      h(
+        "div",
+        { class: "row" },
+        h("label", {}, t("Folder on the host")),
+        folderField(input, () => tab.hostId),
+      ),
       h("p", { class: "hint" }, t("Its Markdown files appear on the right and can be edited.")),
     ),
     [
@@ -395,17 +427,17 @@ function newFileDialog(tab: SessionTab, root: string) {
   );
 }
 
-async function openFile(hostId: string, path: string) {
-  if (!confirmDiscard()) return;
+async function openFile(hostId: string, path: string, mode?: EditorMode) {
+  if (editor.path !== path && !confirmDiscard()) return;
   try {
     const text = await api.readFile(hostId, path);
-    Object.assign(editor, { hostId, path, original: text });
+    Object.assign(editor, { hostId, path, original: text, head: undefined });
     elEdText.value = text;
     $("editor-name").textContent = baseName(path);
     $("editor-name").title = path;
     elEdSave.disabled = true;
     showEditor(true);
-    setPreview(editor.preview);
+    setMode(mode ?? (editor.mode === "diff" ? "edit" : editor.mode));
     elFileTree
       .querySelectorAll<HTMLElement>(".file")
       .forEach((b) => b.classList.toggle("active", b.dataset.path === path));
@@ -439,13 +471,79 @@ export function closeEditor() {
   elFileTree.querySelectorAll(".file.active").forEach((b) => b.classList.remove("active"));
 }
 
-function setPreview(on: boolean) {
-  editor.preview = on;
-  $("ed-edit").classList.toggle("active", !on);
-  $("ed-preview").classList.toggle("active", on);
-  elEdText.hidden = on;
-  elEdRender.hidden = !on;
-  if (on) renderMarkdown(elEdRender, elEdText.value);
+function setMode(mode: EditorMode) {
+  editor.mode = mode;
+  for (const m of ["edit", "preview", "diff"] as const) $(`ed-${m}`).classList.toggle("active", m === mode);
+  elEdText.hidden = mode !== "edit";
+  elEdRender.hidden = mode !== "preview";
+  elEdDiff.hidden = mode !== "diff";
+  if (mode === "preview") renderMarkdown(elEdRender, elEdText.value);
+  if (mode === "diff") void renderDiff();
+}
+
+/** Diff of the editor text (incl. unsaved changes) against Git HEAD or the saved file */
+async function renderDiff() {
+  const path = editor.path;
+  if (editor.head === undefined) {
+    elEdDiff.replaceChildren(h("div", { class: "diff-empty" }, t("Loading …")));
+    try {
+      editor.head = await api.readFileHead(editor.hostId, path);
+    } catch {
+      editor.head = { inGit: false, text: null };
+    }
+    if (editor.path !== path || editor.mode !== "diff") return;
+  }
+  const head = editor.head;
+  const base: DiffBase = head.inGit ? editor.diffBase : "saved";
+  const oldText = base === "head" ? (head.text ?? "") : editor.original;
+  const diff = diffLines(oldText, elEdText.value);
+  const { added, removed } = diffStats(diff);
+
+  const sel = h(
+    "select",
+    { class: "diff-base", title: t("Compare with") },
+    h("option", { value: "head", selected: base === "head", disabled: !head.inGit }, t("Git (last commit)")),
+    h("option", { value: "saved", selected: base === "saved" }, t("Saved file")),
+  ) as HTMLSelectElement;
+  sel.addEventListener("change", () => {
+    editor.diffBase = sel.value as DiffBase;
+    void renderDiff();
+  });
+  const note =
+    base === "head" && head.text === null
+      ? t("New file, not in Git yet")
+      : !head.inGit
+        ? t("Not in a Git repository")
+        : "";
+  const bar = h(
+    "div",
+    { class: "diff-bar" },
+    sel,
+    h("span", { class: "diff-stat add" }, `+${added}`),
+    h("span", { class: "diff-stat del" }, `−${removed}`),
+    note ? h("span", { class: "diff-note" }, note) : null,
+  );
+  if (!added && !removed) {
+    elEdDiff.replaceChildren(bar, h("div", { class: "diff-empty" }, t("No changes")));
+    return;
+  }
+  const row = (d: DiffLine) =>
+    h(
+      "div",
+      { class: `dl ${d.op === "+" ? "add" : d.op === "-" ? "del" : ""}` },
+      h("span", { class: "dn" }, d.a ? String(d.a) : ""),
+      h("span", { class: "dn" }, d.b ? String(d.b) : ""),
+      h("span", { class: "dop" }, d.op),
+      h("span", { class: "dt" }, d.text),
+    );
+  const body = h(
+    "div",
+    { class: "diff-body" },
+    ...hunks(diff).map((x) =>
+      "op" in x ? row(x) : h("div", { class: "dl gap" }, t("{n} unchanged lines", { n: String(x.skipped) })),
+    ),
+  );
+  elEdDiff.replaceChildren(bar, body);
 }
 
 export async function saveEditor() {
@@ -455,6 +553,7 @@ export async function saveEditor() {
   try {
     await api.writeFile(editor.hostId, editor.path, content);
     editor.original = content;
+    if (editor.mode === "diff") void renderDiff();
     toast(t("Saved: {file}", { file: baseName(editor.path) }));
   } catch (e) {
     elEdSave.disabled = false;
@@ -464,8 +563,9 @@ export async function saveEditor() {
 
 export function wireFiles() {
   $("btn-add-folder").addEventListener("click", (e) => headMenu(e.currentTarget as HTMLElement));
-  $("ed-edit").addEventListener("click", () => setPreview(false));
-  $("ed-preview").addEventListener("click", () => setPreview(true));
+  $("ed-edit").addEventListener("click", () => setMode("edit"));
+  $("ed-preview").addEventListener("click", () => setMode("preview"));
+  $("ed-diff").addEventListener("click", () => setMode("diff"));
   $("ed-close").addEventListener("click", closeEditor);
   elEdSave.addEventListener("click", saveEditor);
   elEdText.addEventListener("input", () => (elEdSave.disabled = elEdText.value === editor.original));

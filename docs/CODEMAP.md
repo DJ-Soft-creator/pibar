@@ -63,7 +63,7 @@ flowchart LR
 | [`pi.rs`](../src-tauri/src/pi.rs) | One Pi process per open session, match RPC responses, forward events | [`PiManager`](../src-tauri/src/pi.rs), [`PiManager::open`](../src-tauri/src/pi.rs), [`PiManager::send`](../src-tauri/src/pi.rs), [`PiManager::close`](../src-tauri/src/pi.rs) |
 | [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions`; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
-| [`files.rs`](../src-tauri/src/files.rs) | List, read, write and create Markdown files; flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs) |
+| [`files.rs`](../src-tauri/src/files.rs) | List, read, write and create Markdown files; flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
 | [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
 | [`disclaim.rs`](../src-tauri/src/disclaim.rs) | macOS: child processes (shell, SSH, curl) run as their own responsible process, so the "Local Network" block of the self-built app does not hit Pi | [`disclaim::command`](../src-tauri/src/disclaim.rs), [`run_if_requested`](../src-tauri/src/disclaim.rs) |
 | [`diag.rs`](../src-tauri/src/diag.rs) | Diagnosis report for chat errors: Pi/Node, environment (secrets hidden), Pi's model config, reachability of model servers | [`diag::run`](../src-tauri/src/diag.rs) |
@@ -89,7 +89,8 @@ flowchart LR
 | [`composerTools.ts`](../src/main/composerTools.ts) | Tool dock at the input (fades in near the mouse): attach files, screenshot, skills, tools of a session; attachment chips | [`wireComposerTools`](../src/main/composerTools.ts), [`addFiles`](../src/main/composerTools.ts), [`takeAttachments`](../src/main/composerTools.ts), [`renderDock`](../src/main/composerTools.ts) |
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
 | [`usageStats.ts`](../src/main/usageStats.ts) | Token info in the header and its hover panel (counters, speed, context) | [`usageSummary`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
-| [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
+| [`folderPicker.ts`](../src/main/folderPicker.ts) | Folder picker for local and SSH hosts (new session, add folder) | [`pickFolder`](../src/main/folderPicker.ts), [`folderField`](../src/main/folderPicker.ts), [`tildePath`](../src/main/folderPicker.ts) |
+| [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
 | [`settings.ts`](../src/main/settings.ts) | Settings dialog: language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
 | [`quickBridge.ts`](../src/main/quickBridge.ts) | Accept messages from the quick bar | [`handleQuick`](../src/main/quickBridge.ts), [`broadcastActive`](../src/main/quickBridge.ts) |
 | [`styles.css`](../src/main/styles.css) | Main window look; light/dark via CSS variables and `data-theme` on `<html>` | – |
@@ -103,6 +104,7 @@ flowchart LR
 | [`shared/i18n.ts`](../src/shared/i18n.ts) | Translations: English text is the key, German dictionary; tested in `i18n.test.ts` | [`t`](../src/shared/i18n.ts), [`setLang`](../src/shared/i18n.ts), [`resolveLang`](../src/shared/i18n.ts), [`translateDom`](../src/shared/i18n.ts), [`LANGUAGES`](../src/shared/i18n.ts) |
 | [`shared/dom.ts`](../src/shared/dom.ts) | Element builder, Markdown (marked + DOMPurify), toasts, modals | [`h`](../src/shared/dom.ts), [`renderMarkdown`](../src/shared/dom.ts), [`openModal`](../src/shared/dom.ts) |
 | [`shared/presets.ts`](../src/shared/presets.ts) | Pure preset logic, tested in `presets.test.ts` | [`matchPreset`](../src/shared/presets.ts), [`cleanPresets`](../src/shared/presets.ts), [`splitModelKey`](../src/shared/presets.ts) |
+| [`shared/diff.ts`](../src/shared/diff.ts) | Line diff for the editor's diff view, tested in `diff.test.ts` | [`diffLines`](../src/shared/diff.ts), [`hunks`](../src/shared/diff.ts), [`diffStats`](../src/shared/diff.ts) |
 | [`shared/format.ts`](../src/shared/format.ts) | Pure formatters, tested in `format.test.ts` | [`shortModel`](../src/shared/format.ts), [`cleanTitle`](../src/shared/format.ts), [`withScreenText`](../src/shared/format.ts), [`withAnswerStyle`](../src/shared/format.ts), [`stripAnswerStyle`](../src/shared/format.ts), [`tokensPerSecond`](../src/shared/format.ts), [`relTime`](../src/shared/format.ts) |
 | [`shared/tree.ts`](../src/shared/tree.ts) | Relative paths → folder tree, tested in `tree.test.ts` | [`buildTree`](../src/shared/tree.ts), [`countFiles`](../src/shared/tree.ts) |
 | [`shared/voice.ts`](../src/shared/voice.ts) | Microphone recording, mic and improve buttons for both windows, read aloud; tested in `voice.test.ts` | [`wireVoice`](../src/shared/voice.ts), [`startRecording`](../src/shared/voice.ts), [`stopRecording`](../src/shared/voice.ts), [`speak`](../src/shared/voice.ts), [`improve`](../src/shared/voice.ts), [`DEFAULT_IMPROVE_PROMPT`](../src/shared/voice.ts) |
@@ -178,6 +180,11 @@ session's extra folders (stored in `AppConfig.sessionFolders`). [`buildTree`](..
 into folders; [`renderTree`](../src/main/files.ts) draws them (open folders live in memory, so toggling does not reload).
 A folder that does not exist on the host comes back with `missing: true` ([`parse_listing`](../src-tauri/src/files.rs))
 and can be created ([`create_dir`](../src-tauri/src/files.rs)) or removed from the session.
+The working folder of a new session and extra folders can be picked with [`pickFolder`](../src/main/folderPicker.ts),
+which browses the host through [`list_dirs`](../src-tauri/src/files.rs) (same shell as Pi, so it works over SSH too).
+The editor has three modes: edit, preview and diff. [`renderDiff`](../src/main/files.ts) compares the editor text
+(including unsaved changes) with the file in Git HEAD ([`read_head`](../src-tauri/src/files.rs)) or with the saved file,
+using the line diff in [`diffLines`](../src/shared/diff.ts) and [`hunks`](../src/shared/diff.ts) (3 lines of context).
 With `ui.showGit` the same script also runs `git status --porcelain --branch` ([`parse_git`](../src-tauri/src/files.rs));
 for the session folder's own repository and for repositories in subfolders (up to 30, depth 5). The tree shows a quiet
 line under a session folder that is a repository ([`gitLine`](../src/shared/git.ts): branch, ↑ not pushed, ↓ to pull,
@@ -295,6 +302,8 @@ A new command needs both.
 | `delete_sessions` | Delete session files (paths must lie in Pi's `sessions` folder) |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
 | `list_files`, `read_file`, `write_file`, `create_file`, `create_dir` | Markdown files and folders |
+| `list_dirs` | Subfolders of a folder on the host, for the folder picker |
+| `read_file_head` | Content of a file in Git HEAD, for the diff view |
 | `quick_hide`, `quick_resize`, `quick_reset_pos`, `show_main` | Windows |
 | `set_hotkey`, `set_double_tap`, `double_tap_status` | Hotkeys |
 | `capture_screen`, `ocr_image` | Screenshot and text recognition |
