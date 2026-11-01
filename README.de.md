@@ -23,6 +23,8 @@ MIT-Lizenz
 - Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; ein runder Knopf sendet, stoppt Pi während der Arbeit
   oder steuert nach, sobald du tippst
 - Die Eingabe wächst mit dem Text bis sechs Zeilen, danach scrollt sie
+- Optional **Uhrzeit der Nachrichten** (Einstellungen → Allgemein → Chat): eine kleine Zeit unter jeder Nachricht
+  („14:32“, „Gestern 09:15“, ältere mit Datum); beim Überfahren das vollständige Datum
 - Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides; eine Nachricht direkt nach dem Wechsel
   wartet, bis Pi umgestellt hat; jede Antwort zeigt das Modell, das sie erzeugt hat (beim Überfahren)
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte

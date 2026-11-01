@@ -271,6 +271,12 @@ export function settingsDialog() {
     ...defOpts.map(([v, l]) => h("option", { value: v, selected: v === curDefault }, l)),
   ) as HTMLSelectElement;
 
+  const showTimes = h("input", {
+    type: "checkbox",
+    checked: !!state.config.ui.showTimes,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
   const showGit = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.showGit,
@@ -345,6 +351,7 @@ export function settingsDialog() {
     state.config.ui.defaultThinking = dt ?? "";
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
+    state.config.ui.showTimes = showTimes.checked;
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -372,6 +379,12 @@ export function settingsDialog() {
         "p",
         { class: "hint" },
         t("Model and thinking level for new sessions. Tip: the star in the header sets the current session's choice."),
+      ),
+      h(
+        "div",
+        { class: "row" },
+        h("label", {}, t("Chat")),
+        h("label", { class: "check" }, showTimes, ` ${t("Show the time of each message")}`),
       ),
       h(
         "div",

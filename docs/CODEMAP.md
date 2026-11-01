@@ -182,6 +182,10 @@ A folder that does not exist on the host comes back with `missing: true` ([`pars
 and can be created ([`create_dir`](../src-tauri/src/files.rs)) or removed from the session.
 The working folder of a new session and extra folders can be picked with [`pickFolder`](../src/main/folderPicker.ts),
 which browses the host through [`list_dirs`](../src-tauri/src/files.rs) (same shell as Pi, so it works over SSH too).
+With `ui.showTimes` each message shows its time ([`msgTime`](../src/shared/format.ts), from the `timestamp` Pi stores
+with every message); the quick bar keeps its buttons on the first line and [`fit_y`](../src-tauri/src/quick.rs) moves
+it up when it grows past the bottom of the screen.
+
 Model and thinking changes go through `SessionTab.settle`: Pi handles RPC commands concurrently, so
 [`send`](../src/main/sessionTab.ts) waits until a pending `set_model` is done before it sends the prompt. Each answer shows
 the model that actually produced it (from the assistant message).
