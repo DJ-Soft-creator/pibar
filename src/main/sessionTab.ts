@@ -1,7 +1,15 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, PiCommand, PiModel } from "../shared/api";
 import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
-import { splitFiles, splitScreenText, stripAnswerStyle, tokensPerSecond, withAnswerStyle } from "../shared/format";
+import {
+  baseName,
+  splitContext,
+  splitFiles,
+  splitScreenText,
+  stripAnswerStyle,
+  tokensPerSecond,
+  withAnswerStyle,
+} from "../shared/format";
 import { getLang, t } from "../shared/i18n";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
@@ -494,6 +502,23 @@ export class SessionTab {
         h("div", { class: "body" }, h("pre", {}, ocr)),
       );
     }
+    // folders and files put into the context: small chips
+    const csplit = splitContext(text);
+    text = csplit.text;
+    const ctxChips = csplit.paths.length
+      ? h(
+          "div",
+          { class: "ctx-chips" },
+          ...csplit.paths.map((p) =>
+            h(
+              "span",
+              { class: "chip chip-ctx", title: p.path },
+              icon(p.kind === "folder" ? "folder" : "file", 12, "chip-icon"),
+              h("span", { class: "chip-name" }, baseName(p.path)),
+            ),
+          ),
+        )
+      : null;
     // attached text files as collapsible cards
     const fsplit = splitFiles(text);
     text = fsplit.text;
@@ -511,7 +536,7 @@ export class SessionTab {
       ),
     );
     const index = this.userCount++;
-    const bubble = h("div", { class: "bubble" }, ...imgs, text, ocrCard, ...fileCards);
+    const bubble = h("div", { class: "bubble" }, ...imgs, text, ctxChips, ocrCard, ...fileCards);
     const panel = h("div", { class: "branch-panel", hidden: true });
     const act = (name: IconName, title: string, fn: () => void) => {
       const b = h("button", { class: "msg-act", title, "aria-label": title, onclick: fn });

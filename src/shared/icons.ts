@@ -17,6 +17,7 @@ const PATHS = {
   insert: '<path d="M13 3v5a2 2 0 0 1-2 2H4"/><path d="M6.5 7.5L4 10l2.5 2.5"/>',
   copy: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/>',
   folder: '<path d="M1.75 4.25a1 1 0 0 1 1-1h3.4l1.5 1.5h5.6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/>',
+  file: '<path d="M4 1.75h5l3 3v9.5H4z"/><path d="M9 1.75v3h3"/>',
   up: '<path d="M8 13V3.5M4 7.5l4-4 4 4"/>',
   home: '<path d="M2.5 7.5 8 2.5l5.5 5"/><path d="M4 6.5v7h8v-7"/>',
   plus: '<path d="M8 3.5v9M3.5 8h9"/>',

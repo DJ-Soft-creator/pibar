@@ -22,6 +22,7 @@ License
 
 - Chat with Pi, streamed live, Markdown and code highlighting; one round button sends, stops Pi while it works, or
   steers it as soon as you type
+- The input grows with the text up to six lines, then it scrolls
 - Model and thinking level per session, or a saved preset for both
 - **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
   or _Debug_ (cards open, tool output live)
@@ -74,6 +75,8 @@ License
   files (⌘S)
 - **Diff view** next to edit and preview: the changes against the last Git commit or against the saved file, including
   unsaved edits (+/− lines, 3 lines of context); right click on a file → Show changes
+- **Context**: drag a folder or file from the tree into the input, or right click → Add to context; Pi gets the path
+  and reads what it needs with its tools
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
 - Optional **Git status** (Settings → General): for the session folder and for repositories in its subfolders the
   branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)

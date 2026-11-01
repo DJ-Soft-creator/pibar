@@ -34,11 +34,39 @@ const SCREEN_RE = /<(screen-text|bildschirmtext)[^>]*>([\s\S]*?)<\/\1>/;
 export function cleanTitle(title: string): string {
   return (
     (title || "")
-      .replace(/<(screen-text|bildschirmtext|response-style|file)[\s\S]*/i, "")
+      .replace(/<(screen-text|bildschirmtext|response-style|file|context)[\s\S]*/i, "")
       // titles are cut after ~120 characters: drop a half tag at the end
       .replace(/\s*<[a-z-]*$/i, "")
       .trim() || title
   );
+}
+
+/** A folder or file the user put into the context (only its path is sent; Pi reads it with its tools) */
+export interface ContextPath {
+  kind: "folder" | "file";
+  path: string;
+}
+
+const CONTEXT_HINT = "Folders and files the user put into the context. Look at them with your tools as needed.";
+
+/** Context paths as a tagged block at the end of a message (shown as chips in the chat) */
+export function withContext(text: string, paths: ContextPath[]): string {
+  if (!paths.length) return text;
+  const lines = paths.map((p) => `${p.kind}: ${p.path}`).join("\n");
+  return [text, `<context hint="${CONTEXT_HINT}">\n${lines}\n</context>`].filter(Boolean).join("\n\n");
+}
+
+/** Counterpart of withContext: message text and the context paths */
+export function splitContext(text: string): { text: string; paths: ContextPath[] } {
+  const paths: ContextPath[] = [];
+  const rest = text.replace(/<context[^>]*>\n?([\s\S]*?)\n?<\/context>/g, (_m, body: string) => {
+    for (const line of body.split("\n")) {
+      const m = /^(folder|file):\s*(.+)$/.exec(line.trim());
+      if (m) paths.push({ kind: m[1] as ContextPath["kind"], path: m[2] });
+    }
+    return "";
+  });
+  return { text: paths.length ? rest.trim() : text, paths };
 }
 
 /** Attached text files as tagged blocks at the end of a message (shown as cards in the chat) */

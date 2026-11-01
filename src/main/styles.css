@@ -808,7 +808,6 @@ details.card[open] > summary::before {
 .composer textarea {
   flex: 1;
   resize: none;
-  max-height: 240px;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -2293,7 +2292,12 @@ button.ghost.danger-text {
   gap: 6px;
 }
 .input-wrap textarea {
+  flex: none; /* the height comes from autoGrow, not from the flex layout */
   width: 100%;
+  overflow-y: hidden;
+}
+.input-wrap textarea.scrolls {
+  overflow-y: auto;
 }
 .dock {
   position: relative;
@@ -2638,4 +2642,18 @@ button.ghost.danger-text {
   background: var(--bg-elev);
   font-family: inherit;
   font-size: 11.5px;
+}
+
+/* Folders and files in the context (chips in the input and in sent messages) */
+.chip-ctx .chip-icon {
+  color: var(--accent);
+}
+.ctx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ctx-chips .chip {
+  padding-right: 8px;
 }

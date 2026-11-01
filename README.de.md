@@ -22,6 +22,7 @@ MIT-Lizenz
 
 - Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; ein runder Knopf sendet, stoppt Pi während der Arbeit
   oder steuert nach, sobald du tippst
+- Die Eingabe wächst mit dem Text bis sechs Zeilen, danach scrollt sie
 - Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
   Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
@@ -78,6 +79,8 @@ MIT-Lizenz
 - **Diff-Ansicht** neben Bearbeiten und Vorschau: Änderungen gegenüber dem letzten Git-Commit oder der gespeicherten
   Datei, inklusive ungespeicherter Änderungen (+/−-Zeilen, 3 Zeilen Kontext); Rechtsklick auf eine Datei → Änderungen
   anzeigen
+- **Kontext**: Ordner oder Datei aus dem Baum in die Eingabe ziehen oder Rechtsklick → Zum Kontext hinzufügen; Pi
+  bekommt den Pfad und liest mit seinen Werkzeugen, was es braucht
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
 - Optional **Git-Status** (Einstellungen → Allgemein): für den Session-Ordner und für Repositories in seinen
