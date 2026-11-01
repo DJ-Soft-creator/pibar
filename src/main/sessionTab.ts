@@ -47,7 +47,12 @@ interface ToolCard {
   args: HTMLElement;
   result: HTMLElement;
   argsRaw: string;
+  /** Tool name (edit, write, bash, …) */
+  name?: string;
 }
+
+/** Tools that change files: their `path` shows up as edited in the file tree */
+const FILE_TOOLS = new Set(["edit", "write", "multi_edit", "create"]);
 
 /** What to do with an earlier own message (buttons under a user bubble) */
 export type UserAction = "edit" | "rerun" | "rewind" | "reuse" | "copy";
@@ -984,7 +989,7 @@ export class SessionTab {
       h("div", { class: "body" }, h("div", { class: "sub" }, t("Input")), args, result),
     ) as HTMLDetailsElement;
     this.cur!.el.append(h("div", { class: "part tool", "data-index": index }, card));
-    this.tools.set(id, { card, preview, status, args, result, argsRaw: "" });
+    this.tools.set(id, { card, preview, status, args, result, argsRaw: "", name });
     this.lastToolByIndex.set(index, id);
   }
   private lastToolByIndex = new Map<number, string>();
@@ -998,9 +1003,14 @@ export class SessionTab {
     if (debugView()) this.schedule();
   }
 
+  /** Files Pi changed in this session (paths as Pi got them: absolute, "~/…" or relative to the working folder) */
+  readonly touched = new Set<string>();
+
   private toolArgs(id: string, args?: ToolArgs) {
     const card = this.tools.get(id);
     if (!card) return;
+    const path = args?.path ?? args?.file_path;
+    if (card.name && FILE_TOOLS.has(card.name) && typeof path === "string" && path) this.touched.add(path);
     card.args.textContent = JSON.stringify(args ?? {}, null, 2);
     card.preview.textContent = argPreview(args);
   }
