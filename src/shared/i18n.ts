@@ -13,6 +13,7 @@ const de = {
   Reset: "Zurücksetzen",
   Reload: "Neu laden",
   "Reload all": "Alle neu laden",
+  "Reload files and Git status (⌘⇧R)": "Dateien und Git-Status neu laden (⌘⇧R)",
   Close: "Schließen",
   Start: "Starten",
   Set: "Setzen",

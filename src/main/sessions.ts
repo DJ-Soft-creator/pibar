@@ -9,7 +9,7 @@ import { cleanTitle, relTime, shortPath, splitScreenText, stripAnswerStyle } fro
 import { splitModelKey } from "../shared/presets";
 import { t } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
-import { closeEditor, renderFiles } from "./files";
+import { closeEditor, reloadFiles, renderFiles } from "./files";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
 import {
@@ -472,6 +472,8 @@ const tabCallbacks: TabCallbacks = {
   },
   onSettled: async (x) => {
     markSettled(x);
+    // Pi may have written files or committed: refresh the file panel of the visible session
+    if (x === state.active) void reloadFiles();
     const before = x.key;
     try {
       await x.refreshState();

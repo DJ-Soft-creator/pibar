@@ -82,16 +82,17 @@ const GIT_MARK: &str = "__PIBAR_GIT__";
 
 /// Appended when the Git status is wanted. One block per repository: marker, folder (relative, "" = listed folder),
 /// prefix of the listed folder inside that repository, then `git status`. First the repository the folder is in,
-/// then repositories in subfolders (up to 30, depth 5).
+/// then repositories in subfolders (up to 30, depth 5). `core.quotePath=false`: names with umlauts come as they are
+/// (otherwise Git writes them as "\303\274…" and they never match the tree).
 const GIT: &str = r#"
 if p=$(git rev-parse --show-prefix 2>/dev/null); then
   echo __PIBAR_GIT__; echo ""; echo "$p"
-  git status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 2000
+  git -c core.quotePath=false status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 2000
 fi
 find . -mindepth 2 -maxdepth 5 \( -name node_modules -o -name target \) -prune -o -name .git -prune -print 2>/dev/null | head -n 30 | while IFS= read -r g; do
   d=$(dirname "$g"); d=${d#./}
   echo __PIBAR_GIT__; echo "$d"; echo ""
-  git -C "$d" status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 500
+  git -C "$d" -c core.quotePath=false status --porcelain=v1 --branch --untracked-files=all 2>/dev/null | head -n 500
 done"#;
 
 /// "## main...origin/main [ahead 2, behind 1]" → branch, upstream, ahead, behind
@@ -370,5 +371,14 @@ mod tests {
         ] {
             assert!(check_markdown_path(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn git_script_keeps_umlauts() {
+        assert_eq!(GIT.matches("core.quotePath=false").count(), 2);
+        let out = "/repo\n__PIBAR_GIT__\n\n\n## main\n M \"Über uns.md\"\n?? neu/Ärger.md\n";
+        let l = parse_listing("~/repo", out);
+        let paths: Vec<_> = l.git[0].changes.iter().map(|c| c.path.as_str()).collect();
+        assert_eq!(paths, vec!["Über uns.md", "neu/Ärger.md"]);
     }
 }
