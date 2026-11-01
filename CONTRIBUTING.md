@@ -36,7 +36,7 @@ npm run check
 
 ## Workflow
 
-1. **Branch** off `master`: `feat/short-name`, `fix/short-name`, `docs/short-name`.
+1. **Branch** off `main`: `feat/short-name`, `fix/short-name`, `docs/short-name`.
 2. **Small changes**: one topic per pull request; several small ones beat one big one.
 3. **Commits** in [Conventional Commits](https://www.conventionalcommits.org/) style: `feat: …`, `fix: …`,
    `docs: …`, `refactor: …`, `test: …`, `chore: …`.

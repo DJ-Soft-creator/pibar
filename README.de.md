@@ -249,4 +249,4 @@ node /voller/pfad/zu/pibar/dev/fake-pi.mjs
 
 ## Lizenz
 
-[MIT](https://github.com/DJ-Soft-creator/pibar/blob/master/LICENSE)
+[MIT](https://github.com/DJ-Soft-creator/pibar/blob/main/LICENSE)
