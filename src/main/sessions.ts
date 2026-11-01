@@ -94,6 +94,8 @@ function sessionCount(hostId: string): number {
 
 function renderHostTabs() {
   const sel = selectedHost();
+  // two or more hosts no longer fit side by side in the narrow column: one row per host, names in full
+  elHostTabs.classList.toggle("stacked", state.config.hosts.length >= 2);
   const tab = (id: string, label: string, count: number, dot?: string) =>
     h(
       "button",

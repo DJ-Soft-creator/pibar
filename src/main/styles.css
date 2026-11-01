@@ -333,6 +333,26 @@ button.ghost:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* two or more hosts: a list, one row per host with the full name, marks and count on the right */
+.host-tabs.stacked {
+  flex-direction: column;
+  gap: 1px;
+  padding: 3px;
+}
+.host-tabs.stacked .host-tab {
+  flex: none;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.host-tabs.stacked .host-tab-name {
+  flex: 1;
+  text-align: left;
+}
+.host-tabs.stacked .host-tab .count {
+  margin-left: auto;
+}
 .count {
   font-size: 11px;
   color: var(--muted);
@@ -618,6 +638,10 @@ details.card[open] > summary::before {
 /* Chat views: natural hides thinking and tools; technical and debug show them as cards */
 .mode-natural .part.tool,
 .mode-natural .part.thinking {
+  display: none;
+}
+/* answers that consist only of thinking and tool calls: gone completely (no gap, no time, no actions) */
+.mode-natural .msg.assistant.technical {
   display: none;
 }
 .mode-debug details.card {
