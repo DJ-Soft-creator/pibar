@@ -10,7 +10,7 @@ import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
-import { renderAutoScroll, showEnd, wireAutoScroll } from "./autoScroll";
+import { renderAutoScroll, scrollModeItems, showEnd, wireAutoScroll } from "./autoScroll";
 import { wireShortcuts } from "./shortcuts";
 import type { QueueItem, QueueWhen } from "./sessionTab";
 import { applyLayout } from "./layout";
@@ -465,6 +465,8 @@ export function wireChatView() {
           saveConfig();
         },
       },
+      { separator: true },
+      ...scrollModeItems(),
     ]);
   });
   elAnswer.addEventListener("click", () =>

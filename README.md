@@ -49,7 +49,7 @@ License
   Pi's next step); waiting messages stay visible above the input and can be switched, taken back or removed
 - **Git history**: click the Git line under a folder for the commits of the repository (changed files and diff per
   commit, not pushed ones marked ↑); right click on a file → History for the commits of that file
-- **Auto scroll** with three modes (round button at the bottom right or Settings → Chat): _automatic_ follows the
+- **Auto scroll** with three modes (view menu in the header, round button at the bottom right or Settings → Chat): _automatic_ follows the
   answer to the end and pauses when you scroll up, _always_ forces every change to the end, _off_ never scrolls by
   itself (good for fast models); ⌘J jumps to the end
 - **Keyboard**: ⌘/ shows all shortcuts – ⌘⇧N new session in the same folder, ⌘[ / ⌘] and ⌘1…9 switch sessions,
