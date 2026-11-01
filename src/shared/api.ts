@@ -156,8 +156,8 @@ export interface AppConfig {
     defaultPreset?: string;
     defaultModel?: string;
     defaultThinking?: string;
-    /** Auto scroll at the start of an answer: "on" (default) or "off" (switch on by hand) */
-    autoScroll?: "on" | "off";
+    /** Auto scroll: "auto" (default, pauses when scrolling up), "always" (forced) or "off"; "on" = auto (older) */
+    autoScroll?: "auto" | "always" | "off" | "on";
     /** File tree: only Markdown, HTML and images (default: all files) */
     filesDocsOnly?: boolean;
     /** Session list: order and sections (src/shared/sessionOrder.ts) */

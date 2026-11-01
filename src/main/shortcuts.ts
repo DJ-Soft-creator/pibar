@@ -6,6 +6,7 @@ import { togglePanel } from "./layout";
 import { isEditorOpen, reloadFiles, saveEditor } from "./files";
 import { activate, closeSession, defaultHostId, newSessionDialog, openSession } from "./sessions";
 import { state } from "./state";
+import { jumpToEnd } from "./autoScroll";
 
 export interface ShortcutActions {
   input: HTMLTextAreaElement;
@@ -21,6 +22,7 @@ const LIST: [string, Msg][] = [
   ["Esc · ⌘ .", "Stop Pi"],
   ["⌘ ↑", "Empty input: take back your last message"],
   ["⌘ L", "Into the input"],
+  ["⌘ J", "Jump to the end of the chat"],
   ["⌘ N", "New session (dialog)"],
   ["⌘ ⇧ N", "New session right away – same host and folder"],
   ["⌘ [ · ⌘ ]", "Previous / next open session"],
@@ -83,6 +85,7 @@ export function wireShortcuts(a: ShortcutActions) {
     else if (key === "n") run(() => newSessionDialog(defaultHostId()));
     else if (key === "w" && tab) run(() => closeSession(tab));
     else if (key === "l") run(() => a.input.focus());
+    else if (key === "j") run(jumpToEnd);
     else if (key === "." && tab?.streaming) run(() => tab.abort());
     else if (key === "/" || e.code === "Slash") run(shortcutsDialog);
     else if (e.key === "ArrowUp" && document.activeElement === a.input && !a.input.value.trim() && tab) {

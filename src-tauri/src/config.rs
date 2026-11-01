@@ -134,7 +134,7 @@ pub struct UiPrefs {
     pub default_model: String,
     #[serde(default)]
     pub default_thinking: String,
-    /// Auto scroll at the start of an answer: "on" or "off" (switched on by hand)
+    /// Auto scroll of the chat: "auto" (pauses when scrolling up), "always" (forced) or "off"
     #[serde(default = "default_auto_scroll")]
     pub auto_scroll: String,
     /// File tree: only Markdown, HTML and images instead of all files
@@ -149,7 +149,7 @@ pub struct UiPrefs {
 }
 
 pub fn default_auto_scroll() -> String {
-    "on".into()
+    "auto".into()
 }
 
 pub fn default_session_sort() -> String {
