@@ -64,7 +64,7 @@ flowchart LR
 | [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions`; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
 | [`files.rs`](../src-tauri/src/files.rs) | List, read, write and create Markdown files; flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
-| [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
+| [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`hotkey_status`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
 | [`disclaim.rs`](../src-tauri/src/disclaim.rs) | macOS: child processes (shell, SSH, curl) run as their own responsible process, so the "Local Network" block of the self-built app does not hit Pi | [`disclaim::command`](../src-tauri/src/disclaim.rs), [`run_if_requested`](../src-tauri/src/disclaim.rs) |
 | [`diag.rs`](../src-tauri/src/diag.rs) | Diagnosis report for chat errors: Pi/Node, environment (secrets hidden), Pi's model config, reachability of model servers | [`diag::run`](../src-tauri/src/diag.rs) |
 | [`voice.rs`](../src-tauri/src/voice.rs) | Speech to text, text to speech, text improvement via OpenAI-compatible APIs (`curl`) or a local command | [`transcribe`](../src-tauri/src/voice.rs), [`speak`](../src-tauri/src/voice.rs), [`improve`](../src-tauri/src/voice.rs), [`api_url`](../src-tauri/src/voice.rs), [`strip_think`](../src-tauri/src/voice.rs) |
@@ -182,6 +182,10 @@ A folder that does not exist on the host comes back with `missing: true` ([`pars
 and can be created ([`create_dir`](../src-tauri/src/files.rs)) or removed from the session.
 The working folder of a new session and extra folders can be picked with [`pickFolder`](../src/main/folderPicker.ts),
 which browses the host through [`list_dirs`](../src-tauri/src/files.rs) (same shell as Pi, so it works over SSH too).
+Model and thinking changes go through `SessionTab.settle`: Pi handles RPC commands concurrently, so
+[`send`](../src/main/sessionTab.ts) waits until a pending `set_model` is done before it sends the prompt. Each answer shows
+the model that actually produced it (from the assistant message).
+
 The editor has three modes: edit, preview and diff. [`renderDiff`](../src/main/files.ts) compares the editor text
 (including unsaved changes) with the file in Git HEAD ([`read_head`](../src-tauri/src/files.rs)) or with the saved file,
 using the line diff in [`diffLines`](../src/shared/diff.ts) and [`hunks`](../src/shared/diff.ts) (3 lines of context).
@@ -309,7 +313,7 @@ A new command needs both.
 | `list_dirs` | Subfolders of a folder on the host, for the folder picker |
 | `read_file_head` | Content of a file in Git HEAD, for the diff view |
 | `quick_hide`, `quick_resize`, `quick_reset_pos`, `show_main` | Windows |
-| `set_hotkey`, `set_double_tap`, `double_tap_status` | Hotkeys |
+| `set_hotkey`, `hotkey_status`, `set_double_tap`, `double_tap_status` | Hotkeys; the main window warns at start if the quick bar cannot open ([`warnQuickBar`](../src/main/index.ts)) |
 | `capture_screen`, `ocr_image` | Screenshot and text recognition |
 | `transcribe_audio`, `improve_text`, `speak_text` | Dictation, text improvement, read aloud |
 | `diagnose`, `pi_stderr` | Diagnosis report of a host, stderr tail of a Pi process |

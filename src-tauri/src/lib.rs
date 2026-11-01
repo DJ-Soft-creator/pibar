@@ -231,6 +231,13 @@ fn set_hotkey(app: AppHandle, accel: String) -> Result<(), String> {
     quick::register_hotkey(&app, &accel)
 }
 
+/// Shortcut of the quick bar and the error of its registration, if any
+#[tauri::command]
+fn hotkey_status() -> serde_json::Value {
+    let (accel, error) = quick::hotkey_status();
+    serde_json::json!({ "accel": accel, "error": error })
+}
+
 #[tauri::command]
 fn set_double_tap(key: String) -> String {
     doubletap::set_key(doubletap::TapKey::parse(&key));
@@ -344,6 +351,7 @@ pub fn run() {
             show_main,
             set_hotkey,
             set_double_tap,
+            hotkey_status,
             double_tap_status,
             capture_screen,
             ocr_image,

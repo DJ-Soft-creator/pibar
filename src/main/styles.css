@@ -2657,3 +2657,11 @@ button.ghost.danger-text {
 .ctx-chips .chip {
   padding-right: 8px;
 }
+
+/* Model that produced an answer (next to its actions) */
+.msg-model {
+  align-self: center;
+  margin-left: 4px;
+  font: 11px var(--mono);
+  color: var(--muted);
+}
