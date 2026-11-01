@@ -77,8 +77,6 @@ const de = {
   Stop: "Stopp",
   "Loading session …": "Session wird geladen …",
   "Starting new session …": "Neue Session wird gestartet …",
-  "Message queued – Pi will see it after the current step.":
-    "Nachricht eingereiht – Pi sieht sie nach dem aktuellen Schritt.",
   "Pi has stopped.": "Pi wurde beendet.",
   "Pi could not be started:": "Pi konnte nicht gestartet werden:",
   Reconnect: "Neu verbinden",
@@ -275,7 +273,14 @@ const de = {
   "macOS blocks addresses in your local network for this app. PiBar starts Pi as its own process to avoid this; if it still happens: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.":
     "macOS sperrt für diese App Adressen im lokalen Netz. PiBar startet Pi deshalb als eigenständiges Programm; passiert es trotzdem: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten, dann PiBar neu starten.",
   "Stop (Esc)": "Stopp (Esc)",
-  "Steer: send while Pi is working (Enter)": "Nachsteuern: senden, während Pi arbeitet (Enter)",
+  "Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step":
+    "Einreihen: Pi bekommt es, wenn es fertig ist (Enter) · ⌥Enter: dazwischen, vor Pis nächstem Schritt",
+  Queue: "Warteschlange",
+  "in between": "dazwischen",
+  after: "danach",
+  "Only after Pi is done": "Erst danach, wenn Pi fertig ist",
+  "In between: before Pi's next step": "Dazwischen: vor Pis nächstem Schritt",
+  "Back into the input": "Zurück ins Eingabefeld",
   Apply: "Übernehmen",
   "File too large (max. 200 KB for text)": "Datei zu groß (max. 200 KB bei Text)",
   "Have a look at the attached files.": "Schau dir die angehängten Dateien an.",

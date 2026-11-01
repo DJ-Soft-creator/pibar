@@ -248,6 +248,14 @@ reads their user messages (`session_outlines`) and compares them with the fork p
 "‹ 2/3 ›" under the message; a click calls [`switchBranch`](../src/main/sessions.ts), which switches the tab to that file
 and scrolls to the same message.
 
+### Messages while Pi works
+
+While Pi is busy, [`SessionTab.send`](../src/main/sessionTab.ts) queues a message: Enter as `followUp` (Pi gets it when
+done), ⌥Enter as `steer` (in between, before Pi's next step). Pi reports its queue with `queue_update`;
+`renderQueue` in [`chatView.ts`](../src/main/chatView.ts) lists it above the input. Pi can only clear the queue as a
+whole (`clear_queue`), so switching, removing or taking a message back into the input goes through
+[`SessionTab.editQueue`](../src/main/sessionTab.ts): clear, change, queue the rest again.
+
 ### Questions to the user
 
 At `agent_settled` [`SessionTab`](../src/main/sessionTab.ts) looks for choice questions at the end of the last answer

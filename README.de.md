@@ -21,7 +21,7 @@ MIT-Lizenz
 ### Chat
 
 - Chat mit Pi, live gestreamt, Markdown und Code-Hervorhebung; ein runder Knopf sendet, stoppt Pi während der Arbeit
-  oder steuert nach, sobald du tippst
+  oder reiht deine Nachricht ein, sobald du tippst
 - Die Eingabe wächst mit dem Text bis sechs Zeilen, danach scrollt sie
 - **Uhrzeit der Nachrichten**: Zeigst du auf eine Nachricht, erscheint, wann sie gesendet wurde („14:32“, „Gestern
   09:15“, ältere mit Datum; das volle Datum als Tooltip). Immer sichtbar: Ansicht-Menü → „Uhrzeiten immer anzeigen“
@@ -47,6 +47,9 @@ MIT-Lizenz
   und einem Feld für eine eigene Antwort (auch für Dialoge von Pi-Erweiterungen)
 - **Session-Liste geordnet**: Knopf im Kopf – sortieren nach letzter Aktivität, Erstellung, Name oder Ordner;
   Abschnitte nach Datum (heute, gestern, letzte 7 Tage, …), nach Ordner oder keine
+- **Nachrichten, während Pi arbeitet**: Enter reiht ein (Pi bekommt sie, wenn es fertig ist), ⌥Enter schiebt sie
+  dazwischen (vor Pis nächstem Schritt); wartende Nachrichten bleiben über dem Eingabefeld sichtbar und lassen sich
+  umstellen, zurückholen oder löschen
 - **Versionen einer Nachricht**: wo sich Verzweigungen trennen, wechselt „‹ 2/3 ›“ unter der eigenen Nachricht
   zwischen den Versionen
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der

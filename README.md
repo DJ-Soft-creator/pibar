@@ -21,7 +21,7 @@ License
 ### Chat
 
 - Chat with Pi, streamed live, Markdown and code highlighting; one round button sends, stops Pi while it works, or
-  steers it as soon as you type
+  queues your message as soon as you type
 - The input grows with the text up to six lines, then it scrolls
 - **Message times**: pointing at a message shows when it was sent ("14:32", "Yesterday 09:15", older with date; the
   full date as tooltip). To see them always: View menu → "Always show message times" (or Settings → General → Chat)
@@ -45,6 +45,8 @@ License
   tick and a field for your own answer (also for dialogs of Pi extensions)
 - **Session list in order**: button in the header – sort by last activity, creation, name or folder; sections by
   date (today, yesterday, last 7 days, …), by folder or none
+- **Messages while Pi works**: Enter queues the message (Pi gets it when done), ⌥Enter puts it in between (before
+  Pi's next step); waiting messages stay visible above the input and can be switched, taken back or removed
 - **Versions of a message**: where branches part, "‹ 2/3 ›" under your message switches between the versions
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General

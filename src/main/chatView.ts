@@ -3,7 +3,7 @@
 import { emit } from "@tauri-apps/api/event";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { $, h, errMsg, toast } from "../shared/dom";
-import { cleanTitle, shortPath, thinkingLabel, withContext, withFiles } from "../shared/format";
+import { cleanTitle, shortPath, stripAnswerStyle, thinkingLabel, withContext, withFiles } from "../shared/format";
 import { hasAttachments, renderDock, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
 import { matchPreset, splitModelKey } from "../shared/presets";
@@ -11,6 +11,7 @@ import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
 import { isEditorOpen, reloadFiles, saveEditor } from "./files";
+import type { QueueItem, QueueWhen } from "./sessionTab";
 import { applyLayout, togglePanel } from "./layout";
 import { openMenu } from "./menu";
 import { cleanupDialog } from "./cleanup";
@@ -49,7 +50,7 @@ function renderSendButton() {
     mode === "stop"
       ? t("Stop (Esc)")
       : mode === "steer"
-        ? t("Steer: send while Pi is working (Enter)")
+        ? t("Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step")
         : t("Send (Enter)");
 }
 const elPreset = $("sel-preset") as HTMLSelectElement;
@@ -182,6 +183,7 @@ export function renderToolbar() {
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
+  renderQueue(tab);
   $("question-bar").hidden = !tab?.questions.length || tab.streaming;
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
@@ -303,6 +305,49 @@ function autoGrow() {
   elInput.classList.toggle("scrolls", want > max);
 }
 
+// ---------- Queue: messages waiting while Pi works ----------
+
+/** List above the input: each waiting message with "in between"/"after", switch, back into the input, remove */
+function renderQueue(tab: SessionTab | null) {
+  const bar = $("queue-bar");
+  const items: QueueItem[] = tab
+    ? [
+        ...tab.queue.steering.map((text) => ({ text, when: "steer" as const })),
+        ...tab.queue.followUp.map((text) => ({ text, when: "followUp" as const })),
+      ]
+    : [];
+  bar.hidden = !items.length;
+  if (!tab || !items.length) return bar.replaceChildren();
+  const edit = (fn: (list: QueueItem[]) => QueueItem[]) =>
+    tab.editQueue(fn).catch((e) => toast(`${t("Queue")}: ${errMsg(e)}`, "err"));
+  const same = (a: QueueItem, b: QueueItem) => a.text === b.text && a.when === b.when;
+  const act = (title: string, label: string, fn: () => void) =>
+    h("button", { type: "button", class: "msg-act", title, "aria-label": title, onclick: fn }, label);
+  bar.replaceChildren(
+    ...items.map((it) => {
+      const shown = stripAnswerStyle(it.text);
+      const other: QueueWhen = it.when === "steer" ? "followUp" : "steer";
+      return h(
+        "div",
+        { class: "queue-item", title: shown },
+        h("span", { class: `queue-when ${it.when}` }, it.when === "steer" ? t("in between") : t("after")),
+        h("span", { class: "queue-text" }, shown.replace(/\s+/g, " ")),
+        act(
+          it.when === "steer" ? t("Only after Pi is done") : t("In between: before Pi's next step"),
+          it.when === "steer" ? "⇣" : "⇡",
+          // steering messages come before follow-ups: moving one changes its place in the order
+          () => edit((list) => list.map((x) => (same(x, it) ? { ...x, when: other } : x))),
+        ),
+        act(t("Back into the input"), "✎", () => {
+          void edit((list) => list.filter((x) => !same(x, it)));
+          fillInput(shown);
+        }),
+        act(t("Remove"), "×", () => edit((list) => list.filter((x) => !same(x, it)))),
+      );
+    }),
+  );
+}
+
 /** Put a text into the input (earlier message to edit or reuse) */
 export function fillInput(text: string) {
   elInput.value = text;
@@ -311,7 +356,7 @@ export function fillInput(text: string) {
   elInput.setSelectionRange(text.length, text.length);
 }
 
-async function sendInput() {
+async function sendInput(when: QueueWhen = "followUp") {
   const tab = state.active;
   const text = elInput.value.trim();
   if ((!text && !hasAttachments()) || !tab || !tab.alive) return;
@@ -331,7 +376,7 @@ async function sendInput() {
     texts.length || images.length ? t("Have a look at the attached files.") : t("Have a look at the context.");
   const msg = withContext(withFiles(text || fallback, texts), refs);
   try {
-    await tab.send(msg, images);
+    await tab.send(msg, images, when);
   } catch (e) {
     toast(errMsg(e), "err");
     elInput.value = text;
@@ -348,7 +393,8 @@ export function wireChatView() {
     if (slashKey(e)) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      sendInput();
+      // while Pi works: Enter queues the message (after Pi is done), ⌥Enter puts it in between
+      sendInput(e.altKey ? "steer" : "followUp");
     }
   });
   elInput.addEventListener("input", autoGrow);

@@ -99,6 +99,8 @@ export interface UiRequest {
 
 export type PiEvent =
   | UiRequest
+  /** The queue of messages waiting while Pi works changed (complete lists) */
+  | { type: "queue_update"; steering?: string[]; followUp?: string[] }
   | { type: "agent_start" | "turn_start" | "agent_settled" }
   | { type: "message_start" | "message_end"; message?: PiMessage }
   | { type: "message_update"; assistantMessageEvent?: AssistantMessageEvent }
@@ -139,6 +141,9 @@ export interface PiRpcResults {
   switch_session: { cancelled?: boolean } | undefined;
   set_model: PiModel | undefined;
   prompt: { disposition?: string } | undefined;
+  steer: { disposition?: string } | undefined;
+  follow_up: { disposition?: string } | undefined;
+  clear_queue: { steering?: string[]; followUp?: string[] };
 }
 
 /** Result type of an RPC command; commands not listed above return nothing PiBar reads */
