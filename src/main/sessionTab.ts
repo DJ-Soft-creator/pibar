@@ -60,6 +60,13 @@ export interface BranchUndo {
   branchPath: string | null;
 }
 
+type Image = { data: string; mimeType: string };
+export type QueueWhen = "steer" | "followUp";
+export interface QueueItem {
+  text: string;
+  when: QueueWhen;
+}
+
 export interface TabCallbacks {
   onHandle: (tab: SessionTab) => void;
   onStateChange: (tab: SessionTab) => void;
@@ -369,17 +376,46 @@ export class SessionTab {
 
   // ---------- Actions ----------
 
-  async send(text: string, images: { data: string; mimeType: string }[] = []) {
+  /**
+   * Send a message. While Pi works it waits in Pi's queue: `when` = "followUp" (after Pi is done) or "steer" (in
+   * between, before Pi's next step). The queue is shown above the input (`queue`, chatView.ts renderQueue).
+   */
+  async send(text: string, images: Image[] = [], when: QueueWhen = "followUp") {
     this.questions = [];
     await this.settling.catch(() => {});
-    const cmd: { type: "prompt"; [key: string]: unknown } = {
-      type: "prompt",
-      message: withAnswerStyle(text, state.config.ui.answerMode),
-    };
+    const message = withAnswerStyle(text, state.config.ui.answerMode);
+    const cmd: { type: "prompt"; [key: string]: unknown } = { type: "prompt", message };
     if (images.length) cmd.images = images.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
-    if (this.streaming) cmd.streamingBehavior = "steer";
-    const res = await api.pi(this.handle, cmd);
-    if (res?.disposition === "queued") this.note(t("Message queued – Pi will see it after the current step."));
+    if (this.streaming) {
+      cmd.streamingBehavior = when;
+      if (images.length) this.queuedImages.set(message, images);
+    }
+    await api.pi(this.handle, cmd);
+  }
+
+  /** Messages waiting while Pi works (from Pi's queue_update): in between (steering) and after (followUp) */
+  queue: { steering: string[]; followUp: string[] } = { steering: [], followUp: [] };
+  /** Images of queued messages (Pi's queue only reports the text) */
+  private queuedImages = new Map<string, Image[]>();
+
+  /**
+   * Change Pi's queue: Pi can only clear it as a whole, so take everything out, apply `change` and queue the rest
+   * again in the new order. If Pi finished meanwhile, the first message starts a new run.
+   */
+  async editQueue(change: (items: QueueItem[]) => QueueItem[]) {
+    const r = await api.pi(this.handle, { type: "clear_queue" });
+    const items: QueueItem[] = [
+      ...(r.steering ?? []).map((text) => ({ text, when: "steer" as const })),
+      ...(r.followUp ?? []).map((text) => ({ text, when: "followUp" as const })),
+    ];
+    for (const it of change(items)) {
+      const imgs = this.queuedImages.get(it.text) ?? [];
+      const cmd: { type: "prompt"; [key: string]: unknown } = { type: "prompt", message: it.text };
+      if (imgs.length) cmd.images = imgs.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
+      if (this.streaming) cmd.streamingBehavior = it.when;
+      await api.pi(this.handle, cmd);
+      this.streaming = true; // from the first message on Pi works again
+    }
   }
 
   async abort() {
@@ -521,6 +557,12 @@ export class SessionTab {
       case "extension_ui_request":
         this.cb.onUiRequest(this, ev);
         break;
+      case "queue_update":
+        this.queue = { steering: ev.steering ?? [], followUp: ev.followUp ?? [] };
+        for (const k of this.queuedImages.keys())
+          if (!this.queue.steering.includes(k) && !this.queue.followUp.includes(k)) this.queuedImages.delete(k);
+        this.cb.onStateChange(this);
+        break;
       default:
         break;
     }
@@ -540,6 +582,7 @@ export class SessionTab {
     this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
     this.alive = false;
     this.streaming = false;
+    this.queue = { steering: [], followUp: [] };
     const box = h(
       "div",
       { class: "error" },
