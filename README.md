@@ -65,7 +65,10 @@ License
 - Left column grouped by host (local and SSH); start (optionally with a name right away), open, load history, several
   sessions in parallel
 - **Folder picker** for the working folder of a new session and for extra folders: browses the host (local and SSH),
-  up/home, new folder, hidden folders on request
+  up/home, new folder, hidden folders on request; "Remember as default folder" pre-fills it for the next new session
+  on that host (also in the quick bar)
+- **Tidy up** (archive box next to ↻): moves sessions into a collapsed "Archive" group at the end of the list – all or
+  only older ones, optionally also grouped or pinned ones; nothing is deleted, and the message offers "Undo"
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
 - **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
 - **Multi-select** with ⌘-click and ⇧-click: move, colour, pin, close or delete several sessions at once (bar at the

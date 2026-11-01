@@ -51,8 +51,27 @@ export function renderMarkdown(target: HTMLElement, text: string) {
   target.querySelectorAll("a").forEach((a) => a.setAttribute("target", "_blank"));
 }
 
-export function toast(msg: string, kind: "info" | "err" = "info", ms = 5000) {
+export function toast(
+  msg: string,
+  kind: "info" | "err" = "info",
+  ms = 5000,
+  action?: { label: string; run: () => void },
+) {
   const t = h("div", { class: `toast ${kind === "err" ? "err" : ""}` }, msg);
+  if (action)
+    t.append(
+      h(
+        "button",
+        {
+          class: "toast-act",
+          onclick: () => {
+            t.remove();
+            action.run();
+          },
+        },
+        action.label,
+      ),
+    );
   $("toasts").append(t);
   setTimeout(() => t.remove(), ms);
 }

@@ -1,6 +1,7 @@
 // Left column: hosts and sessions (pinned, in coloured groups, the rest); open, activate, close and create sessions.
 import { folderField } from "./folderPicker";
 import { hostMarks, markSeen, markSettled, sessionMark, sessionPill } from "./activity";
+import { ARCHIVE } from "./cleanup";
 import { api } from "../shared/api";
 import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
@@ -209,7 +210,9 @@ function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[]
     out.push(head, ...pinned.map((r) => sessionItem(r.ref, r.ts)));
   }
   const ids = new Set(groups().map((g) => g.id));
-  for (const g of groups()) {
+  // the archive always comes last
+  const ordered = [...groups().filter((g) => g.id !== ARCHIVE), ...groups().filter((g) => g.id === ARCHIVE)];
+  for (const g of ordered) {
     const inGroup = rest.filter((r) => meta(r.ref).group === g.id);
     // empty groups only show while dragging, so sessions can be dropped into them
     if (!inGroup.length) {
@@ -234,7 +237,7 @@ function sessionSections(rows: { ref: SessionRef; ts: string }[]): HTMLElement[]
     const box = h(
       "div",
       {
-        class: `group ${g.color ? `c-${g.color}` : ""} ${g.collapsed ? "collapsed" : ""}`,
+        class: `group ${g.color ? `c-${g.color}` : ""} ${g.collapsed ? "collapsed" : ""} ${g.id === ARCHIVE ? "archive" : ""}`,
         oncontextmenu: menu,
       },
       h(
@@ -562,11 +565,33 @@ export function newSessionDialog(hostId?: string) {
   const selHost = h("select", {}, ...hosts.map((x) => h("option", { value: x.id, selected: x.id === hostId }, x.name)));
   const inName = h("input", { type: "text", placeholder: t("optional, e.g. Release 1.5") }) as HTMLInputElement;
   const inDir = h("input", { type: "text", placeholder: t("~/project") }) as HTMLInputElement;
-  const setDefault = () => (inDir.value = hosts.find((x) => x.id === selHost.value)?.defaultDir || "~");
+  const hostOf = () => hosts.find((x) => x.id === selHost.value);
+  // "remember as default": the folder is pre-filled for the next new session on this host (also in the quick bar)
+  const remember = h("input", { type: "checkbox", style: "width:auto" }) as HTMLInputElement;
+  const rememberLabel = h("span", {});
+  const syncRemember = () => {
+    const host = hostOf();
+    const isDefault = (inDir.value.trim() || "~") === (host?.defaultDir || "~");
+    remember.checked = isDefault;
+    remember.disabled = isDefault;
+    rememberLabel.textContent = ` ${t("Remember as default folder for {host}", { host: host?.name ?? "" })}`;
+  };
+  const setDefault = () => {
+    inDir.value = hostOf()?.defaultDir || "~";
+    syncRemember();
+  };
   selHost.addEventListener("change", setDefault);
+  inDir.addEventListener("input", syncRemember);
+  inDir.addEventListener("change", syncRemember);
   setDefault();
   const go = async () => {
     close();
+    const host = hostOf();
+    const dir = inDir.value.trim() || "~";
+    if (host && remember.checked && !remember.disabled && host.defaultDir !== dir) {
+      host.defaultDir = dir;
+      saveConfig();
+    }
     const name = inName.value.trim();
     const tab = await openSession(selHost.value, null, inDir.value.trim() || "~", name || t("New session"));
     if (name && tab.alive) await nameNewSession(tab, name);
@@ -584,8 +609,9 @@ export function newSessionDialog(hostId?: string) {
         "div",
         { class: "row" },
         h("label", {}, t("Working folder")),
-        folderField(inDir, () => selHost.value),
+        folderField(inDir, () => selHost.value, syncRemember),
       ),
+      h("div", { class: "row" }, h("label", {}, ""), h("label", { class: "check" }, remember, rememberLabel)),
       h("p", { class: "hint" }, t("Pi starts in this folder. You can add more folders on the right afterwards.")),
     ),
     [

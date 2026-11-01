@@ -133,7 +133,7 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
 }
 
 /** Text field with a "…" button that opens the picker; `host` gives the host to browse */
-export function folderField(input: HTMLInputElement, host: () => string): HTMLElement {
+export function folderField(input: HTMLInputElement, host: () => string, onPick?: () => void): HTMLElement {
   const b = h(
     "button",
     {
@@ -144,6 +144,7 @@ export function folderField(input: HTMLInputElement, host: () => string): HTMLEl
         if (v) {
           input.value = v;
           input.focus();
+          onPick?.();
         }
       },
     },
