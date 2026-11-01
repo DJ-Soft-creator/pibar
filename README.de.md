@@ -42,7 +42,9 @@ MIT-Lizenz
   hier neu ausführen_ oder _bis hierher zurück_ (das Gespräch springt auf den Stand nach dieser Nachricht und ihrer
   Antwort). Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung:
   die ursprüngliche Session bleibt immer erhalten. Direkt danach führt eine Leiste **Rückgängig** zur vorherigen
-  Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_
+  Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_. Das gewählte Modell bleibt beim Verzweigen.
+- **Versionen einer Nachricht**: wo sich Verzweigungen trennen, wechselt „‹ 2/3 ›“ unter der eigenen Nachricht
+  zwischen den Versionen
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der
   aktuellen Session) oder Einstellungen → Allgemein
 - **Statuszeile unter der Eingabe**, wie Pis Fußzeile und mit Pis Zahlen: `↑` Eingabe, `↓` Ausgabe, `R` aus dem Cache
@@ -100,6 +102,8 @@ MIT-Lizenz
 - Optional **Git-Status** (Einstellungen → Allgemein): für den Session-Ordner und für Repositories in seinen
   Unterordnern Branch, nicht gepushte (↑) oder zu holende Commits (↓) und Änderungen; ein kleiner Buchstabe an
   geänderten Dateien (M, A, U, D)
+- **Neu laden** (↻ im Kopf der Spalte oder ⌘⇧R): Baum, Git-Status und die offene Datei (wenn unverändert); auch
+  automatisch nach jeder Antwort und wenn man zu PiBar zurückkehrt
 
 ### Layout
 
@@ -113,8 +117,10 @@ MIT-Lizenz
 
 - Doppeltipp ⌥⌥ (macOS, Taste wählbar) oder ⌥⇧Leertaste (änderbar in den Einstellungen)
 - Breite Eingabezeile; Ziel darunter: aktuelle Session, neue Session auf einem Host, angepinnte oder letzte Sessions
-- Preset oder Modell und Denkaufwand, minimalistisch
+- Preset oder Modell und Denkaufwand, minimalistisch; bei einer bestehenden Session bleibt deren Modell, außer man wählt
+  eins
 - Mikrofon- und Verbessern-Knopf (wenn in den Einstellungen eingerichtet)
+- Dateien anhängen: Büroklammer (Bilder und Textdateien, auch per Einfügen)
 - Screenshot: Kamera-Symbol oder ⌘⇧2 = Bereich ziehen, ⇧-Klick = ganzer Bildschirm; senden als **Bild**, **Text (OCR)**
   oder **beides**
 - Verschiebbar; die Position wird gemerkt

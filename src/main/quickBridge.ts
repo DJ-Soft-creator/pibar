@@ -2,7 +2,7 @@
 import { emit } from "@tauri-apps/api/event";
 import { api, QuickSubmit } from "../shared/api";
 import { errMsg, toast } from "../shared/dom";
-import { withScreenText } from "../shared/format";
+import { withFiles, withScreenText } from "../shared/format";
 import { t } from "../shared/i18n";
 import type { SessionTab } from "./sessionTab";
 import { activate, openSession } from "./sessions";
@@ -37,5 +37,5 @@ export async function handleQuick(q: QuickSubmit) {
     await tab.setModel(q.model.provider, q.model.id).catch((e) => toast(`${t("Model")}: ${errMsg(e)}`, "err"));
   if (q.thinking) await tab.setThinking(q.thinking).catch((e) => toast(`${t("Thinking")}: ${errMsg(e)}`, "err"));
   tab.readNext = true; // auto read (Settings → Voice: "answers to quick bar messages")
-  await tab.send(withScreenText(q.text, q.ocr), q.images);
+  await tab.send(withFiles(withScreenText(q.text, q.ocr), q.files ?? []), q.images);
 }

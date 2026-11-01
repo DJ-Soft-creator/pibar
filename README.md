@@ -40,7 +40,8 @@ License
   or _go back to here_ (the conversation returns to the state after that message and its answer). Each of these only
   happens after you confirm (_Cancel_ or Esc leaves everything as it is) and works in a new branch: the original
   session always stays. Right after it an **Undo** bar takes you back to the previous version. Also _use as new
-  message_ or _copy_
+  message_ or _copy_. The model you chose stays when branching.
+- **Versions of a message**: where branches part, "‹ 2/3 ›" under your message switches between the versions
 - **Default model** for new sessions: star in the header (takes the current session's model and thinking level or
   preset) or Settings → General
 - **Status line under the input**, as in Pi's footer and with Pi's numbers: `↑` input, `↓` output, `R` cache read
@@ -91,6 +92,8 @@ License
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
 - Optional **Git status** (Settings → General): for the session folder and for repositories in its subfolders the
   branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)
+- **Reload** (↻ in the panel header or ⌘⇧R): tree, Git status and the open file (if unchanged); also automatically
+  after each answer and when you come back to PiBar
 
 ### Layout
 
@@ -104,8 +107,10 @@ License
 
 - Double tap ⌥⌥ (macOS, key selectable) or shortcut ⌥⇧Space (changeable in the settings)
 - Wide input line; target below: current session, new session on a host, pinned or recent sessions
-- Preset or model and thinking level, minimal
+- Preset or model and thinking level, minimal; for an existing session it keeps the session's model unless you pick
+  one
 - Microphone and "improve" buttons (when set up in the settings)
+- Attach files: paperclip (images and text files, also by pasting)
 - Screenshot: camera icon or ⌘⇧2 = drag an area, ⇧-click = whole screen; send as **image**, **text (OCR)** or **both**
 - Movable; the position is remembered
 

@@ -10,6 +10,7 @@ import { splitModelKey } from "../shared/presets";
 import { t } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, reloadFiles, renderFiles } from "./files";
+import { refreshBranches } from "./branchNav";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
 import {
@@ -390,7 +391,7 @@ async function onUserAction(tab: SessionTab, index: number, action: UserAction, 
     if (text === null) return;
     rekey(tab, before, true);
     tab.undo = fromPath ? { fromPath, branchPath: tab.sessionPath } : null;
-    loadSessions(tab.hostId);
+    loadSessions(tab.hostId).then(() => updateBranches(tab));
     renderHosts();
     renderToolbar();
     if (action === "rewind") return;
@@ -414,6 +415,42 @@ async function nameNewSession(tab: SessionTab, name: string) {
   renderHosts();
 }
 
+// ---------- Versions of a message (branches) ----------
+
+/** "‹ 2/3 ›" under own messages that exist in other branches (src/main/branchNav.ts) */
+async function updateBranches(tab: SessionTab) {
+  try {
+    await refreshBranches(tab, (choice, index) => switchBranch(tab, choice.path, index));
+  } catch {
+    /* without the overview the chat works as before */
+  }
+}
+
+/** Show another version (branch file) in this tab, at the same message; model and thinking level stay */
+async function switchBranch(tab: SessionTab, path: string, index: number) {
+  const open = state.tabs.get(`${tab.hostId}|${path}`);
+  if (open && open !== tab) {
+    activate(open);
+    open.scrollToUser(index);
+    return;
+  }
+  if (tab.streaming) return toast(t("Pi is still working – switch versions when it is done."), "err");
+  try {
+    const before = tab.key;
+    if (!(await tab.switchTo(path))) return;
+    tab.undo = null;
+    state.tabs.delete(before);
+    state.tabs.set(tab.key, tab);
+    renderHosts();
+    renderToolbar();
+    renderFiles();
+    await updateBranches(tab);
+    tab.scrollToUser(index);
+  } catch (e) {
+    toast(`${t("Branch")}: ${errMsg(e)}`, "err");
+  }
+}
+
 /** Undo the last branch / "go back": return to the previous session file and delete the branch */
 export async function undoBranch(tab: SessionTab) {
   const u = tab.undo;
@@ -435,6 +472,7 @@ export async function undoBranch(tab: SessionTab) {
       saveConfig();
     }
     await loadSessions(tab.hostId);
+    void updateBranches(tab);
     renderToolbar();
     toast(t("Undone – back to the previous version."));
   } catch (e) {
@@ -487,6 +525,7 @@ const tabCallbacks: TabCallbacks = {
       x.pendingName = "";
     }
     await loadSessions(x.hostId);
+    void updateBranches(x);
     const info = state.sessionsByHost.get(x.hostId)?.find((s) => s.path === x.sessionPath);
     if (info && (x.title === t("New session") || !x.title)) x.title = info.name || info.title;
     if (x === state.active) renderToolbar();
@@ -507,6 +546,7 @@ export async function openSession(
   try {
     await tab.start(tabCallbacks.onHandle);
     if (!path) await applyDefaults(tab);
+    else void updateBranches(tab);
   } catch (e) {
     // If Pi exits right away, onExit shows the exact message (stderr)
     if (tab.alive) await new Promise((r) => setTimeout(r, 300));

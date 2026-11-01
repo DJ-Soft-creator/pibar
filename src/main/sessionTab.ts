@@ -1,5 +1,6 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, PiCommand, PiModel } from "../shared/api";
+import type { BranchChoice } from "../shared/branches";
 import type {
   AssistantMessage,
   Content,
@@ -245,16 +246,47 @@ export class SessionTab {
    * there; the original session stays unchanged. Shows the new branch and returns the message text.
    */
   async forkAt(entryId: string): Promise<string | null> {
-    const r = await api.pi(this.handle, { type: "fork", entryId });
-    if (r?.cancelled) return null;
-    const st = await api.pi(this.handle, { type: "get_state" });
-    this.sessionPath = (st.messageCount ?? 0) > 0 ? (st.sessionFile ?? null) : null;
-    this.model = st.model ?? this.model;
-    this.thinkingLevel = st.thinkingLevel ?? this.thinkingLevel;
-    this.clearView();
-    if (this.sessionPath) await this.loadHistory();
+    return this.keepModel(async () => {
+      const r = await api.pi(this.handle, { type: "fork", entryId });
+      if (r?.cancelled) return null;
+      const st = await api.pi(this.handle, { type: "get_state" });
+      this.sessionPath = (st.messageCount ?? 0) > 0 ? (st.sessionFile ?? null) : null;
+      this.model = st.model ?? this.model;
+      this.thinkingLevel = st.thinkingLevel ?? this.thinkingLevel;
+      this.clearView();
+      if (this.sessionPath) await this.loadHistory();
+      this.cb.onStateChange(this);
+      return r?.text ?? "";
+    });
+  }
+
+  /**
+   * Pi takes model and thinking level from the history when it loads a session file (fork, switch to a branch):
+   * that is the model used at that point back then, not the one chosen now. Keep the current choice.
+   */
+  private async keepModel<T>(fn: () => Promise<T>): Promise<T> {
+    const model = this.model;
+    const thinking = this.thinkingLevel;
+    const result = await fn();
+    if (!this.alive) return result;
+    if (model && (this.model?.provider !== model.provider || this.model?.id !== model.id)) {
+      try {
+        const m = await api.pi(this.handle, { type: "set_model", provider: model.provider, modelId: model.id });
+        this.model = m ?? model;
+      } catch (e) {
+        toast(`${t("Model")}: ${errMsg(e)}`, "err");
+      }
+    }
+    if (thinking && this.thinkingLevel !== thinking) {
+      try {
+        await api.pi(this.handle, { type: "set_thinking_level", level: thinking });
+        this.thinkingLevel = thinking;
+      } catch {
+        /* the model may not support this level */
+      }
+    }
     this.cb.onStateChange(this);
-    return r?.text ?? "";
+    return result;
   }
 
   /** Undo for the last branch or "go back" (shown as a bar above the input), null = nothing to undo */
@@ -262,14 +294,16 @@ export class SessionTab {
 
   /** Switch this Pi process to another session file (RPC switch_session) and show it */
   async switchTo(path: string): Promise<boolean> {
-    const r = await api.pi(this.handle, { type: "switch_session", sessionPath: path });
-    if (r?.cancelled) return false;
-    await this.refreshState();
-    this.sessionPath = path;
-    this.clearView();
-    await this.loadHistory();
-    this.cb.onStateChange(this);
-    return true;
+    return this.keepModel(async () => {
+      const r = await api.pi(this.handle, { type: "switch_session", sessionPath: path });
+      if (r?.cancelled) return false;
+      await this.refreshState();
+      this.sessionPath = path;
+      this.clearView();
+      await this.loadHistory();
+      this.cb.onStateChange(this);
+      return true;
+    });
   }
 
   /** Stop the Pi process. The session file stays and can be reopened. */
@@ -613,7 +647,62 @@ export class SessionTab {
       act("insert", t("Use as new message"), () => this.cb.onUserAction(this, index, "reuse", text)),
       act("copy", t("Copy"), () => this.cb.onUserAction(this, index, "copy", text)),
     );
-    this.el.append(h("div", { class: "msg user" }, bubble, timeLabel(ts), panel, acts));
+    this.el.append(
+      h("div", { class: "msg user", "data-user-index": String(index) }, bubble, timeLabel(ts), panel, acts),
+    );
+  }
+
+  // ---------- Versions of a message (branches, src/main/branchNav.ts) ----------
+
+  /** Number of own messages shown in this chat */
+  get userMessages(): number {
+    return this.userCount;
+  }
+
+  /**
+   * "‹ 2/3 ›" under own messages that exist in other versions (branches). `versions`: position among Pi's fork points →
+   * versions; `offset`: fork points not shown in the chat (e.g. compacted away). `pick` switches to a version.
+   */
+  showBranches(
+    versions: Map<number, BranchChoice[]>,
+    offset: number,
+    pick: (choice: BranchChoice, index: number) => void,
+  ) {
+    this.el.querySelectorAll(".branch-nav").forEach((n) => n.remove());
+    for (const [k, list] of versions) {
+      const index = k - offset;
+      const msg = this.el.querySelector<HTMLElement>(`.msg.user[data-user-index="${index}"]`);
+      const cur = list.findIndex((c) => c.current);
+      if (!msg || cur < 0) continue;
+      const go = (to: number) => () => list[to] && pick(list[to], index);
+      const tip = list.map((c, i) => `${i + 1}. ${c.current ? "▸ " : ""}${c.text}`).join("\n");
+      const nav = h(
+        "div",
+        { class: "branch-nav", title: `${t("Versions of this message")}\n${tip}` },
+        h("button", { class: "msg-act", disabled: cur === 0, title: t("Previous version"), onclick: go(cur - 1) }, "‹"),
+        h("span", { class: "branch-count" }, `${cur + 1}/${list.length}`),
+        h(
+          "button",
+          {
+            class: "msg-act",
+            disabled: cur === list.length - 1,
+            title: t("Next version"),
+            onclick: go(cur + 1),
+          },
+          "›",
+        ),
+      );
+      msg.querySelector(".bubble")?.after(nav);
+    }
+  }
+
+  /** Bring an own message into view (after switching to another version of it) */
+  scrollToUser(index: number) {
+    const msg = this.el.querySelector<HTMLElement>(`.msg.user[data-user-index="${index}"]`);
+    if (!msg) return;
+    msg.scrollIntoView({ block: "center" });
+    msg.classList.add("flash");
+    setTimeout(() => msg.classList.remove("flash"), 1200);
   }
 
   /**

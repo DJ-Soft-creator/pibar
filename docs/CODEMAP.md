@@ -61,7 +61,7 @@ flowchart LR
 | [`config.rs`](../src-tauri/src/config.rs) | Settings as JSON in the app config folder; kept in memory, saved atomically, a damaged file is backed up ([`read_from`](../src-tauri/src/config.rs), [`write_atomic`](../src-tauri/src/config.rs), [`take_load_error`](../src-tauri/src/config.rs)) | [`AppConfig`](../src-tauri/src/config.rs), [`HostCfg`](../src-tauri/src/config.rs), [`UiPrefs`](../src-tauri/src/config.rs), [`VoiceCfg`](../src-tauri/src/config.rs), [`SessionMeta`](../src-tauri/src/config.rs), [`SessionGroup`](../src-tauri/src/config.rs), [`Reminder`](../src-tauri/src/config.rs), [`ModelPreset`](../src-tauri/src/config.rs), [`load`](../src-tauri/src/config.rs), [`find_host`](../src-tauri/src/config.rs) |
 | [`hostexec.rs`](../src-tauri/src/hostexec.rs) | Shell commands locally or over SSH; quoting | [`run_shell`](../src-tauri/src/hostexec.rs), [`spawn_pi`](../src-tauri/src/hostexec.rs), [`user_env`](../src-tauri/src/hostexec.rs), [`shell_command`](../src-tauri/src/hostexec.rs), [`sq`](../src-tauri/src/hostexec.rs), [`shell_path`](../src-tauri/src/hostexec.rs) |
 | [`pi.rs`](../src-tauri/src/pi.rs) | One Pi process per open session, match RPC responses, forward events; waiting calls fail at once when Pi ends, ended processes are reaped | [`PiManager`](../src-tauri/src/pi.rs), [`pump`](../src-tauri/src/pi.rs), [`PiManager::open`](../src-tauri/src/pi.rs), [`PiManager::send`](../src-tauri/src/pi.rs), [`PiManager::close`](../src-tauri/src/pi.rs) |
-| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions`; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
+| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions` (incl. `parent` of a branch); user messages per file for the versions of a message; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`outlines`](../src-tauri/src/sessions.rs), [`parse_outlines`](../src-tauri/src/sessions.rs), [`SessionOutline`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
 | [`files.rs`](../src-tauri/src/files.rs) | List, read, write and create Markdown files (only Markdown paths, [`check_markdown_path`](../src-tauri/src/files.rs)); flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
 | [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`hotkey_status`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
@@ -79,6 +79,7 @@ flowchart LR
 | [`sessions.ts`](../src/main/sessions.ts) | Left column; open, activate and close sessions; "New session" | [`renderHosts`](../src/main/sessions.ts), [`openSession`](../src/main/sessions.ts), [`activate`](../src/main/sessions.ts), [`closeSession`](../src/main/sessions.ts), [`loadSessions`](../src/main/sessions.ts), [`newSessionDialog`](../src/main/sessions.ts) |
 | [`reminders.ts`](../src/main/reminders.ts) | Reminders on sessions: dialog, list at the top left, notifications | [`reminderDialog`](../src/main/reminders.ts), [`presetTimes`](../src/main/reminders.ts), [`renderReminders`](../src/main/reminders.ts), [`openReminder`](../src/main/reminders.ts), [`startReminderClock`](../src/main/reminders.ts) |
 | [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
+| [`branchNav.ts`](../src/main/branchNav.ts) | Versions of a message: "‹ 2/3 ›" under own messages that exist in other branches | [`refreshBranches`](../src/main/branchNav.ts), [`SessionTab.showBranches`](../src/main/sessionTab.ts), [`SessionTab.scrollToUser`](../src/main/sessionTab.ts), [`switchBranch`](../src/main/sessions.ts) |
 | [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, theme), chat area, input, shortcuts | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts) |
 | [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts) |
 | [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
@@ -101,9 +102,11 @@ flowchart LR
 
 | File | Responsibility | Key symbols |
 | --- | --- | --- |
-| [`quick/index.ts`](../src/quick/index.ts) | Input, target, preset or model/thinking, screenshot/OCR, send | [`submit`](../src/quick/index.ts), [`takeShot`](../src/quick/index.ts), [`runOcr`](../src/quick/index.ts), [`renderTargets`](../src/quick/index.ts), [`renderPresets`](../src/quick/index.ts), [`renderModels`](../src/quick/index.ts), [`fit`](../src/quick/index.ts) |
+| [`quick/index.ts`](../src/quick/index.ts) | Input, target, preset or model/thinking, attached files, screenshot/OCR, send | [`submit`](../src/quick/index.ts), [`addFiles`](../src/quick/index.ts), [`keepSession`](../src/quick/index.ts), [`takeShot`](../src/quick/index.ts), [`runOcr`](../src/quick/index.ts), [`renderTargets`](../src/quick/index.ts), [`renderPresets`](../src/quick/index.ts), [`renderModels`](../src/quick/index.ts), [`fit`](../src/quick/index.ts) |
 | [`shared/api.ts`](../src/shared/api.ts) | Types and `invoke` calls into the Rust core | [`api`](../src/shared/api.ts), [`QuickSubmit`](../src/shared/api.ts), [`AppConfig`](../src/shared/api.ts), [`Reminder`](../src/shared/api.ts) |
 | [`shared/piProtocol.ts`](../src/shared/piProtocol.ts) | Types of Pi's RPC protocol: events, messages, content parts, answers per command (`api.pi` returns the matching type) | [`PiEvent`](../src/shared/piProtocol.ts), [`PiMessage`](../src/shared/piProtocol.ts), [`ContentPart`](../src/shared/piProtocol.ts), [`PiRpcResults`](../src/shared/piProtocol.ts), [`PiSessionStats`](../src/shared/piProtocol.ts) |
+| [`shared/branches.ts`](../src/shared/branches.ts) | Where branches part: related sessions via `parent`, versions per message by comparing entry ids (tested) | [`branchFamily`](../src/shared/branches.ts), [`branchesAt`](../src/shared/branches.ts) |
+| [`shared/attach.ts`](../src/shared/attach.ts) | Read attached files (main window and quick bar): images as images, text files as text | [`readAttachment`](../src/shared/attach.ts) |
 | [`shared/i18n.ts`](../src/shared/i18n.ts) | Translations: English text is the key, German dictionary; tested in `i18n.test.ts` | [`t`](../src/shared/i18n.ts), [`setLang`](../src/shared/i18n.ts), [`resolveLang`](../src/shared/i18n.ts), [`translateDom`](../src/shared/i18n.ts), [`LANGUAGES`](../src/shared/i18n.ts) |
 | [`shared/dom.ts`](../src/shared/dom.ts) | Element builder, Markdown (marked + DOMPurify), toasts, modals | [`h`](../src/shared/dom.ts), [`renderMarkdown`](../src/shared/dom.ts), [`openModal`](../src/shared/dom.ts) |
 | [`shared/presets.ts`](../src/shared/presets.ts) | Pure preset logic, tested in `presets.test.ts` | [`matchPreset`](../src/shared/presets.ts), [`cleanPresets`](../src/shared/presets.ts), [`splitModelKey`](../src/shared/presets.ts) |
@@ -232,11 +235,23 @@ the bar above the input calls [`undoBranch`](../src/main/sessions.ts): [`Session
 branch ends the undo. "Use as new message"
 puts the text into the input ([`fillInput`](../src/main/chatView.ts)).
 
+When Pi loads a session file (fork, switch) it takes model and thinking level from that point of the history, i.e. the
+model used back then. `keepModel` in [`SessionTab`](../src/main/sessionTab.ts) sets the model chosen before again.
+
+Versions of a message: Pi's fork keeps the entry ids of the shared history and writes `parentSession` into the
+header. [`refreshBranches`](../src/main/branchNav.ts) takes the related sessions ([`branchFamily`](../src/shared/branches.ts)),
+reads their user messages (`session_outlines`) and compares them with the fork points of the open session
+([`branchesAt`](../src/shared/branches.ts)). Where they part, [`SessionTab.showBranches`](../src/main/sessionTab.ts) shows
+"‹ 2/3 ›" under the message; a click calls [`switchBranch`](../src/main/sessions.ts), which switches the tab to that file
+and scrolls to the same message.
+
 ### Default model for new sessions
 
 `ui.defaultPreset` or `ui.defaultModel` + `ui.defaultThinking`, set with the star in the header
 ([`renderToolbar`](../src/main/chatView.ts)) or in the settings. [`openSession`](../src/main/sessions.ts) applies it to
-new sessions ([`applyDefaults`](../src/main/sessions.ts)); the quick bar shows it as "Model: default (…)".
+new sessions ([`applyDefaults`](../src/main/sessions.ts)); the quick bar shows it as "Model: default (…)". For an
+existing session the quick bar keeps the session's model ("Model: as in the session") unless something is picked in
+the bar right then ([`keepSession`](../src/quick/index.ts)).
 
 ### Tool dock, attachments and tools
 
@@ -319,6 +334,7 @@ A new command needs both.
 | `set_language` | Language for messages from Rust and the tray menu |
 | `test_host`, `list_sessions`, `list_models` | Check a host, list sessions and models |
 | `delete_sessions` | Delete session files (paths must lie in Pi's `sessions` folder) |
+| `session_outlines` | User messages (entry ids) of session files, for the versions of a message |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
 | `list_files`, `read_file`, `write_file`, `create_file`, `create_dir` | Markdown files and folders |
 | `list_dirs` | Subfolders of a folder on the host, for the folder picker |

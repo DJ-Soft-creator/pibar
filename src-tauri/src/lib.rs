@@ -73,6 +73,17 @@ async fn delete_sessions(app: AppHandle, host_id: String, paths: Vec<String>) ->
     tauri::async_runtime::spawn_blocking(move || sessions::delete(&host, &paths)).await.map_err(|e| e.to_string())?
 }
 
+/// User messages (entry ids) of session files, to show where branches part (src/main/branchNav.ts)
+#[tauri::command]
+async fn session_outlines(
+    app: AppHandle,
+    host_id: String,
+    paths: Vec<String>,
+) -> Result<Vec<sessions::SessionOutline>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || sessions::outlines(&host, &paths)).await.map_err(|e| e.to_string())?
+}
+
 // ---------- Pi processes ----------
 
 #[tauri::command]
@@ -337,6 +348,7 @@ pub fn run() {
             test_host,
             list_sessions,
             delete_sessions,
+            session_outlines,
             list_models,
             pi_open,
             pi_send,
