@@ -167,6 +167,61 @@ export function fmtTokens(n: number): string {
   return n >= 1000 ? t("{n}k tok.", { n: (n / 1000).toFixed(1) }) : t("{n} tok.", { n });
 }
 
+/** Token count like Pi's footer: 950, 4.2k, 45k, 1.2M */
+export function piTokens(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 10_000) return `${(n / 1000).toFixed(1)}k`;
+  if (n < 1_000_000) return `${Math.round(n / 1000)}k`;
+  if (n < 10_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  return `${Math.round(n / 1_000_000)}M`;
+}
+
+/** Numbers of the status line under the input (Pi's get_session_stats) */
+export interface FooterStats {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cost: number;
+  /** Context use in percent, null = unknown */
+  contextPercent: number | null;
+  contextWindow: number;
+}
+
+/** One part of the status line */
+export interface FooterPart {
+  text: string;
+  /** Tooltip key (translated by the caller) */
+  hint: "input" | "output" | "cacheRead" | "cacheWrite" | "cost" | "context";
+  level?: "warn" | "hot";
+}
+
+/** Share of the prompt tokens served from the cache, in percent (null without cache reads) */
+export function cacheShare(s: Pick<FooterStats, "input" | "cacheRead" | "cacheWrite">): number | null {
+  const prompt = s.input + s.cacheRead + s.cacheWrite;
+  return s.cacheRead && prompt ? Math.round((s.cacheRead / prompt) * 100) : null;
+}
+
+/** Pi's footer "↑12k ↓3.4k R45k W2k $0.123 23.4%/200k", plus the cache share after R */
+export function footerParts(s: FooterStats): FooterPart[] {
+  const parts: FooterPart[] = [];
+  if (s.input) parts.push({ text: `↑${piTokens(s.input)}`, hint: "input" });
+  if (s.output) parts.push({ text: `↓${piTokens(s.output)}`, hint: "output" });
+  if (s.cacheRead) {
+    const share = cacheShare(s);
+    parts.push({ text: `R${piTokens(s.cacheRead)}${share === null ? "" : ` (${share}%)`}`, hint: "cacheRead" });
+  }
+  if (s.cacheWrite) parts.push({ text: `W${piTokens(s.cacheWrite)}`, hint: "cacheWrite" });
+  if (s.cost) parts.push({ text: `$${s.cost.toFixed(3)}`, hint: "cost" });
+  const pct = s.contextPercent;
+  parts.push({
+    text: `${pct === null ? "?" : pct.toFixed(1) + "%"}/${piTokens(s.contextWindow)}`,
+    hint: "context",
+    level: pct !== null && pct > 90 ? "hot" : pct !== null && pct > 70 ? "warn" : undefined,
+  });
+  return parts;
+}
+
 /** Tokens per second, rounded; null without a measurable duration */
 export function tokensPerSecond(tokens: number, ms: number): number | null {
   if (!tokens || ms < 50) return null;

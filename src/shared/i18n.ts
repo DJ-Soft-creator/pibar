@@ -337,6 +337,12 @@ const de = {
   "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Choose folder": "Ordner auswählen",
+  "Input tokens": "Eingabe-Token",
+  "Output tokens": "Ausgabe-Token",
+  "Read from the cache (share of the input in %)": "Aus dem Cache gelesen (Anteil an der Eingabe in %)",
+  "Written to the cache": "In den Cache geschrieben",
+  "Cost of the session": "Kosten der Session",
+  "Context used / context window": "Belegter Kontext / Kontextfenster",
   "The new model applies from the next message; the running answer keeps the old one.":
     "Das neue Modell gilt ab der nächsten Nachricht; die laufende Antwort nutzt noch das alte.",
   "Double tap: macOS permission missing. System Settings → Privacy & Security → Input Monitoring: remove PiBar (−), add it again, restart PiBar.":

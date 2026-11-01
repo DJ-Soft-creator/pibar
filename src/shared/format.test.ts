@@ -110,3 +110,40 @@ describe("attached files", () => {
   it("keeps messages without files", () => expect(splitFiles("Hi").files).toEqual([]));
   it("removes file blocks from titles", () => expect(cleanTitle('Review <file name="x.ts">code')).toBe("Review"));
 });
+
+describe("status line like Pi's footer", () => {
+  it("piTokens", async () => {
+    const { piTokens } = await import("./format");
+    expect([950, 4200, 45_400, 1_230_000, 12_000_000].map(piTokens)).toEqual(["950", "4.2k", "45k", "1.2M", "12M"]);
+  });
+  it("footerParts with cache share and context levels", async () => {
+    const { footerParts } = await import("./format");
+    const base = {
+      input: 2000,
+      output: 3400,
+      cacheRead: 45_000,
+      cacheWrite: 3000,
+      cost: 0.1234,
+      contextWindow: 200_000,
+    };
+    const p = footerParts({ ...base, contextPercent: 23.44 });
+    expect(p.map((x) => x.text)).toEqual(["↑2.0k", "↓3.4k", "R45k (90%)", "W3.0k", "$0.123", "23.4%/200k"]);
+    expect(p[5].level).toBeUndefined();
+    expect(footerParts({ ...base, contextPercent: 75 })[5].level).toBe("warn");
+    expect(footerParts({ ...base, contextPercent: 95 })[5].level).toBe("hot");
+    expect(footerParts({ ...base, contextPercent: null })[5].text).toBe("?/200k");
+  });
+  it("leaves out empty counters", async () => {
+    const { footerParts } = await import("./format");
+    const p = footerParts({
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: 0,
+      contextPercent: 0,
+      contextWindow: 128_000,
+    });
+    expect(p.map((x) => x.text)).toEqual(["0.0%/128k"]);
+  });
+});

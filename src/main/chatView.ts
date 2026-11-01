@@ -15,7 +15,7 @@ import { applyLayout, togglePanel } from "./layout";
 import { openMenu } from "./menu";
 import { displayTitle } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
-import { usageSummary, wireUsage } from "./usageStats";
+import { renderUsage, wireUsage } from "./usageStats";
 import type { SessionTab } from "./sessionTab";
 import { closeSession, defaultHostId, loadAllSessions, newSessionDialog, undoBranch } from "./sessions";
 import { settingsDialog } from "./settings";
@@ -62,6 +62,7 @@ const elSlash = $("btn-slash") as HTMLButtonElement;
 const elMic = $("btn-mic") as HTMLButtonElement;
 const elImprove = $("btn-improve") as HTMLButtonElement;
 const elUsage = $("usage");
+const elUsageModel = $("usage-model");
 const elDefault = $("btn-default") as HTMLButtonElement;
 const elTbSession = $("tb-session");
 const elAddFolder = $("btn-add-folder") as HTMLButtonElement;
@@ -227,7 +228,7 @@ export function renderToolbar() {
   $("fld-model").hidden = !individual;
   $("fld-thinking").hidden = !individual;
 
-  elUsage.textContent = usageSummary(tab);
+  renderUsage(elUsage, elUsageModel, tab);
 
   // Star: model/preset of this session as default for new sessions
   const isDefault = !!tab && isSessionDefault(tab.presetId ?? choice, cur, tab.thinkingLevel);

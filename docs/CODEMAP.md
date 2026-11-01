@@ -88,7 +88,7 @@ flowchart LR
 | [`voiceSettings.ts`](../src/main/voiceSettings.ts) | Settings section "Voice": dictation, read aloud, text improvement | [`voiceEditor`](../src/main/voiceSettings.ts) |
 | [`composerTools.ts`](../src/main/composerTools.ts) | Tool dock at the input (fades in near the mouse): attach files, screenshot, skills, tools of a session; attachment chips | [`wireComposerTools`](../src/main/composerTools.ts), [`addFiles`](../src/main/composerTools.ts), [`takeAttachments`](../src/main/composerTools.ts), [`renderDock`](../src/main/composerTools.ts) |
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
-| [`usageStats.ts`](../src/main/usageStats.ts) | Token info in the header and its hover panel (counters, speed, context) | [`usageSummary`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
+| [`usageStats.ts`](../src/main/usageStats.ts) | Status line under the input like Pi's footer, and its hover panel (counters, speed, context) | [`renderUsage`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
 | [`folderPicker.ts`](../src/main/folderPicker.ts) | Folder picker for local and SSH hosts (new session, add folder) | [`pickFolder`](../src/main/folderPicker.ts), [`folderField`](../src/main/folderPicker.ts), [`tildePath`](../src/main/folderPicker.ts) |
 | [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`folderMenu`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
 | [`settings.ts`](../src/main/settings.ts) | Settings dialog: language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
@@ -249,8 +249,11 @@ expands itself when the prompt is sent.
 ### Token statistics
 
 [`SessionTab.measure`](../src/main/sessionTab.ts) times each live answer (first token → `message_end`) and adds usage to
-[`TabStats`](../src/main/sessionTab.ts). [`usageSummary`](../src/main/usageStats.ts) is the header text; on hover
-[`wireUsage`](../src/main/usageStats.ts) shows the panel and refreshes it with Pi's `get_session_stats`.
+[`TabStats`](../src/main/sessionTab.ts). [`SessionTab.refreshStats`](../src/main/sessionTab.ts) loads Pi's
+`get_session_stats` (at start, after each answer, after a model change). [`renderUsage`](../src/main/usageStats.ts) draws
+the status line under the input in the format of Pi's footer ([`footerParts`](../src/shared/format.ts): ↑ input,
+↓ output, R cache read with its share of the input in %, W cache write, cost, context %/window), with model and thinking
+level on the right; on hover [`wireUsage`](../src/main/usageStats.ts) shows the panel.
 
 ### Layout and colour scheme
 
