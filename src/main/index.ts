@@ -50,6 +50,10 @@ async function init() {
   wireActivity();
   window.addEventListener("pibar-activity", () => renderHosts());
   warnQuickBar();
+  api
+    .configLoadError()
+    .then((e) => e && toast(e, "err", 30000))
+    .catch(() => {});
   await loadAllSessions();
 }
 

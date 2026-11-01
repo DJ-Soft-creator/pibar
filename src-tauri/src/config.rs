@@ -4,7 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 use crate::i18n::tr;
@@ -365,18 +368,95 @@ fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(dir.join("config.json"))
 }
 
-pub fn load(app: &AppHandle) -> AppConfig {
-    let Ok(path) = config_path(app) else { return AppConfig::default() };
-    match std::fs::read_to_string(&path) {
-        Ok(s) => serde_json::from_str(&s).unwrap_or_default(),
-        Err(_) => AppConfig::default(),
+/// Settings in memory (read from disk once), so commands do not parse the file again on every call
+static CACHE: Mutex<Option<AppConfig>> = Mutex::new(None);
+/// Why the settings file could not be read at start (shown once by the UI), None = all fine
+static LOAD_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Read the settings file. A missing file gives the defaults. A broken file is first copied to
+/// `config.json.broken-<unix seconds>`, so the next save cannot destroy the user's hosts and sessions;
+/// the second value then says what happened.
+pub fn read_from(path: &Path) -> (AppConfig, Option<String>) {
+    let text = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (AppConfig::default(), None),
+        Err(e) => {
+            let msg = tr(format!("Settings could not be read: {e}"), format!("Einstellungen nicht lesbar: {e}"));
+            return (AppConfig::default(), Some(msg));
+        }
+    };
+    match serde_json::from_str(&text) {
+        Ok(cfg) => (cfg, None),
+        Err(e) => {
+            let ts = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+            let backup = path.with_extension(format!("json.broken-{ts}"));
+            let msg = match std::fs::copy(path, &backup) {
+                Ok(_) => tr(
+                    format!("Settings were damaged ({e}) and have been reset. Backup: {}", backup.display()),
+                    format!(
+                        "Einstellungen waren beschädigt ({e}) und wurden zurückgesetzt. Sicherung: {}",
+                        backup.display()
+                    ),
+                ),
+                Err(ce) => tr(
+                    format!("Settings were damaged ({e}) and have been reset. Backup failed: {ce}"),
+                    format!(
+                        "Einstellungen waren beschädigt ({e}) und wurden zurückgesetzt. Sicherung fehlgeschlagen: {ce}"
+                    ),
+                ),
+            };
+            (AppConfig::default(), Some(msg))
+        }
     }
+}
+
+/// Write a file so that it is either complete or untouched: temp file next to it, flush to disk, rename
+pub fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+    let tmp = path.with_extension("json.tmp");
+    let res = (|| {
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(content.as_bytes())?;
+        f.sync_all()?;
+        std::fs::rename(&tmp, path)
+    })();
+    if res.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    res.map_err(|e| e.to_string())
+}
+
+pub fn load(app: &AppHandle) -> AppConfig {
+    let mut cache = lock(&CACHE);
+    if let Some(cfg) = cache.as_ref() {
+        return cfg.clone();
+    }
+    let (cfg, err) = match config_path(app) {
+        Ok(path) => read_from(&path),
+        Err(e) => (AppConfig::default(), Some(e)),
+    };
+    if let Some(e) = &err {
+        eprintln!("{e}");
+    }
+    *lock(&LOAD_ERROR) = err;
+    *cache = Some(cfg.clone());
+    cfg
 }
 
 pub fn save(app: &AppHandle, cfg: &AppConfig) -> Result<(), String> {
     let path = config_path(app)?;
     let s = serde_json::to_string_pretty(cfg).map_err(|e| e.to_string())?;
-    std::fs::write(path, s).map_err(|e| e.to_string())
+    write_atomic(&path, &s)?;
+    *lock(&CACHE) = Some(cfg.clone());
+    Ok(())
+}
+
+/// Problem with the settings file at start (taken once: the UI shows it a single time)
+pub fn take_load_error() -> Option<String> {
+    lock(&LOAD_ERROR).take()
 }
 
 pub fn find_host(app: &AppHandle, host_id: &str) -> Result<HostCfg, String> {
@@ -443,5 +523,47 @@ mod tests {
         let r: Reminder = serde_json::from_str(json).unwrap();
         assert_eq!(r.at, 1_793_440_000_000);
         assert!(!r.fired);
+    }
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("pibar-test-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    #[test]
+    fn missing_file_gives_defaults_without_error() {
+        let d = temp_dir("missing");
+        let (cfg, err) = read_from(&d.join("config.json"));
+        assert!(err.is_none());
+        assert_eq!(cfg.hosts.len(), 1);
+    }
+
+    #[test]
+    fn broken_file_is_backed_up_before_reset() {
+        let d = temp_dir("broken");
+        let path = d.join("config.json");
+        std::fs::write(&path, "{ \"hosts\": [ broken").unwrap();
+        let (cfg, err) = read_from(&path);
+        assert!(err.is_some());
+        assert_eq!(cfg.hosts.len(), 1);
+        let backups: Vec<_> = std::fs::read_dir(&d)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_name().to_string_lossy().starts_with("config.json.broken-"))
+            .collect();
+        assert_eq!(backups.len(), 1);
+        assert_eq!(std::fs::read_to_string(backups[0].path()).unwrap(), "{ \"hosts\": [ broken");
+    }
+
+    #[test]
+    fn atomic_write_leaves_no_temp_file() {
+        let d = temp_dir("atomic");
+        let path = d.join("config.json");
+        write_atomic(&path, "{\"hosts\":[]}").unwrap();
+        write_atomic(&path, "{\"hosts\":[],\"x\":1}").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"hosts\":[],\"x\":1}");
+        assert!(!d.join("config.json.tmp").exists());
     }
 }
