@@ -391,7 +391,7 @@ export function settingsDialog() {
         "div",
         { class: "row" },
         h("label", {}, t("Chat")),
-        h("label", { class: "check" }, showTimes, ` ${t("Show the time of each message")}`),
+        h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
       ),
       h(
         "div",

@@ -337,6 +337,9 @@ const de = {
   "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Choose folder": "Ordner auswählen",
+  "Always show message times": "Uhrzeiten immer anzeigen",
+  "Otherwise the time appears when you point at a message":
+    "Sonst erscheint die Uhrzeit, wenn du auf eine Nachricht zeigst",
   working: "arbeitet",
   Done: "Fertig",
   "Pi is done": "Pi ist fertig",
@@ -346,7 +349,6 @@ const de = {
   "Notify me when Pi is done (while PiBar is in the background)":
     "Benachrichtigen, wenn Pi fertig ist (wenn PiBar im Hintergrund ist)",
   Yesterday: "Gestern",
-  "Show the time of each message": "Uhrzeit der Nachrichten anzeigen",
   Chat: "Chat",
   "Input tokens": "Eingabe-Token",
   "Output tokens": "Ausgabe-Token",

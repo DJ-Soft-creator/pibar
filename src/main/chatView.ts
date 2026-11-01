@@ -386,15 +386,34 @@ export function wireChatView() {
       renderToolbar();
     });
   });
-  elView.addEventListener("click", () =>
-    ddOpen(elView, VIEWS, chatMode(), (v) => {
-      state.config.ui.chatMode = v;
-      setCardsOpen(v === "debug");
-      applyUiPrefs();
-      renderToolbar();
-      saveConfig();
-    }),
-  );
+  elView.addEventListener("click", () => {
+    const mode = chatMode();
+    openMenu(elView, [
+      ...VIEWS.map(([v, label, desc]) => ({
+        label: t(label),
+        desc: t(desc),
+        selected: v === mode,
+        onSelect: () => {
+          state.config.ui.chatMode = v;
+          setCardsOpen(v === "debug");
+          applyUiPrefs();
+          renderToolbar();
+          saveConfig();
+        },
+      })),
+      { separator: true },
+      {
+        label: t("Always show message times"),
+        desc: t("Otherwise the time appears when you point at a message"),
+        selected: !!state.config.ui.showTimes,
+        onSelect: () => {
+          state.config.ui.showTimes = !state.config.ui.showTimes;
+          applyUiPrefs();
+          saveConfig();
+        },
+      },
+    ]);
+  });
   elAnswer.addEventListener("click", () =>
     ddOpen(elAnswer, ANSWERS, answerMode(), (v) => {
       state.config.ui.answerMode = v;
