@@ -1,6 +1,7 @@
 // Tool dock at the input: a quiet "+" that fades in more buttons (attach files, screenshot, skills, tools) while the
 // mouse is near; attachments as chips above the input (also by drag & drop or paste); the Pi tools of a session.
 import { api } from "../shared/api";
+import { readAttachment } from "../shared/attach";
 import { baseName } from "../shared/format";
 import { $, h, errMsg, openModal, toast } from "../shared/dom";
 import { icon } from "../shared/icons";
@@ -23,8 +24,6 @@ export interface Attachment {
   text?: string;
 }
 
-const MAX_TEXT = 200_000;
-const MAX_IMAGE = 10_000_000;
 /** Distance in pixels at which the dock opens */
 const NEAR = 70;
 /** Reach of the dock upwards (towards the chat) */
@@ -48,37 +47,10 @@ export function takeAttachments(): Attachment[] {
 
 // ---------- Reading files ----------
 
-function toBase64(buf: ArrayBuffer): string {
-  let s = "";
-  const bytes = new Uint8Array(buf);
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-
-/** Text if the first bytes contain no NUL and it decodes as UTF-8 */
-function asText(buf: ArrayBuffer): string | null {
-  const head = new Uint8Array(buf.slice(0, 4096));
-  if (head.includes(0)) return null;
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buf);
-  } catch {
-    return null;
-  }
-}
-
 export async function addFiles(files: FileList | File[]) {
   for (const f of Array.from(files)) {
     try {
-      const buf = await f.arrayBuffer();
-      if (f.type.startsWith("image/")) {
-        if (f.size > MAX_IMAGE) throw new Error(t("Image too large (max. 10 MB)"));
-        attachments.push({ name: f.name || "image.png", kind: "image", mimeType: f.type, data: toBase64(buf) });
-      } else {
-        if (f.size > MAX_TEXT) throw new Error(t("File too large (max. 200 KB for text)"));
-        const text = asText(buf);
-        if (text === null) throw new Error(t("Only text files and images can be attached"));
-        attachments.push({ name: f.name, kind: "text", mimeType: f.type || "text/plain", text });
-      }
+      attachments.push(await readAttachment(f));
     } catch (e) {
       toast(`${f.name}: ${errMsg(e)}`, "err");
     }

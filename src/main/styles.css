@@ -2855,3 +2855,33 @@ button.ghost.danger-text {
 .group.archive .group-name {
   color: var(--muted);
 }
+
+/* ---------- Versions of a message (branches): "‹ 2/3 ›" under own messages ---------- */
+.branch-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.branch-nav .msg-act {
+  width: 20px;
+  height: 20px;
+  font-size: 15px;
+  line-height: 1;
+}
+.branch-nav .msg-act:disabled {
+  opacity: 0.35;
+  cursor: default;
+  background: transparent;
+}
+.branch-count {
+  min-width: 28px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.msg.user.flash .bubble {
+  box-shadow: 0 0 0 2px var(--accent);
+  transition: box-shadow 0.3s;
+}

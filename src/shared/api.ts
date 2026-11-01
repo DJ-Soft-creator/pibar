@@ -1,6 +1,7 @@
 // Interface to the Rust core: types and all invoke() calls (counterpart: src-tauri/src/lib.rs)
 import { invoke } from "@tauri-apps/api/core";
 import type { PiResult } from "./piProtocol";
+import type { SessionOutline } from "./branches";
 
 /** Answer of read_file_head, see src-tauri/src/files.rs */
 export interface HeadVersion {
@@ -164,6 +165,8 @@ export interface SessionInfo {
   timestamp: string;
   title: string;
   name: string | null;
+  /** Session this one was branched from (Pi's fork), null = none */
+  parent?: string | null;
 }
 
 export interface FolderListing {
@@ -245,6 +248,8 @@ export interface QuickSubmit {
   preset: string | null;
   text: string;
   images: { data: string; mimeType: string }[];
+  /** Attached text files (go into the message as tagged blocks, format.ts withFiles) */
+  files: { name: string; text: string }[];
   ocr: string | null;
 }
 
@@ -290,6 +295,8 @@ export const api = {
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
   /** Subfolders of a folder on the host, for the folder picker (src/main/folderPicker.ts) */
+  /** User messages (entry ids) of session files, to find where branches part (src/shared/branches.ts) */
+  sessionOutlines: (hostId: string, paths: string[]) => invoke<SessionOutline[]>("session_outlines", { hostId, paths }),
   listDirs: (hostId: string, path: string, hidden = false) => invoke<DirListing>("list_dirs", { hostId, path, hidden }),
   /** Screenshot: "region" (drag an area) or "screen"; null if cancelled */
   captureScreen: (mode: "region" | "screen") =>

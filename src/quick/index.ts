@@ -10,6 +10,7 @@ import { setLang, t, translateDom } from "../shared/i18n";
 import { applyTheme } from "../shared/theme";
 import { isRecording, showVoiceButtons, wireVoice } from "../shared/voice";
 import { splitModelKey } from "../shared/presets";
+import { readAttachment, type FileAttachment } from "../shared/attach";
 
 interface Capture {
   path: string;
@@ -43,6 +44,10 @@ let mode: "image" | "ocr" | "both" = "image";
 let ocrText: string | null = null;
 let ocrRunning: Promise<string | null> | null = null;
 let busy = false; // do not close on focus loss while a screenshot is taken
+let files: FileAttachment[] = [];
+let picking = false; // the file dialog is open (takes the focus from the bar)
+/** The user picked a preset, model or thinking level since the bar opened or the target changed */
+let touched = false;
 
 const LAST_TARGET = "pibar.quick.lastTarget";
 
@@ -72,8 +77,8 @@ function currentPreset(): ModelPreset | undefined {
 /** Preset dropdown; a chosen preset hides the model and thinking dropdowns */
 function renderPresets() {
   const presets = config?.presets ?? [];
-  // first render: last choice, otherwise the first preset
-  const prev = presetSel.options.length ? presetSel.value : (store(LAST_PRESET) ?? presets[0]?.id ?? "");
+  // existing session: keep its model; otherwise the choice in this bar, else the last one, else the first preset
+  const prev = keepSession() ? "" : touched ? presetSel.value : (store(LAST_PRESET) ?? presets[0]?.id ?? "");
   const opt = (value: string, label: string) => {
     const o = document.createElement("option");
     o.value = value;
@@ -94,12 +99,26 @@ function showPresetChoice() {
 }
 
 presetSel.addEventListener("change", () => {
+  touched = true;
   store(LAST_PRESET, presetSel.value);
   showPresetChoice();
   input.focus();
 });
 
 // ---------- Model & thinking ----------
+
+/** The message goes to a session that already exists (current or saved) */
+function existingTarget(): boolean {
+  return target.value === "active" || target.value.startsWith("sess|");
+}
+
+/**
+ * An existing session keeps its own model unless something is picked in the bar right now. The last choice of the
+ * bar is only the default for new sessions – otherwise it would switch older sessions back to that model.
+ */
+function keepSession(): boolean {
+  return !touched && existingTarget();
+}
 
 function targetHostId(): string | undefined {
   const v = target.value;
@@ -124,7 +143,7 @@ function loadModels() {
 function renderModels() {
   const hostId = targetHostId();
   const entry = hostId ? modelsByHost.get(hostId) : undefined;
-  const prev = modelSel.value || store(LAST_MODEL) || "";
+  const prev = keepSession() ? "" : touched ? modelSel.value : store(LAST_MODEL) || "";
   const opt = (value: string, label: string) => {
     const o = document.createElement("option");
     o.value = value;
@@ -136,7 +155,16 @@ function renderModels() {
   const defPreset = config?.presets?.find((p) => p.id === ui?.defaultPreset);
   const defName =
     defPreset?.name ?? (ui?.defaultModel ? shortModel(ui.defaultModel.split("/").slice(1).join("/")) : "");
-  const opts: HTMLElement[] = [opt("", defName ? `${t("Model: default")} (${defName})` : t("Model: default"))];
+  const opts: HTMLElement[] = [
+    opt(
+      "",
+      existingTarget()
+        ? t("Model: as in the session")
+        : defName
+          ? `${t("Model: default")} (${defName})`
+          : t("Model: default"),
+    ),
+  ];
   if (entry === "loading") opts.push(opt("", t("Loading models …")));
   if (Array.isArray(entry)) {
     const keys = new Set(entry.map((m) => `${m.provider}/${m.id}`));
@@ -173,12 +201,12 @@ function selectedModel(): ModelInfo | null {
 }
 
 function renderEffort() {
-  const prev = effortSel.value || store(LAST_EFFORT) || "";
+  const prev = keepSession() ? "" : touched ? effortSel.value : store(LAST_EFFORT) || "";
   const m = selectedModel();
   const levels: string[] = m && !m.thinking ? ["off"] : [...THINKING_LEVELS];
   const o0 = document.createElement("option");
   o0.value = "";
-  o0.textContent = t("Thinking: default");
+  o0.textContent = existingTarget() ? t("Thinking: as in the session") : t("Thinking: default");
   effortSel.replaceChildren(
     o0,
     ...levels.map((l) => {
@@ -194,16 +222,20 @@ function renderEffort() {
 }
 
 modelSel.addEventListener("change", () => {
+  touched = true;
   store(LAST_MODEL, modelSel.value);
   renderEffort();
   input.focus();
 });
 effortSel.addEventListener("change", () => {
+  touched = true;
   store(LAST_EFFORT, effortSel.value);
   renderEffort();
   input.focus();
 });
 target.addEventListener("change", () => {
+  touched = false;
+  renderPresets();
   loadModels();
   input.focus();
 });
@@ -286,6 +318,7 @@ function renderTargets() {
   target.replaceChildren(...opts);
   const values = [...target.options].map((o) => o.value);
   target.value = values.includes(prev) ? prev : (values.find((v) => v.startsWith("new|")) ?? values[0] ?? "");
+  if (target.value !== prev) renderPresets();
   loadModels();
 }
 
@@ -385,16 +418,65 @@ function clearAttachment() {
   fit();
 }
 
+// ---------- Attached files ----------
+
+function renderFiles() {
+  const row = $("q-files");
+  row.hidden = !files.length;
+  row.replaceChildren(
+    ...files.map((f, i) => {
+      const chip = document.createElement("span");
+      chip.className = "qchip";
+      chip.title = f.name;
+      if (f.kind === "image") {
+        const img = document.createElement("img");
+        img.src = `data:${f.mimeType};base64,${f.data}`;
+        img.alt = "";
+        chip.append(img);
+      }
+      const name = document.createElement("span");
+      name.className = "qchip-name";
+      name.textContent = f.name;
+      const x = document.createElement("button");
+      x.type = "button";
+      x.title = t("Remove");
+      x.textContent = "×";
+      x.addEventListener("click", () => {
+        files.splice(i, 1);
+        renderFiles();
+        input.focus();
+      });
+      chip.append(name, x);
+      return chip;
+    }),
+  );
+  fit();
+}
+
+async function addFiles(list: FileList | File[]) {
+  for (const f of Array.from(list)) {
+    try {
+      files.push(await readAttachment(f));
+    } catch (e) {
+      showError(`${f.name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  renderFiles();
+  input.focus();
+}
+
 // ---------- Send ----------
 
 async function submit() {
   const text = input.value.trim();
-  if (!text && !capture) return;
+  if (!text && !capture && !files.length) return;
   sendBtn.disabled = true;
   try {
     let ocr: string | null = null;
     if (capture && mode !== "image") ocr = await runOcr();
     const images = capture && mode !== "ocr" ? [{ data: capture.data, mimeType: capture.mimeType }] : [];
+    for (const f of files) if (f.kind === "image") images.push({ data: f.data, mimeType: f.mimeType });
+    const texts = files.flatMap((f) => (f.kind === "text" ? [{ name: f.name, text: f.text }] : []));
     const preset = currentPreset();
     const m = preset ? null : selectedModel();
     if (m) {
@@ -407,8 +489,9 @@ async function submit() {
       model: preset ? splitModelKey(preset.model) : m ? { provider: m.provider, id: m.id } : null,
       thinking: (preset ? preset.thinking : effortSel.value) || null,
       preset: preset?.id ?? null,
-      text: text || t("Have a look at the screenshot."),
+      text: text || (capture ? t("Have a look at the screenshot.") : t("Have a look at the attached files.")),
       images,
+      files: texts,
       ocr,
     };
     try {
@@ -418,6 +501,8 @@ async function submit() {
     }
     await emit("quick-submit", payload);
     input.value = "";
+    files = [];
+    renderFiles();
     clearAttachment();
     await invoke("quick_hide");
   } finally {
@@ -469,12 +554,34 @@ wireVoice({
   onText: fit,
 });
 $("q-shot").addEventListener("click", (e) => takeShot((e as MouseEvent).shiftKey));
+const fileInput = $("q-file-input") as HTMLInputElement;
+$("q-file").addEventListener("click", () => {
+  picking = true; // the open dialog must not close the bar
+  fileInput.click();
+});
+fileInput.addEventListener("change", () => {
+  picking = false;
+  if (fileInput.files?.length) addFiles(fileInput.files);
+  fileInput.value = "";
+});
+fileInput.addEventListener("cancel", () => {
+  picking = false;
+  input.focus();
+});
+// images pasted into the input (e.g. a copied screenshot)
+input.addEventListener("paste", (e) => {
+  const list = Array.from(e.clipboardData?.files ?? []);
+  if (!list.length) return;
+  e.preventDefault();
+  addFiles(list);
+});
 $("q-remove").addEventListener("click", clearAttachment);
 document
   .querySelectorAll<HTMLButtonElement>("#q-mode button")
   .forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as typeof mode)));
 
 listen("quick-show", () => {
+  touched = false;
   for (const [k, v] of modelsByHost) if (v === "error") modelsByHost.delete(k);
   input.focus();
   input.select();
@@ -491,7 +598,8 @@ getCurrentWindow()
     // An open dropdown (target, model, thinking) briefly takes focus from the window: do not close then
     // …and the microphone permission prompt or a running recording must not close the bar either
     const selectOpen = () => document.activeElement?.tagName === "SELECT";
-    const stay = () => busy || selectOpen() || isRecording() || micBtn.classList.contains("busy");
+    if (focused) picking = false; // back from the file dialog (also when it was cancelled)
+    const stay = () => busy || picking || selectOpen() || isRecording() || micBtn.classList.contains("busy");
     if (!focused && !stay()) setTimeout(() => !stay() && !document.hasFocus() && invoke("quick_hide"), 120);
   })
   .catch(() => {});
