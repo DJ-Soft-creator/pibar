@@ -2823,3 +2823,17 @@ button.ghost.danger-text {
   width: 7px;
   height: 7px;
 }
+
+/* Time in the action row: appears with the actions on hover; hidden there when times are always shown */
+.msg-time-inline {
+  align-self: center;
+  margin: 0 4px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+}
+.show-times .msg-time-inline {
+  display: none;
+}

@@ -588,6 +588,7 @@ export class SessionTab {
     const acts = h(
       "div",
       { class: "msg-acts user-acts" },
+      timeLabel(ts, true),
       act("edit", t("Edit and resend (new branch from here)"), () =>
         this.branchPanel(panel, acts, index, text, "edit"),
       ),
@@ -725,9 +726,11 @@ export class SessionTab {
       b.innerHTML = ICON_SPEAK;
       btn = b;
     }
-    const time = timeLabel(msg?.timestamp);
+    const ts = msg?.timestamp ?? (this.streaming ? Date.now() : undefined);
+    const time = timeLabel(ts);
     if (time) cur.el.append(time);
-    if (btn || used) cur.el.append(h("div", { class: "msg-acts" }, btn, used));
+    const hoverTime = timeLabel(ts, true);
+    if (btn || used || hoverTime) cur.el.append(h("div", { class: "msg-acts" }, hoverTime, used, btn));
     this.cur = null;
   }
 
@@ -899,14 +902,17 @@ export class SessionTab {
   }
 }
 
-/** Small time under a message (visible with Settings → Chat → show times); full date as tooltip */
-function timeLabel(ts: unknown): HTMLElement | null {
+/**
+ * Time of a message, full date as tooltip. `inline`: in the action row, shown on hover; otherwise its own line under
+ * the message, shown when "always show times" is on (View menu or Settings → Chat).
+ */
+function timeLabel(ts: unknown, inline = false): HTMLElement | null {
   const n = typeof ts === "number" ? ts : typeof ts === "string" ? Date.parse(ts) : NaN;
   if (!Number.isFinite(n) || n <= 0) return null;
   return h(
     "time",
     {
-      class: "msg-time",
+      class: inline ? "msg-time-inline" : "msg-time",
       datetime: new Date(n).toISOString(),
       title: new Date(n).toLocaleString(getLang(), { dateStyle: "full", timeStyle: "medium" }),
     },

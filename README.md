@@ -23,8 +23,8 @@ License
 - Chat with Pi, streamed live, Markdown and code highlighting; one round button sends, stops Pi while it works, or
   steers it as soon as you type
 - The input grows with the text up to six lines, then it scrolls
-- Optional **message times** (Settings → General → Chat): a small time under each message ("14:32", "Yesterday 09:15",
-  older with date); hover for the full date
+- **Message times**: pointing at a message shows when it was sent ("14:32", "Yesterday 09:15", older with date; the
+  full date as tooltip). To see them always: View menu → "Always show message times" (or Settings → General → Chat)
 - Model and thinking level per session, or a saved preset for both; a message sent right after a change waits until
   Pi has switched; each answer shows the model that produced it (on hover)
 - **View** (header): _Natural_ (answers only), _Technical_ (thinking and tool calls as small collapsed cards, default)
