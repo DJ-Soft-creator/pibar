@@ -46,7 +46,8 @@ License
 
 ### Sessions
 
-- Left column grouped by host (local and SSH); start, open, load history, several sessions in parallel
+- Left column grouped by host (local and SSH); start (optionally with a name right away), open, load history, several
+  sessions in parallel
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
 - **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
 - **Multi-select** with ⌘-click and ⇧-click: move, colour, pin, close or delete several sessions at once (bar at the

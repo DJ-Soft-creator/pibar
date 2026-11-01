@@ -17,6 +17,7 @@ import {
   renameDialog as renameDialogFor,
   SessionRef,
   sessionMenu,
+  setMeta,
   setMetaMany,
   toggleGroup,
 } from "./sessionGroups";
@@ -376,6 +377,19 @@ async function onUserAction(tab: SessionTab, index: number, action: UserAction, 
   }
 }
 
+/** Name for a session that has no file yet: Pi stores it (set_session_name), PiBar keeps it as own name once saved */
+async function nameNewSession(tab: SessionTab, name: string) {
+  tab.title = name;
+  tab.pendingName = name;
+  try {
+    await api.pi(tab.handle, { type: "set_session_name", name });
+  } catch {
+    /* PiBar's own name still applies once the session is saved */
+  }
+  renderToolbar();
+  renderHosts();
+}
+
 // ---------- Default model for new sessions ----------
 
 /** Settings → default model: apply to a new session right after its start */
@@ -413,6 +427,10 @@ const tabCallbacks: TabCallbacks = {
     }
     // a new session got saved: move key and extra folders to the session file path
     rekey(x, before);
+    if (x.pendingName && x.sessionPath) {
+      setMeta(x.key, { name: x.pendingName });
+      x.pendingName = "";
+    }
     await loadSessions(x.hostId);
     const info = state.sessionsByHost.get(x.hostId)?.find((s) => s.path === x.sessionPath);
     if (info && (x.title === t("New session") || !x.title)) x.title = info.name || info.title;
@@ -490,20 +508,25 @@ export function newSessionDialog(hostId?: string) {
   const hosts = state.config.hosts;
   if (!hosts.length) return settingsDialog();
   const selHost = h("select", {}, ...hosts.map((x) => h("option", { value: x.id, selected: x.id === hostId }, x.name)));
+  const inName = h("input", { type: "text", placeholder: t("optional, e.g. Release 1.5") }) as HTMLInputElement;
   const inDir = h("input", { type: "text", placeholder: t("~/project") }) as HTMLInputElement;
   const setDefault = () => (inDir.value = hosts.find((x) => x.id === selHost.value)?.defaultDir || "~");
   selHost.addEventListener("change", setDefault);
   setDefault();
-  const go = () => {
+  const go = async () => {
     close();
-    openSession(selHost.value, null, inDir.value.trim() || "~", t("New session"));
+    const name = inName.value.trim();
+    const tab = await openSession(selHost.value, null, inDir.value.trim() || "~", name || t("New session"));
+    if (name && tab.alive) await nameNewSession(tab, name);
   };
-  inDir.addEventListener("keydown", (e) => e.key === "Enter" && go());
+  for (const i of [inName, inDir]) i.addEventListener("keydown", (e) => e.key === "Enter" && go());
+  setTimeout(() => inName.focus(), 0);
   const close = openModal(
     t("New session"),
     h(
       "div",
       {},
+      h("div", { class: "row" }, h("label", {}, t("Name")), inName),
       h("div", { class: "row" }, h("label", {}, t("Host")), selHost),
       h("div", { class: "row" }, h("label", {}, t("Working folder")), inDir),
       h("p", { class: "hint" }, t("Pi starts in this folder. You can add more folders on the right afterwards.")),

@@ -47,7 +47,8 @@ MIT-Lizenz
 
 ### Sessions
 
-- Linke Spalte nach Host gruppiert (lokal und SSH); starten, öffnen, Verlauf laden, mehrere Sessions parallel
+- Linke Spalte nach Host gruppiert (lokal und SSH); starten (auf Wunsch gleich mit Namen), öffnen, Verlauf laden,
+  mehrere Sessions parallel
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
 - **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue

@@ -133,6 +133,8 @@ export class SessionTab {
   activity = "";
   /** Read the next answer aloud (message came from the quick bar) */
   readNext = false;
+  /** Name given in "New session", saved as own name once the session has a file */
+  pendingName = "";
   /** Text of the last answer of the current run (for auto read) */
   private lastText = "";
 
