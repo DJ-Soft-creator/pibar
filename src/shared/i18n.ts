@@ -271,6 +271,9 @@ const de = {
   "in {folder}": "in {folder}",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
+  "Copy report (still running …)": "Bericht kopieren (läuft noch …)",
+  "macOS blocks addresses in your local network for this app. PiBar starts Pi as its own process to avoid this; if it still happens: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.":
+    "macOS sperrt für diese App Adressen im lokalen Netz. PiBar startet Pi deshalb als eigenständiges Programm; passiert es trotzdem: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten, dann PiBar neu starten.",
   "Stop (Esc)": "Stopp (Esc)",
   "Steer: send while Pi is working (Enter)": "Nachsteuern: senden, während Pi arbeitet (Enter)",
   Apply: "Übernehmen",
@@ -331,8 +334,6 @@ const de = {
     "Der Server antwortet, lehnt die Anmeldung aber ab: API-Schlüssel prüfen.",
   "The server refuses the connection: is the model server running, and are address and port right?":
     "Der Server lehnt die Verbindung ab: Läuft der Modellserver, stimmen Adresse und Port?",
-  "macOS blocks the local network for PiBar: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.":
-    "macOS blockiert das lokale Netz für PiBar: Systemeinstellungen → Datenschutz & Sicherheit → Lokales Netzwerk → PiBar einschalten, dann PiBar neu starten.",
   "Pi's error output": "Fehlerausgabe von Pi",
   "optional, e.g. Release 1.5": "optional, z. B. Release 1.5",
   "Run this message again from here?": "Diese Nachricht ab hier erneut ausführen?",

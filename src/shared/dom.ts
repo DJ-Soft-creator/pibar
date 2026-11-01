@@ -83,3 +83,22 @@ export function openModal(title: string, body: HTMLElement, actions: HTMLElement
   first?.focus();
   return close;
 }
+
+/** Copy text to the clipboard; falls back to a hidden textarea where the Clipboard API is not allowed */
+export async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    /* WebKit may refuse without permission: classic way below */
+  }
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+  document.body.append(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (!ok) throw new Error("Clipboard not available");
+}

@@ -117,8 +117,10 @@ puts everything on the clipboard.
 
 ## macOS permissions
 
-- **Local Network**: needed when Pi talks to a model server or host in your network: System Settings → Privacy &
-  Security → Local Network → enable PiBar.
+- **Local Network**: macOS often blocks addresses in the local network for self-built apps without asking (chats
+  then fail with "Connection error" for model servers in the LAN). PiBar therefore starts Pi, SSH and curl as their own
+  processes, so they are treated like programs started from the terminal. If it still happens: System Settings →
+  Privacy & Security → Local Network → enable PiBar.
 - **Environment**: an app started from the Finder does not see variables from `~/.zshrc` (API keys, base URLs of
   model servers, proxies). PiBar reads the environment of your interactive shell once at start and passes it to local
   Pi sessions, so they behave like in the terminal.

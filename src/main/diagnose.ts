@@ -1,7 +1,7 @@
 // Diagnosis dialog for chat errors ("Connection error" and the like): shows the error, what Pi wrote to stderr,
 // hints derived from the report and the full report of diag.rs (runs on the host with Pi's rights and environment).
 import { api } from "../shared/api";
-import { errMsg, h, openModal, toast } from "../shared/dom";
+import { copyText, errMsg, h, openModal, toast } from "../shared/dom";
 import { Msg, t } from "../shared/i18n";
 import { state } from "./state";
 
@@ -10,15 +10,18 @@ export function diagnoseHints(report: string, error = ""): Msg[] {
   const all = `${report}\n${error}`;
   const hints: Msg[] = [];
   const local = /https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.|[^/\s]*\.local\b|[^/\s.]+:\d)/.test(all);
-  if (/No route to host|Network is unreachable|EHOSTUNREACH|ENETUNREACH|Operation not permitted/i.test(all) && local)
+  const blocked =
+    /(EHOSTUNREACH|ENETUNREACH|No route to host|Network is unreachable)[^\n]*(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/i;
+  if (blocked.test(all) || (/No route to host|EHOSTUNREACH|Operation not permitted/i.test(all) && local))
     hints.push(
-      "macOS blocks the local network for PiBar: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.",
+      "macOS blocks addresses in your local network for this app. PiBar starts Pi as its own process to avoid this; if it still happens: System Settings → Privacy & Security → Local Network → enable PiBar, then restart PiBar.",
     );
   if (/Could not resolve host|ENOTFOUND|getaddrinfo/i.test(all))
     hints.push(
       "A server name cannot be resolved. Names ending in .local also need the local network permission; otherwise use the IP address.",
     );
-  if (/Connection refused|ECONNREFUSED|Couldn't connect to server/i.test(all))
+  // refused connections on this computer (127.0.0.1) are usually just services that are not running – not a cause
+  if (/connect ECONNREFUSED (?!127\.0\.0\.1|::1)[\d[]/.test(all))
     hints.push("The server refuses the connection: is the model server running, and are address and port right?");
   if (/timed out|ETIMEDOUT|Timeout was reached/i.test(all))
     hints.push("No answer in time: server switched off, wrong address, firewall or VPN.");
@@ -32,9 +35,10 @@ export function diagnoseHints(report: string, error = ""): Msg[] {
     hints.push("A proxy is set but NO_PROXY is not: local model servers may be sent through the proxy.");
   if (/certificate|SSL|self.signed|UNABLE_TO_VERIFY/i.test(all))
     hints.push("Certificate problem: for your own certificates set NODE_EXTRA_CA_CERTS.");
-  const curlOk = /^curl \S+ -> .*HTTP [1-5]\d\d/m.test(report);
-  const nodeFails = /^node \S+ -> (?!HTTP)/m.test(report);
-  if (curlOk && nodeFails)
+  // per address: curl got an HTTP answer, but Node (which Pi uses) failed
+  const curlOk = new Set([...report.matchAll(/^curl (\S+) -> .*HTTP [1-5]\d\d/gm)].map((m) => m[1]));
+  const nodeBad = [...report.matchAll(/^node (\S+) -> (?!HTTP)/gm)].map((m) => m[1]);
+  if (nodeBad.some((u) => curlOk.has(u)))
     hints.push(
       "curl reaches the server but Node (which Pi uses) does not – see the node line and its cause in the report.",
     );
@@ -55,10 +59,14 @@ export function diagnoseDialog(
 ) {
   const body = h("div", { class: "diag" }, h("p", { class: "muted" }, t("Running diagnosis …")));
   let text = "";
-  const copy = h("button", { class: "ghost", disabled: true }, t("Copy report"));
+  // the test request through Pi can take up to a minute: say so on the button instead of a dead button
+  const copy = h("button", { class: "ghost", disabled: true }, t("Copy report (still running …)"));
   copy.addEventListener("click", () =>
-    navigator.clipboard.writeText(text).then(
-      () => toast(t("Copied")),
+    copyText(text).then(
+      () => {
+        copy.textContent = t("Copied");
+        setTimeout(() => (copy.textContent = t("Copy report")), 1500);
+      },
       (e) => toast(errMsg(e), "err"),
     ),
   );
@@ -81,6 +89,7 @@ export function diagnoseDialog(
       `\n${report}`,
     ].join("\n");
     copy.disabled = false;
+    copy.textContent = t("Copy report");
     const parts: (HTMLElement | null)[] = [
       hints.length
         ? h(

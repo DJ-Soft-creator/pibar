@@ -2557,6 +2557,7 @@ dependencies = [
  "base64 0.22.1",
  "core-foundation",
  "core-graphics 0.24.0",
+ "libc",
  "serde",
  "serde_json",
  "sys-locale",
