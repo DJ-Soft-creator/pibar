@@ -75,11 +75,11 @@ pub fn set_key(key: TapKey) {
 }
 
 pub fn status() -> &'static str {
-    *STATUS.lock().unwrap()
+    *STATUS.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn set_status(s: &'static str) {
-    *STATUS.lock().unwrap() = s;
+    *STATUS.lock().unwrap_or_else(|e| e.into_inner()) = s;
 }
 
 /// Pure detection logic (testable without a keyboard)
@@ -180,7 +180,7 @@ mod mac {
                     vec![CGEventType::FlagsChanged, CGEventType::KeyDown],
                     |_proxy, etype, event| {
                         let key = TapKey::from_u8(CURRENT.load(Ordering::SeqCst));
-                        let mut d = detector.lock().unwrap();
+                        let mut d = detector.lock().unwrap_or_else(|e| e.into_inner());
                         match etype {
                             CGEventType::FlagsChanged => {
                                 let code = event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
