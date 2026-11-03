@@ -1,7 +1,7 @@
 // Session organisation in the left column: own names, pins, colours and coloured groups, plus the context menus
 // of sessions, groups and a multi-selection (src/main/sessionSelect.ts). Stored in AppConfig.sessionMeta (key "<hostId>|<sessionPath>") and AppConfig.groups.
 import { api, SessionGroup, SessionMeta } from "../shared/api";
-import { h, errMsg, openModal, toast } from "../shared/dom";
+import { copyText, h, errMsg, openModal, toast } from "../shared/dom";
 import { cleanTitle } from "../shared/format";
 import { Msg, t } from "../shared/i18n";
 import { renderToolbar } from "./chatView";
@@ -347,6 +347,18 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
       },
     );
   }
+  if (s.tab?.sessionId)
+    entries.push({
+      label: t("Copy session ID"),
+      desc: s.tab.sessionId,
+      onSelect: () => void copyText(s.tab!.sessionId).then(() => toast(t("Copied"))),
+    });
+  if (s.tab?.bg)
+    entries.push({
+      label: t("Stop the run in the background"),
+      danger: true,
+      onSelect: () => void s.tab!.stopBackground(),
+    });
   if (s.tab?.alive) entries.push({ label: t("Close session (⌘W)"), onSelect: () => closeSession(s.tab!) });
   if (saved)
     entries.push(

@@ -530,6 +530,7 @@ button.ghost:hover {
 }
 .msg.user .bubble {
   background: var(--user-bg);
+  color: var(--user-fg, var(--text));
   border-radius: 12px;
   padding: 8px 14px;
   max-width: 80%;
@@ -538,6 +539,13 @@ button.ghost:hover {
 }
 .msg.assistant .part {
   margin: 6px 0;
+}
+/* colour profile (src/main/colors.ts): answers can get a background of their own */
+.msg.assistant .part.text {
+  background: var(--answer-bg, transparent);
+  color: var(--answer-fg, var(--text));
+  padding: var(--answer-pad, 0);
+  border-radius: var(--answer-radius, 0);
 }
 .msg.note {
   font-size: 12.5px;
@@ -563,6 +571,17 @@ details.card {
   background: var(--bg-elev);
   font-size: 13px;
 }
+/* colour profile: thinking and tool cards get their own background and text colour; --card-fg carries it inwards */
+.part.thinking > details.card {
+  background: var(--thinking-bg, var(--bg-elev));
+  --card-fg: var(--thinking-fg, var(--muted));
+  color: var(--card-fg);
+}
+.part.tool > details.card {
+  background: var(--tool-bg, var(--bg-elev));
+  --card-fg: var(--tool-fg, var(--muted));
+  color: var(--card-fg);
+}
 details.card > summary {
   list-style: none;
   cursor: pointer;
@@ -586,7 +605,7 @@ details.card[open] > summary::before {
 }
 .card .label {
   font-weight: 600;
-  color: var(--text);
+  color: var(--card-fg, var(--text));
 }
 .card .preview {
   flex: 1;
@@ -627,11 +646,12 @@ details.card[open] > summary::before {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--muted);
+  color: var(--card-fg, var(--muted));
+  opacity: 0.8;
   margin-top: 6px;
 }
 .thinking-body {
-  color: var(--muted);
+  color: var(--card-fg, var(--muted));
   font-size: 13px;
 }
 
@@ -844,6 +864,104 @@ details.card[open] > summary::before {
 .composer-actions {
   display: flex;
   gap: 8px;
+}
+
+/* ---------- Terminal below the chat (terminal.ts) ---------- */
+/* the drag handle above the dock draws the dividing line */
+.term-dock {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-elev);
+}
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-side);
+}
+.term-tabs {
+  display: flex;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+.term-tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 220px;
+  padding: 3px 6px 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.term-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.term-tab.active {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.term-tab.dead .term-tab-name {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.term-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.term-tab-close {
+  width: 18px;
+  height: 18px;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0;
+}
+.term-tab:hover .term-tab-close,
+.term-tab.active .term-tab-close {
+  opacity: 0.7;
+}
+.term-acts {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+/* a wider grab area than the split inside the file panel */
+.term-split {
+  height: 11px;
+  margin: 0;
+}
+.term-split::after {
+  top: 5px;
+}
+.term-split:hover::after,
+body.resizing-v .term-split::after {
+  top: 4px;
+}
+.term-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg-elev);
+}
+.term-pane {
+  position: absolute;
+  inset: 6px 2px 4px 8px;
+}
+.term-pane .xterm {
+  height: 100%;
+}
+.term-pane .xterm-viewport {
+  background: transparent !important;
 }
 
 /* ---------- Dateien ---------- */
@@ -1083,6 +1201,75 @@ details.card[open] > summary::before {
   margin: 2px 0 6px;
   cursor: zoom-in;
   border: 1px solid var(--border);
+}
+/* Settings → chat colours (src/main/colorSettings.ts) */
+.color-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 4px 0 8px;
+}
+.color-theme {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 2px;
+  font-size: 12.5px;
+}
+.color-table {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 4px;
+  max-width: 520px;
+}
+.color-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.color-row.head {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.color-role {
+  font-size: 12.5px;
+}
+.color-field {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.color-field .hex {
+  width: 88px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.color-field .hex.bad {
+  border-color: var(--danger);
+}
+.color-field .swatch {
+  width: 26px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+}
+.color-field .swatch:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.set-sub {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
 }
 .set-head {
   margin: 14px 0 8px;
@@ -1402,6 +1589,19 @@ details.card[open] > summary::before {
 }
 .us-val {
   font-variant-numeric: tabular-nums;
+}
+
+/* Pi's session id in the panel: click copies it */
+.us-id {
+  cursor: pointer;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.us-id .us-val {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .us-bar {
   height: 5px;
@@ -3036,52 +3236,6 @@ button.ghost.danger-text {
 }
 #btn-files-filter.on {
   color: var(--accent);
-}
-
-/* ---------- Auto scroll button (autoScroll.ts), bottom right of the chat ---------- */
-.chat {
-  position: relative;
-}
-.autoscroll {
-  position: absolute;
-  right: 22px;
-  bottom: 110px;
-  z-index: 5;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--muted);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-  cursor: pointer;
-}
-/* following: filled; "always" gets a ring as well; paused or off: quiet */
-.autoscroll.on {
-  color: #fff;
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.autoscroll.mode-always {
-  box-shadow:
-    0 0 0 2px var(--bg),
-    0 0 0 4px var(--accent);
-}
-.autoscroll.mode-off {
-  opacity: 0.7;
-}
-.autoscroll.mode-off::after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 1.5px;
-  background: currentColor;
-  transform: rotate(-45deg);
-}
-.autoscroll:hover {
-  filter: brightness(1.05);
 }
 
 /* ---------- Git history dialog (gitHistory.ts) ---------- */

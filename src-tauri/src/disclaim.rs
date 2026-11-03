@@ -19,15 +19,24 @@ pub fn run_if_requested() {
     }
 }
 
-/// Command for a child process; on macOS wrapped in the helper (falls back to the program itself)
-pub fn command(program: &str) -> std::process::Command {
+/// Program and arguments of a child process, on macOS wrapped in the helper (falls back to the program itself).
+/// Needed where a plain [`command`] cannot be used, e.g. a pty (src-tauri/src/terminal.rs).
+pub fn wrap(program: &str, args: Vec<String>) -> (String, Vec<String>) {
     #[cfg(target_os = "macos")]
     if let Ok(me) = std::env::current_exe() {
-        let mut c = std::process::Command::new(me);
-        c.arg(FLAG).arg(program);
-        return c;
+        let mut all = vec![FLAG.to_string(), program.to_string()];
+        all.extend(args);
+        return (me.to_string_lossy().into_owned(), all);
     }
-    std::process::Command::new(program)
+    (program.to_string(), args)
+}
+
+/// Command for a child process; on macOS wrapped in the helper (falls back to the program itself)
+pub fn command(program: &str) -> std::process::Command {
+    let (program, args) = wrap(program, vec![]);
+    let mut c = std::process::Command::new(program);
+    c.args(args);
+    c
 }
 
 #[cfg(target_os = "macos")]

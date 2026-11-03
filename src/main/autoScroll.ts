@@ -1,12 +1,11 @@
-// Auto scroll of the chat, three modes (round button at the bottom right, Settings → Chat):
+// Auto scroll of the chat, three modes (View menu in the header, Settings → Chat):
 // - "auto":   follow every change of the chat (text, tool cards, results, images); scrolling up pauses it,
 //             scrolling back to the end follows again
 // - "always": forced – every change jumps to the end, even after scrolling up
-// - "off":    never scroll by itself (the button still jumps to the end)
-import { $, h } from "../shared/dom";
-import { icon } from "../shared/icons";
+// - "off":    never scroll by itself (⌘J still jumps to the end)
+import { $ } from "../shared/dom";
 import { t, type Msg } from "../shared/i18n";
-import { openMenu, type MenuEntry } from "./menu";
+import type { MenuEntry } from "./menu";
 import { saveConfig, state } from "./state";
 
 export type ScrollMode = "auto" | "always" | "off";
@@ -17,7 +16,6 @@ let follow = true;
 let userAt = 0;
 let raf = 0;
 let scroller: HTMLElement;
-let button: HTMLButtonElement;
 
 /** Mode from the settings; older configs stored "on" (= auto) */
 export function scrollMode(): ScrollMode {
@@ -32,33 +30,30 @@ function gap(): number {
 
 const following = () => scrollMode() === "always" || (scrollMode() === "auto" && follow);
 
-const TITLES: Record<ScrollMode, Msg> = {
-  auto: "Auto scroll: automatic – follows the answer, pauses when you scroll up",
-  always: "Auto scroll: always – jumps to the end on every change",
-  off: "Auto scroll: off",
-};
-
-function render() {
-  const mode = scrollMode();
-  button.className = `autoscroll mode-${mode} ${following() ? "on" : ""}`;
-  button.hidden = !state.active;
-  button.title = `${t(TITLES[mode])}${mode === "auto" && !follow ? ` (${t("paused")})` : ""}\n${t("Click: choose mode")}`;
-}
-
 function toEnd() {
   if (raf) return;
   raf = requestAnimationFrame(() => {
     raf = 0;
     if (following()) scroller.scrollTop = scroller.scrollHeight;
-    render();
   });
+}
+
+/**
+ * Change the input's height without moving the chat. A transiently taller or shorter input changes the height of the
+ * chat area, and the browser then clamps the scroll: one small step per keystroke, even when the height ends the same.
+ */
+export function keepScroll(fn: () => void) {
+  if (!scroller) return fn();
+  const top = scroller.scrollTop;
+  const follow = following();
+  fn();
+  scroller.scrollTop = follow ? scroller.scrollHeight : top;
 }
 
 /** Jump to the end now (and follow again in "auto") */
 export function jumpToEnd() {
   follow = true;
   scroller.scrollTop = scroller.scrollHeight;
-  render();
 }
 
 export function setScrollMode(mode: ScrollMode) {
@@ -66,14 +61,12 @@ export function setScrollMode(mode: ScrollMode) {
   saveConfig();
   follow = mode !== "off";
   if (following()) toEnd();
-  render();
 }
 
 /** A new answer starts: in "auto" follow it again */
 export function answerStarted() {
   follow = scrollMode() !== "off";
   if (following()) toEnd();
-  render();
 }
 
 /** Session shown (or switched): show its end */
@@ -81,7 +74,7 @@ export function showEnd() {
   jumpToEnd();
 }
 
-/** Menu entries for the modes (button menu and the view menu in the header) */
+/** Menu entries for the modes (View menu in the header) */
 export function scrollModeItems(): MenuEntry[] {
   const mode = scrollMode();
   const item = (m: ScrollMode, label: Msg, desc: Msg) => ({
@@ -98,28 +91,11 @@ export function scrollModeItems(): MenuEntry[] {
   ];
 }
 
-function modeMenu() {
-  openMenu(
-    button,
-    [...scrollModeItems(), { separator: true }, { label: t("Jump to the end"), onSelect: jumpToEnd }],
-    "right",
-  );
-}
-
 export function wireAutoScroll() {
   scroller = $("chat-scroll");
-  button = h("button", {
-    type: "button",
-    id: "btn-autoscroll",
-    class: "autoscroll",
-    hidden: true,
-  }) as HTMLButtonElement;
-  button.append(icon("down", 15));
-  button.addEventListener("click", modeMenu);
-  scroller.parentElement!.append(button);
 
   // every change in the chat: stay at the end while following
-  new MutationObserver(() => (following() ? toEnd() : render())).observe(scroller, {
+  new MutationObserver(() => following() && toEnd()).observe(scroller, {
     childList: true,
     subtree: true,
     characterData: true,
@@ -130,10 +106,7 @@ export function wireAutoScroll() {
   const userInput = () => (userAt = performance.now());
   scroller.addEventListener("wheel", (e) => {
     userInput();
-    if (e.deltaY < 0 && scrollMode() === "auto" && follow) {
-      follow = false; // scrolling up: pause at once
-      render();
-    }
+    if (e.deltaY < 0 && scrollMode() === "auto") follow = false; // scrolling up: pause at once
   });
   scroller.addEventListener("pointerdown", userInput); // scrollbar
   scroller.addEventListener("pointermove", (e) => e.buttons && userInput()); // dragging the scrollbar
@@ -147,11 +120,5 @@ export function wireAutoScroll() {
       if (gap() > 40) follow = false;
       else if (gap() < 4) follow = true;
     }
-    render();
   });
-}
-
-/** State changed (session shown, streaming started or ended): update the button */
-export function renderAutoScroll() {
-  if (button) render();
 }

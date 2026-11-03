@@ -7,6 +7,7 @@ import { isEditorOpen, reloadFiles, saveEditor } from "./files";
 import { activate, closeSession, defaultHostId, newSessionDialog, openSession } from "./sessions";
 import { state } from "./state";
 import { jumpToEnd } from "./autoScroll";
+import { toggleTerminal } from "./terminal";
 
 export interface ShortcutActions {
   input: HTMLTextAreaElement;
@@ -19,10 +20,12 @@ const LIST: [string, Msg][] = [
   ["⌥ Enter", "While Pi works: in between, before Pi's next step"],
   ["⌘ Enter", "Send (also from a multi-line text)"],
   ["⇧ Enter", "New line"],
+  ["⇧ ⌘ Enter", "Send in the background (runs on without PiBar)"],
   ["Esc · ⌘ .", "Stop Pi"],
   ["⌘ ↑", "Empty input: take back your last message"],
   ["⌘ L", "Into the input"],
   ["⌘ J", "Jump to the end of the chat"],
+  ["⌘ ⌥ J", "Terminal at the bottom (⌘⌥J)"],
   ["⌘ N", "New session (dialog)"],
   ["⌘ ⇧ N", "New session right away – same host and folder"],
   ["⌘ [ · ⌘ ]", "Previous / next open session"],
@@ -74,6 +77,9 @@ export function wireShortcuts(a: ShortcutActions) {
     }
     if (!mod || inDialog) return;
     const key = e.key.toLowerCase();
+    // the terminal gets its own keys (⌘C, ⌘L …); only its shortcut works there
+    const inTerminal = !!(e.target as HTMLElement | null)?.closest?.("#term-dock");
+    if (inTerminal && !(e.altKey && e.code === "KeyJ")) return;
     const run = (fn: () => unknown) => {
       e.preventDefault();
       void fn();
@@ -85,7 +91,7 @@ export function wireShortcuts(a: ShortcutActions) {
     else if (key === "n") run(() => newSessionDialog(defaultHostId()));
     else if (key === "w" && tab) run(() => closeSession(tab));
     else if (key === "l") run(() => a.input.focus());
-    else if (key === "j") run(jumpToEnd);
+    else if (key === "j") run(e.altKey ? toggleTerminal : jumpToEnd);
     else if (key === "." && tab?.streaming) run(() => tab.abort());
     else if (key === "/" || e.code === "Slash") run(shortcutsDialog);
     else if (e.key === "ArrowUp" && document.activeElement === a.input && !a.input.value.trim() && tab) {

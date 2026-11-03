@@ -114,6 +114,8 @@ export interface PiState {
   thinkingLevel?: string;
   isStreaming?: boolean;
   sessionFile?: string;
+  /** Pi's id of the session (shown in the status line panel and the session menu) */
+  sessionId?: string;
   sessionName?: string;
   messageCount?: number;
 }

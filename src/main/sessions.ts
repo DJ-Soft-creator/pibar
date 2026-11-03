@@ -22,6 +22,7 @@ import { closeEditor, reloadFiles, renderFiles } from "./files";
 import { refreshBranches } from "./branchNav";
 import { questionDialog, uiRequest } from "./answerDialog";
 import { answerStarted } from "./autoScroll";
+import { applyChatColors } from "./colors";
 import { broadcastActive } from "./quickBridge";
 import { reminderFor, reminderDialog, renderReminders } from "./reminders";
 import {
@@ -83,6 +84,31 @@ function selectHost(id: string) {
   state.config.ui.selectedHost = id;
   saveConfig();
   renderHosts();
+  void restoreHostSession(id);
+}
+
+/** Remember which session was shown for a host, so switching hosts brings it back */
+function rememberSession(tab: SessionTab | null) {
+  if (!tab?.sessionPath) return;
+  const map = (state.config.ui.sessionByHost ??= {});
+  if (map[tab.hostId] === tab.sessionPath) return;
+  map[tab.hostId] = tab.sessionPath;
+  saveConfig();
+}
+
+/** Another host chosen: show the session that was last shown there (nothing to do for "All") */
+async function restoreHostSession(hostId: string) {
+  if (hostId === "all" || state.active?.hostId === hostId) return;
+  const path = state.config.ui.sessionByHost?.[hostId];
+  if (!path) return;
+  const open = [...state.tabs.values()].find((x) => x.hostId === hostId && x.sessionPath === path);
+  if (open) {
+    activate(open);
+    return;
+  }
+  const info = state.sessionsByHost.get(hostId)?.find((s) => s.path === path);
+  if (!info) return; // deleted or not loaded: the chat stays as it is
+  await openSession(hostId, path, info.cwd, info.name || info.title);
 }
 
 function toggleCollapsed(id: string) {
@@ -460,7 +486,13 @@ function sessionItem(ref: SessionRef, ts: string) {
           { class: "sess-meta working" },
           [t("Pi is working …"), tab.activity, shortPath(cwd)].filter(Boolean).join(" · "),
         )
-      : h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
+      : m.backgroundAt
+        ? h(
+            "span",
+            { class: "sess-meta working" },
+            [t("Running in the background"), shortPath(cwd)].filter(Boolean).join(" · "),
+          )
+        : h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
     sessionPill(tab),
     h(
       "span",
@@ -486,6 +518,7 @@ const norm = (s: string) => stripAnswerStyle(splitScreenText(s).text).replace(/\
 /** A session got a new key (forked or saved for the first time): move it in the maps and carry its settings over */
 function rekey(tab: SessionTab, before: string, inherit = false) {
   if (tab.key === before) return;
+  if (tab === state.active) rememberSession(tab);
   state.tabs.delete(before);
   state.tabs.set(tab.key, tab);
   const folders = state.config.sessionFolders[before];
@@ -661,6 +694,11 @@ const tabCallbacks: TabCallbacks = {
     if (x === state.active) renderToolbar();
     renderHosts();
   },
+  onBackground: (x, running) => {
+    if (x.sessionPath) setMeta(`${x.hostId}|${x.sessionPath}`, { backgroundAt: running ? Date.now() : 0 });
+    renderToolbar();
+    renderHosts();
+  },
   onSettled: async (x) => {
     markSettled(x);
     // Pi may have written files or committed: refresh the file panel of the visible session
@@ -696,12 +734,22 @@ export async function openSession(
   title: string,
 ): Promise<SessionTab> {
   const tab = new SessionTab(hostId, cwd, path, title, tabCallbacks);
-  if (path) tab.toolset = state.config.sessionMeta?.[`${hostId}|${path}`]?.tools ?? null;
+  const meta = path ? state.config.sessionMeta?.[`${hostId}|${path}`] : undefined;
+  if (path) tab.toolset = meta?.tools ?? null;
+  // B/C: every message of this session (or of all sessions) can run in the background
+  tab.background = meta?.background === "on" || (meta?.background !== "off" && !!state.config.ui.background);
   activate(tab);
   try {
-    await tab.start(tabCallbacks.onHandle);
-    if (!path) await applyDefaults(tab);
-    else void updateBranches(tab);
+    // a run in the background may still be going (started before PiBar was closed): follow it instead of starting
+    const running = path && meta?.backgroundAt ? await api.bgRunning(hostId, path).catch(() => false) : false;
+    if (running) {
+      await tab.followBackground();
+    } else {
+      if (path && meta?.backgroundAt) setMeta(`${hostId}|${path}`, { backgroundAt: 0 });
+      await tab.start(tabCallbacks.onHandle);
+      if (!path) await applyDefaults(tab);
+      else void updateBranches(tab);
+    }
   } catch (e) {
     // If Pi exits right away, onExit shows the exact message (stderr)
     if (tab.alive) await new Promise((r) => setTimeout(r, 300));
@@ -721,10 +769,13 @@ export async function openSession(
 
 /** Bring a session into the chat area */
 export function activate(tab: SessionTab) {
+  const prev = state.active;
   state.active = tab;
+  rememberSession(tab);
+  applyChatColors(tab.hostId);
   markSeen(tab);
   broadcastActive();
-  showTab(tab);
+  showTab(tab, prev);
   closeEditor();
   renderToolbar();
   renderHosts();

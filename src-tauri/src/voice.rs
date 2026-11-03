@@ -150,6 +150,7 @@ pub fn transcribe(cfg: &SttCfg, data_b64: &str, mime: &str) -> Result<String, St
                     pi_command: String::new(),
                     default_dir: String::new(),
                     use_herdr: false,
+                    color_profile: String::new(),
                 };
                 let script = cfg.command.replace("{file}", &sq(&file));
                 hostexec::run_shell(&local, &script, None).map(|s| s.trim().to_string())
