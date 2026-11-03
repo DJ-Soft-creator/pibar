@@ -7,9 +7,11 @@ import type { PiEvent } from "../shared/piProtocol";
 import { errMsg, toast } from "../shared/dom";
 import { getLang, setLang, t, translateDom } from "../shared/i18n";
 import { applyTheme } from "../shared/theme";
+import { applyChatColors, wireChatColors } from "./colors";
 import { applyUiPrefs, wireChatView } from "./chatView";
 import { wireFiles } from "./files";
 import { wireLayout } from "./layout";
+import { wireTerminal } from "./terminal";
 import { wireSessionSelect } from "./sessionSelect";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
@@ -21,11 +23,14 @@ async function init() {
   state.config = await api.getConfig();
   state.config.reminders ??= [];
   applyTheme(state.config.ui.theme);
+  wireChatColors();
+  applyChatColors();
   setLang(state.config.ui.language);
   translateDom();
   api.setLanguage(getLang()).catch(() => {});
   // A fresh window has no open sessions: stop Pi processes left over from a reload
   await api.piCloseAll().catch(() => {});
+  await api.termCloseAll().catch(() => {});
 
   wireLayout();
   wireSessionSelect();
@@ -33,6 +38,7 @@ async function init() {
   applyUiPrefs();
   renderHosts();
   wireFiles();
+  wireTerminal();
 
   // Pi events (from src-tauri/src/pi.rs) go to the session with that process handle
   await listen<{ handle: number; event: PiEvent }>("pi-event", (e) => {

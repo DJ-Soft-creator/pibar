@@ -62,7 +62,8 @@ fn reap_soon(child: &Mutex<Child>) {
 }
 
 struct PiProc {
-    stdin: Mutex<ChildStdin>,
+    /// None for a follower of a background run: there is nothing to write to
+    stdin: Option<Mutex<ChildStdin>>,
     child: Arc<Mutex<Child>>,
     pending: Pending,
     /// Last ~4000 characters Pi wrote to stderr (warnings, network errors)
@@ -111,8 +112,25 @@ impl PiManager {
             args.push(p);
         }
         args.extend(tool_args(tools.as_deref()));
-        let mut child = hostexec::spawn_pi(host, cwd, &args)?;
-        let stdin = child.stdin.take().ok_or("no stdin")?;
+        let child = hostexec::spawn_pi(host, cwd, &args)?;
+        self.register(app, child)
+    }
+
+    /// Follow a background run (src-tauri/src/bg.rs): print its log file and stream it like a live Pi, so the UI
+    /// renders the run with the same events. There is no stdin: the run gets its prompt from its command line.
+    pub fn open_follow(&self, app: &AppHandle, host: &HostCfg, session: &str) -> Result<u32, String> {
+        let script = crate::bg::follow_script(session);
+        let mut cmd = hostexec::shell_command(host, &script);
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        let child = cmd.spawn().map_err(|e| tr(format!("Start failed: {e}"), format!("Start fehlgeschlagen: {e}")))?;
+        self.register(app, child)
+    }
+
+    /// Take a spawned Pi (or a follower of a background run) and start its reader and reaper threads
+    fn register(&self, app: &AppHandle, mut child: Child) -> Result<u32, String> {
+        let stdin = child.stdin.take();
         let stdout = child.stdout.take().ok_or("no stdout")?;
         let stderr = child.stderr.take().ok_or("no stderr")?;
 
@@ -153,7 +171,8 @@ impl PiManager {
             });
         }
 
-        let proc = Arc::new(PiProc { stdin: Mutex::new(stdin), child, pending, stderr_tail });
+        let stdin = stdin.map(Mutex::new);
+        let proc = Arc::new(PiProc { stdin, child, pending, stderr_tail });
         lock(&self.procs).insert(handle, proc);
         Ok(handle)
     }
@@ -167,8 +186,13 @@ impl PiManager {
         cmd["id"] = Value::String(id.clone());
         let (tx, rx) = oneshot::channel();
         lock(&proc.pending).insert(id.clone(), tx);
+        match proc.stdin.as_ref() {
+            Some(_) => {}
+            None => return Err(tr("This is no live Pi process", "Das ist kein laufender Pi-Prozess")),
+        }
         {
-            let mut stdin = lock(&proc.stdin);
+            let stdin = proc.stdin.as_ref().expect("checked above");
+            let mut stdin = lock(stdin);
             let line = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
             stdin.write_all(line.as_bytes()).and_then(|_| stdin.write_all(b"\n")).and_then(|_| stdin.flush()).map_err(
                 |e| {
@@ -194,7 +218,8 @@ impl PiManager {
             .cloned()
             .ok_or_else(|| tr("Pi process not found", "Pi-Prozess nicht gefunden"))?;
         let line = serde_json::to_string(msg).map_err(|e| e.to_string())?;
-        let mut stdin = lock(&proc.stdin);
+        let stdin = proc.stdin.as_ref().ok_or_else(|| tr("Pi process not found", "Pi-Prozess nicht gefunden"))?;
+        let mut stdin = lock(stdin);
         stdin
             .write_all(line.as_bytes())
             .and_then(|_| stdin.write_all(b"\n"))

@@ -11,6 +11,8 @@ import { renderFiles } from "./files";
 import { scrollMode, type ScrollMode } from "./autoScroll";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
+import { colorEditor } from "./colorSettings";
+import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
 import { diagnoseDialog } from "./diagnose";
 
@@ -129,8 +131,21 @@ function presetEditor(): { el: HTMLElement; get: () => ModelPreset[] } {
 export function settingsDialog() {
   const draft: HostCfg[] = JSON.parse(JSON.stringify(state.config.hosts));
   const list = h("div", {});
+  // profiles are edited here and picked per host below, so a change re-renders the host cards
+  const colors = colorEditor(() => render());
 
   const field = (label: string, input: HTMLElement) => h("div", { class: "row" }, h("label", {}, label), input);
+  /** Colour profile of a host; "Theme colours" = the profile from the colour section (or none) */
+  const profileSelect = (host: HostCfg) => {
+    const sel = h(
+      "select",
+      {},
+      h("option", { value: "", selected: !host.colorProfile }, t("Theme colours")),
+      ...colors.get().map((p) => h("option", { value: p.id, selected: host.colorProfile === p.id }, p.name)),
+    ) as HTMLSelectElement;
+    sel.addEventListener("change", () => (host.colorProfile = sel.value));
+    return sel;
+  };
   const text = (host: HostCfg, key: KeysWith<HostCfg, string>, ph = "") => {
     const i = h("input", { type: "text", placeholder: ph, value: String(host[key] ?? "") }) as HTMLInputElement;
     i.addEventListener("input", () => (host[key] = i.value));
@@ -198,6 +213,7 @@ export function settingsDialog() {
             : null,
           host.kind === "ssh" ? field(t("User"), text(host, "sshUser", t("optional"))) : null,
           host.kind === "ssh" ? field(t("Port"), port) : null,
+          field(t("Colour profile"), profileSelect(host)),
           field(t("Pi command"), text(host, "piCommand", "pi")),
           field(t("Default folder"), text(host, "defaultDir", "~")),
           host.kind === "ssh"
@@ -224,6 +240,7 @@ export function settingsDialog() {
       piCommand: "pi",
       defaultDir: "~",
       useHerdr: false,
+      colorProfile: "",
     });
     render();
   };
@@ -302,6 +319,12 @@ export function settingsDialog() {
     style: "width:auto",
   }) as HTMLInputElement;
 
+  const background = h("input", {
+    type: "checkbox",
+    checked: !!state.config.ui.background,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
   const hotkey = h("input", {
     type: "text",
     value: state.config.ui.quickHotkey || "Alt+Shift+Space",
@@ -347,6 +370,8 @@ export function settingsDialog() {
 
   const save = async () => {
     state.config.hosts = draft;
+    state.config.colorProfiles = colors.get();
+    state.config.ui.colorProfile = colors.getDefault();
     state.config.presets = presets.get();
     state.config.voice = voice.get();
     state.config.ui.doubleTap = tapSel.value;
@@ -373,6 +398,7 @@ export function settingsDialog() {
     state.config.ui.showTimes = showTimes.checked;
     state.config.ui.autoScroll = autoScroll.value as ScrollMode;
     state.config.ui.notifyDone = notifyDone.checked;
+    state.config.ui.background = background.checked;
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -382,6 +408,7 @@ export function settingsDialog() {
     }
     if (gitChanged) renderFiles();
     renderHosts();
+    applyChatColors();
     applyUiPrefs();
     renderToolbar();
     loadAllSessions();
@@ -426,6 +453,23 @@ export function settingsDialog() {
       h(
         "div",
         { class: "row" },
+        h("label", {}, ""),
+        h(
+          "div",
+          {},
+          h("label", { class: "check" }, background, ` ${t("Start sessions in the background by default")}`),
+          h(
+            "p",
+            { class: "hint" },
+            t(
+              "Messages then keep running when PiBar quits or the connection drops; the answer is there on the next start.",
+            ),
+          ),
+        ),
+      ),
+      h(
+        "div",
+        { class: "row" },
         h("label", {}, "Git"),
         h("label", { class: "check" }, showGit, ` ${t("Show Git status in the file tree")}`),
       ),
@@ -451,6 +495,8 @@ export function settingsDialog() {
       ),
       h("h4", { class: "set-head" }, t("Voice")),
       voice.el,
+      h("h4", { class: "set-head" }, t("Chat colours")),
+      colors.el,
       h("h4", { class: "set-head" }, t("Presets")),
       presets.el,
       h("h4", { class: "set-head" }, t("Hosts")),

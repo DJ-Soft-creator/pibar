@@ -1,7 +1,7 @@
 // Status line under the input like Pi's footer (↑ input ↓ output R cache read W cache write, cost, context use), plus a
 // hover panel with counters, speed and context use. Numbers come from Pi's get_session_stats (whole session);
 // SessionTab.stats (measured live) fills in speed and serves as fallback.
-import { h } from "../shared/dom";
+import { copyText, h, toast } from "../shared/dom";
 import { footerParts, tokensPerSecond, type FooterPart, type FooterStats } from "../shared/format";
 import { t, type Msg } from "../shared/i18n";
 import type { PiSessionStats } from "../shared/piProtocol";
@@ -66,6 +66,20 @@ function row(label: string, value: string, cls = "") {
   return h("div", { class: `us-row ${cls}` }, h("span", {}, label), h("span", { class: "us-val" }, value));
 }
 
+/** Pi's session id, handed out by get_state; a click copies it */
+function idRow(id: string) {
+  return h(
+    "div",
+    {
+      class: "us-row us-id",
+      title: t("Copy session ID"),
+      onclick: () => void copyText(id).then(() => toast(t("Copied"))),
+    },
+    h("span", {}, t("Session ID")),
+    h("span", { class: "us-val" }, id),
+  );
+}
+
 /** Fill the hover panel; `pi` = answer of get_session_stats (if already loaded) */
 function render(pop: HTMLElement, tab: SessionTab, pi: PiSessionStats | null) {
   const s = tab.stats;
@@ -84,6 +98,7 @@ function render(pop: HTMLElement, tab: SessionTab, pi: PiSessionStats | null) {
 
   const rows: (HTMLElement | null)[] = [
     h("div", { class: "us-head" }, t("Session statistics")),
+    tab.sessionId ? idRow(tab.sessionId) : null,
     h("div", { class: "us-sub" }, t("Tokens")),
     row(t("Input"), num(input)),
     row(t("Output"), num(output)),

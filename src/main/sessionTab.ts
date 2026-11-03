@@ -27,6 +27,7 @@ import {
 import { getLang, t } from "../shared/i18n";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
+import type { Attachment } from "./composerTools";
 import { diagnoseDialog } from "./diagnose";
 import { state } from "./state";
 
@@ -72,6 +73,12 @@ export interface QueueItem {
   when: QueueWhen;
 }
 
+/** A message sent as a detached run on the host: `handle` is the log stream the tab follows */
+export interface BackgroundRun {
+  handle: number;
+  started: number;
+}
+
 export interface TabCallbacks {
   onHandle: (tab: SessionTab) => void;
   onStateChange: (tab: SessionTab) => void;
@@ -85,6 +92,8 @@ export interface TabCallbacks {
   onAnswerStart: (tab: SessionTab) => void;
   /** Dialog or notice from a Pi extension (Pi waits for dialogs to be answered) */
   onUiRequest: (tab: SessionTab, req: UiRequest) => void;
+  /** A run in the background started or ended (marker in the session list and sessionMeta) */
+  onBackground?: (tab: SessionTab, running: boolean) => void;
 }
 
 const MAX_RESULT = 20000;
@@ -169,6 +178,8 @@ export class SessionTab {
   streaming = false;
   model: PiModel | null = null;
   thinkingLevel = "";
+  /** Pi's session id (get_state), "" while Pi has no session file yet */
+  sessionId = "";
   models: PiModel[] = [];
   levels: string[] = [];
   /** Preset chosen in the toolbar or quick bar: id, "" = individual choice, null = derive from model/thinking */
@@ -188,8 +199,22 @@ export class SessionTab {
   readNext = false;
   /** Name given in "New session", saved as own name once the session has a file */
   pendingName = "";
+  /** Message being written for this session (kept when switching to another session and back) */
+  draft = "";
+  /** Files picked for the next message of this session, see draft */
+  draftAttachments: Attachment[] = [];
   /** Pi tools for this session (allowlist), null = Pi's default; applied when Pi starts */
   toolset: string[] | null = null;
+  /** Run in the background (src-tauri/src/bg.rs): Pi runs detached on the host, the tab follows its log */
+  bg: BackgroundRun | null = null;
+  /** Every message of this session goes to the background (toggle in the send menu, default from the settings) */
+  background = false;
+  /** No Pi process here: the tab shows a run in the background (or waits for the next one) */
+  detached = false;
+  /** The current run in the background reported agent_settled (otherwise it ended without an answer) */
+  private bgSettled = false;
+  /** The user stopped the current run in the background (no answer is not an error then) */
+  private bgStopWanted = false;
   /** Text of the last answer of the current run (for auto read) */
   private lastText = "";
   /** Choice questions at the end of the last answer (answer dialog, src/main/answerDialog.ts); [] = none */
@@ -230,6 +255,7 @@ export class SessionTab {
     this.note(this.sessionPath ? t("Loading session …") : t("Starting new session …"));
     this.handle = await api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined, this.toolset);
     this.alive = true;
+    this.detached = false;
     onHandle?.(this);
     await this.refreshState();
     if (this.sessionPath) await this.loadHistory();
@@ -238,11 +264,14 @@ export class SessionTab {
     this.cb.onStateChange(this);
   }
 
+  /** Start Pi again in the same session (after a crash, a lost connection or a tool change); the model chosen here
+   * stays – a fresh process would otherwise take the model of the session file, i.e. the one used back then. */
   async restart() {
+    if (this.detached) return this.attach();
     // also after Pi ended by itself: frees its entry in the Rust core
     if (this.handle) await api.piClose(this.handle).catch(() => {});
     this.clearView();
-    await this.start(this.cb.onHandle);
+    await this.keepModel(() => this.start(this.cb.onHandle));
   }
 
   private clearView() {
@@ -274,6 +303,7 @@ export class SessionTab {
       this.sessionPath = (st.messageCount ?? 0) > 0 ? (st.sessionFile ?? null) : null;
       this.model = st.model ?? this.model;
       this.thinkingLevel = st.thinkingLevel ?? this.thinkingLevel;
+      this.sessionId = st.sessionId ?? "";
       this.clearView();
       if (this.sessionPath) await this.loadHistory();
       this.cb.onStateChange(this);
@@ -330,13 +360,15 @@ export class SessionTab {
   /** Stop the Pi process. The session file stays and can be reopened. */
   close() {
     if (this.handle) api.piClose(this.handle).catch(() => {});
+    // following a run in the background ends here; the run itself keeps going on the host
+    if (this.bg) api.piClose(this.bg.handle).catch(() => {});
     this.alive = false;
     this.streaming = false;
   }
 
   /** Reload Pi's session statistics (status line under the input) */
   async refreshStats() {
-    if (!this.alive) return;
+    if (!this.alive || this.detached) return;
     try {
       this.piStats = await api.pi(this.handle, { type: "get_session_stats" });
       this.cb.onStateChange(this);
@@ -346,10 +378,12 @@ export class SessionTab {
   }
 
   async refreshState() {
+    if (this.detached || !this.handle) return;
     void this.refreshStats();
     const st = await api.pi(this.handle, { type: "get_state" });
     this.model = st.model ?? null;
     this.thinkingLevel = st.thinkingLevel ?? "";
+    this.sessionId = st.sessionId ?? "";
     this.streaming = !!st.isStreaming;
     if (st.sessionFile && (st.messageCount ?? 0) > 0) this.sessionPath = st.sessionFile;
     if (st.sessionName) this.title = st.sessionName;
@@ -389,6 +423,10 @@ export class SessionTab {
    * between, before Pi's next step). The queue is shown above the input (`queue`, chatView.ts renderQueue).
    */
   async send(text: string, images: Image[] = [], when: QueueWhen = "followUp") {
+    if (this.detached) {
+      await this.sendToBackground(text, images, when);
+      return;
+    }
     this.questions = [];
     await this.settling.catch(() => {});
     const message = withAnswerStyle(text, state.config.ui.answerMode);
@@ -399,6 +437,140 @@ export class SessionTab {
       if (images.length) this.queuedImages.set(message, images);
     }
     await api.pi(this.handle, cmd);
+  }
+
+  // ---------- Runs in the background (src-tauri/src/bg.rs) ----------
+
+  /**
+   * Send a message as a detached run on the host: Pi keeps working when PiBar quits or the connection drops. The tab
+   * follows the run's log file and shows the answer from the session file once it is done.
+   * Returns false if nothing was sent (the caller keeps the text in the input).
+   */
+  async sendToBackground(text: string, images: Image[] = [], when: QueueWhen = "followUp"): Promise<boolean> {
+    if (this.bg) {
+      toast(t("This session is still running in the background – wait or stop it."));
+      return false;
+    }
+    if (images.length) {
+      toast(t("Images only go with a normal message."));
+      return false;
+    }
+    if (this.streaming) {
+      // a live run of this tab: queue the message in Pi as usual
+      if (!this.detached) {
+        await this.send(text, images, when);
+        return true;
+      }
+      toast(t("Pi is still working – wait for the answer."));
+      return false;
+    }
+    // The first message of a new session has no session file yet: it goes the normal way, the rest can follow.
+    if (!this.sessionPath) {
+      await this.send(text, images);
+      return true;
+    }
+    const message = withAnswerStyle(text, state.config.ui.answerMode);
+    const path = this.sessionPath;
+    try {
+      await this.detach();
+      const handle = await api.bgStart(
+        this.hostId,
+        this.cwd,
+        path,
+        message,
+        this.model?.provider,
+        this.model?.id,
+        this.thinkingLevel,
+        this.toolset,
+      );
+      this.startRun(handle);
+      this.cb.onBackground?.(this, true);
+      return true;
+    } catch (e) {
+      toast(`${t("In the background")}: ${errMsg(e)}`, "err");
+      await this.attach().catch(() => {});
+      return false;
+    }
+  }
+
+  /** Open a session whose run is still going in the background (e.g. after PiBar was restarted) */
+  async followBackground(): Promise<void> {
+    const path = this.sessionPath;
+    if (!path) return;
+    const handle = await api.bgFollow(this.hostId, path);
+    this.alive = true;
+    this.detached = true;
+    this.note(t("This session runs in the background – its history appears when the run is done."));
+    this.startRun(handle);
+    this.cb.onBackground?.(this, true);
+  }
+
+  /** Stop the run in the background; the answer stays as far as Pi has written it */
+  async stopBackground(): Promise<void> {
+    if (!this.sessionPath) return;
+    this.bgStopWanted = true;
+    await api.bgStop(this.hostId, this.sessionPath).catch((e) => toast(errMsg(e), "err"));
+  }
+
+  private startRun(handle: number) {
+    this.bg = { handle, started: Date.now() };
+    this.bgSettled = false;
+    this.bgStopWanted = false;
+    state.tabsByHandle.set(handle, this);
+    this.streaming = true;
+    this.activity = "";
+    this.cb.onStateChange(this);
+  }
+
+  /** Start Pi again in this session (after a run in the background) and show the history from the session file */
+  async attach(): Promise<void> {
+    const run = this.bg;
+    if (run) {
+      this.bg = null;
+      state.tabsByHandle.delete(run.handle);
+      await api.piClose(run.handle).catch(() => {});
+    }
+    this.detached = false;
+    this.clearView();
+    await this.keepModel(() => this.start(this.cb.onHandle));
+    this.cb.onStateChange(this);
+  }
+
+  /** A run in the background ended (Pi wrote its answer into the session file): show the session from there */
+  private async finishBackground(stderr: string) {
+    const run = this.bg;
+    if (!run) return;
+    this.bg = null;
+    this.streaming = false;
+    this.activity = "";
+    state.tabsByHandle.delete(run.handle);
+    await api.piClose(run.handle).catch(() => {});
+    this.flush();
+    this.cb.onBackground?.(this, false);
+    const ok = this.bgSettled || this.bgStopWanted;
+    await this.attach().catch((e) => toast(`${t("In the background")}: ${errMsg(e)}`, "err"));
+    if (stderr.trim()) this.el.append(h("div", { class: "msg note" }, stderr.trim().slice(-800)));
+    if (!ok)
+      toast(
+        `${t("In the background")}: ${t("The run ended without an answer – its log is on the host in ~/.pibar.")}`,
+        "err",
+      );
+    this.cb.onSettled(this);
+  }
+
+  /** Close this tab's Pi process; the session stays on the host and the next message can run in the background */
+  private async detach() {
+    this.alive = true; // the tab keeps showing the session, there is just no process of its own
+    if (this.handle) {
+      const handle = this.handle;
+      this.handle = 0;
+      state.tabsByHandle.delete(handle);
+      await api.piClose(handle).catch(() => {});
+    }
+    this.detached = true;
+    this.streaming = false;
+    this.activity = "";
+    this.queue = { steering: [], followUp: [] };
   }
 
   /** Messages waiting while Pi works (from Pi's queue_update): in between (steering) and after (followUp) */
@@ -427,6 +599,7 @@ export class SessionTab {
   }
 
   async abort() {
+    if (this.detached) return this.stopBackground();
     await api.pi(this.handle, { type: "abort" });
   }
 
@@ -512,6 +685,11 @@ export class SessionTab {
         this.cb.onStateChange(this);
         break;
       case "agent_settled":
+        if (this.bg) {
+          this.bgSettled = true;
+          void this.finishBackground("");
+          break;
+        }
         this.streaming = false;
         this.activity = "";
         this.questions = findQuestions(this.lastText);
@@ -588,6 +766,10 @@ export class SessionTab {
   }
 
   onExit(stderr: string) {
+    if (this.bg) {
+      void this.finishBackground(stderr);
+      return;
+    }
     this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
     this.alive = false;
     this.streaming = false;

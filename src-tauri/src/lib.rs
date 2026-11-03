@@ -1,3 +1,4 @@
+mod bg;
 mod config;
 mod diag;
 mod disclaim;
@@ -10,6 +11,7 @@ mod models;
 mod pi;
 mod quick;
 mod sessions;
+mod terminal;
 mod voice;
 
 use config::AppConfig;
@@ -18,6 +20,7 @@ use serde_json::Value;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
+use terminal::TermManager;
 
 // ---------- Settings ----------
 
@@ -133,6 +136,106 @@ fn pi_close(mgr: State<'_, PiManager>, handle: u32) {
 /// Stop all Pi processes (the main window calls this on start, e.g. after a reload)
 #[tauri::command]
 fn pi_close_all(mgr: State<'_, PiManager>) {
+    mgr.close_all();
+}
+
+// ---------- Runs in the background ----------
+
+/// Send one message as a detached run on the host ("in the background"): Pi keeps going when PiBar quits or the
+/// connection drops. Returns the handle of the log follower, i.e. of the stream the UI shows.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+async fn bg_start(
+    app: AppHandle,
+    mgr: State<'_, PiManager>,
+    host_id: String,
+    cwd: String,
+    session: String,
+    prompt: String,
+    provider: Option<String>,
+    model_id: Option<String>,
+    thinking: Option<String>,
+    tools: Option<Vec<String>>,
+) -> Result<u32, String> {
+    let host = config::find_host(&app, &host_id)?;
+    let mut args: Vec<String> = vec!["--session".into(), session.clone()];
+    if let Some(p) = provider.filter(|p| !p.trim().is_empty()) {
+        args.push("--provider".into());
+        args.push(p);
+    }
+    if let Some(m) = model_id.filter(|m| !m.trim().is_empty()) {
+        args.push("--model".into());
+        args.push(m);
+    }
+    if let Some(t) = thinking.filter(|t| !t.trim().is_empty()) {
+        args.push("--thinking".into());
+        args.push(t);
+    }
+    args.extend(pi::tool_args(tools.as_deref()));
+    args.push(prompt);
+    let (h, sess) = (host.clone(), session.clone());
+    tauri::async_runtime::spawn_blocking(move || bg::start(&h, &cwd, &sess, &args))
+        .await
+        .map_err(|e| e.to_string())??;
+    mgr.open_follow(&app, &host, &session)
+}
+
+/// Follow a run in the background that was started earlier (e.g. before PiBar was restarted)
+#[tauri::command]
+fn bg_follow(app: AppHandle, mgr: State<'_, PiManager>, host_id: String, session: String) -> Result<u32, String> {
+    let host = config::find_host(&app, &host_id)?;
+    mgr.open_follow(&app, &host, &session)
+}
+
+/// Is a session's run in the background still going?
+#[tauri::command]
+async fn bg_running(app: AppHandle, host_id: String, session: String) -> Result<bool, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || bg::running(&host, &session)).await.map_err(|e| e.to_string())?
+}
+
+/// Stop a session's run in the background (the session file keeps what Pi wrote so far)
+#[tauri::command]
+async fn bg_stop(app: AppHandle, host_id: String, session: String) -> Result<(), String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || bg::stop(&host, &session)).await.map_err(|e| e.to_string())?
+}
+
+// ---------- Terminal (interactive shell in a pty) ----------
+
+/// Start a shell in a folder of the host; returns the id of the terminal
+#[tauri::command]
+fn term_open(
+    app: AppHandle,
+    mgr: State<'_, TermManager>,
+    host_id: String,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+) -> Result<u32, String> {
+    let host = config::find_host(&app, &host_id)?;
+    mgr.open(&app, &host, &cwd, cols, rows)
+}
+
+/// Keys and pasted text from the terminal
+#[tauri::command]
+fn term_write(mgr: State<'_, TermManager>, id: u32, data: String) -> Result<(), String> {
+    mgr.write(id, &data)
+}
+
+#[tauri::command]
+fn term_resize(mgr: State<'_, TermManager>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
+    mgr.resize(id, cols, rows)
+}
+
+#[tauri::command]
+fn term_close(mgr: State<'_, TermManager>, id: u32) {
+    mgr.close(id);
+}
+
+/// Stop all terminals (the main window calls this on start, e.g. after a reload)
+#[tauri::command]
+fn term_close_all(mgr: State<'_, TermManager>) {
     mgr.close_all();
 }
 
@@ -372,6 +475,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .manage(PiManager::default())
+        .manage(TermManager::default())
         .setup(|app| {
             // read the user's shell environment in the background, so the first local Pi start does not wait
             std::thread::spawn(|| {
@@ -420,6 +524,15 @@ pub fn run() {
             pi_stderr,
             diagnose,
             pi_close_all,
+            bg_start,
+            bg_follow,
+            bg_running,
+            bg_stop,
+            term_open,
+            term_write,
+            term_resize,
+            term_close,
+            term_close_all,
             set_language,
             list_files,
             read_file,
@@ -450,7 +563,10 @@ pub fn run() {
         .expect("PiBar failed to start");
 
     app.run(|handle, event| match event {
-        RunEvent::Exit => handle.state::<PiManager>().close_all(),
+        RunEvent::Exit => {
+            handle.state::<PiManager>().close_all();
+            handle.state::<TermManager>().close_all();
+        }
         #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => quick::show_main(handle),
         _ => {}

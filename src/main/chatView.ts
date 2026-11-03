@@ -4,19 +4,21 @@ import { emit } from "@tauri-apps/api/event";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { $, h, errMsg, toast } from "../shared/dom";
 import { cleanTitle, shortPath, stripAnswerStyle, thinkingLabel, withContext, withFiles } from "../shared/format";
-import { hasAttachments, renderDock, takeAttachments, wireComposerTools } from "./composerTools";
+import { hasAttachments, renderDock, swapAttachments, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
 import { matchPreset, splitModelKey } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
-import { renderAutoScroll, scrollModeItems, showEnd, wireAutoScroll } from "./autoScroll";
+import { keepScroll, scrollModeItems, showEnd, wireAutoScroll } from "./autoScroll";
+import { applyChatColors } from "./colors";
 import { wireShortcuts } from "./shortcuts";
 import type { QueueItem, QueueWhen } from "./sessionTab";
 import { applyLayout } from "./layout";
 import { openMenu } from "./menu";
+import { applyTermTheme } from "./terminal";
 import { cleanupDialog } from "./cleanup";
-import { displayTitle } from "./sessionGroups";
+import { displayTitle, setMeta } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { renderUsage, wireUsage } from "./usageStats";
 import type { SessionTab } from "./sessionTab";
@@ -37,22 +39,24 @@ const SEND_ICON: Record<"send" | "steer" | "stop", string> = {
 };
 let sendMode: "send" | "steer" | "stop" | "" = "";
 
-/** One round button: send · while Pi works: stop, or steer as soon as something is typed */
+/** One round button: send · while Pi works (or a run in the background goes on): stop · otherwise steer */
 function renderSendButton() {
   const tab = state.active;
   const typed = !!elInput.value.trim() || hasAttachments();
-  const mode = tab?.streaming ? (typed ? "steer" : "stop") : "send";
+  const mode = tab?.bg ? "stop" : tab?.streaming ? (typed ? "steer" : "stop") : "send";
   elSend.disabled = !tab?.alive || (mode === "send" && !typed);
   if (mode === sendMode) return;
   sendMode = mode;
   elSend.innerHTML = SEND_ICON[mode];
   elSend.className = `send-btn ${mode}`;
   elSend.title =
-    mode === "stop"
-      ? t("Stop (Esc)")
-      : mode === "steer"
-        ? t("Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step")
-        : t("Send (Enter)");
+    mode === "stop" && tab?.bg
+      ? t("Stop the run in the background")
+      : mode === "stop"
+        ? t("Stop (Esc)")
+        : mode === "steer"
+          ? t("Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step")
+          : t("Send (Enter) · ⇧⌘↩ in the background");
 }
 const elPreset = $("sel-preset") as HTMLSelectElement;
 const elModel = $("sel-model") as HTMLSelectElement;
@@ -146,18 +150,41 @@ export function applyUiPrefs() {
 }
 
 /** Show a session's chat in the chat area */
-export function showTab(tab: SessionTab) {
+export function showTab(tab: SessionTab, prev: SessionTab | null = null) {
   elEmpty.hidden = true;
   elChatScroll.querySelectorAll(".messages").forEach((m) => m !== tab.el && m.remove());
   if (tab.el.parentElement !== elChatScroll) elChatScroll.append(tab.el);
+  swapComposer(prev, tab);
   showEnd();
   elInput.focus();
+}
+
+/**
+ * Text and attachments belong to the session: put the draft of the session being left into its tab and show the
+ * draft of the new one. Otherwise a half-typed message of one session would sit in front of another one.
+ */
+function swapComposer(prev: SessionTab | null, next: SessionTab) {
+  if (prev === next) return; // same session (a click on its row): the text stays as typed
+  if (prev) {
+    prev.draft = elInput.value;
+    prev.draftAttachments = swapAttachments([]);
+  }
+  elInput.value = next.draft;
+  swapAttachments(next.draftAttachments);
+  next.draftAttachments = [];
+  autoGrow();
+  renderSendButton();
 }
 
 /** Back to the welcome screen (no active session) */
 export function showEmpty() {
   elChatScroll.querySelectorAll(".messages").forEach((m) => m.remove());
   elEmpty.hidden = false;
+  elInput.value = "";
+  swapAttachments([]);
+  autoGrow();
+  renderSendButton();
+  applyChatColors();
 }
 
 /** Update header and input for the active session */
@@ -174,6 +201,7 @@ export function renderToolbar() {
         )
       : t("No session"),
     tab ? ` · ${host?.name ?? tab.hostId} · ${shortPath(tab.cwd)}` : "",
+    tab?.background ? ` · ${t("In the background")}` : "",
   );
 
   const ready = !!tab && tab.alive;
@@ -184,7 +212,6 @@ export function renderToolbar() {
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
-  renderAutoScroll();
   renderQueue(tab);
   $("question-bar").hidden = !tab?.questions.length || tab.streaming;
 
@@ -197,17 +224,26 @@ export function renderToolbar() {
   const cur = tab?.model ? `${tab.model.provider}/${tab.model.id}` : "";
   const groups = new Map<string, HTMLOptGroupElement>();
   const opts: HTMLElement[] = [];
-  if (tab && !tab.models.length) opts.push(h("option", { value: "" }, tab.model?.name ?? t("no model configured")));
-  for (const m of tab?.models ?? []) {
-    let g = groups.get(m.provider);
+  const group = (provider: string) => {
+    let g = groups.get(provider);
     if (!g) {
-      g = h("optgroup", { label: m.provider });
-      groups.set(m.provider, g);
+      g = h("optgroup", { label: provider });
+      groups.set(provider, g);
       opts.push(g);
     }
+    return g;
+  };
+  if (tab && !tab.models.length) opts.push(h("option", { value: cur }, tab.model?.name ?? t("no model configured")));
+  for (const m of tab?.models ?? []) {
     const value = `${m.provider}/${m.id}`;
-    g.append(h("option", { value, selected: value === cur }, m.name || m.id));
+    group(m.provider).append(h("option", { value, selected: value === cur }, m.name || m.id));
   }
+  // Pi can run a model that the host does not list (e.g. taken from the session file). Show it too: a dropdown that
+  // falls back to its first entry would name another model than the one Pi uses, and picking it again would do nothing.
+  if (tab?.model && !(tab.models ?? []).some((m) => `${m.provider}/${m.id}` === cur))
+    group(tab.model.provider).append(
+      h("option", { value: cur, selected: true }, `${tab.model.name || tab.model.id} – ${t("not in the list")}`),
+    );
   elModel.replaceChildren(...opts);
   elModel.value = cur;
   if (elModel.selectedIndex < 0 && elModel.options.length) elModel.selectedIndex = 0;
@@ -301,10 +337,12 @@ function autoGrow() {
     parseFloat(cs.borderTopWidth) +
     parseFloat(cs.borderBottomWidth);
   const max = Math.round(line * INPUT_LINES + extra);
-  elInput.style.height = "auto";
-  const want = elInput.scrollHeight + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-  elInput.style.height = `${Math.min(want, max)}px`;
-  elInput.classList.toggle("scrolls", want > max);
+  keepScroll(() => {
+    elInput.style.height = "auto";
+    const want = elInput.scrollHeight + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+    elInput.style.height = `${Math.min(want, max)}px`;
+    elInput.classList.toggle("scrolls", want > max);
+  });
 }
 
 // ---------- Queue: messages waiting while Pi works ----------
@@ -358,7 +396,7 @@ export function fillInput(text: string) {
   elInput.setSelectionRange(text.length, text.length);
 }
 
-async function sendInput(when: QueueWhen = "followUp") {
+async function sendInput(when: QueueWhen | "background" = "followUp") {
   const tab = state.active;
   const text = elInput.value.trim();
   if ((!text && !hasAttachments()) || !tab || !tab.alive) return;
@@ -378,11 +416,49 @@ async function sendInput(when: QueueWhen = "followUp") {
     texts.length || images.length ? t("Have a look at the attached files.") : t("Have a look at the context.");
   const msg = withContext(withFiles(text || fallback, texts), refs);
   try {
+    if (when === "background" || tab.background) {
+      if (!(await tab.sendToBackground(msg, images))) elInput.value = text;
+      autoGrow();
+      renderSendButton();
+      return;
+    }
     await tab.send(msg, images, when);
   } catch (e) {
     toast(errMsg(e), "err");
     elInput.value = text;
   }
+}
+
+/** Menu on the send button: one message in the background, or all messages of this session */
+function backgroundMenu() {
+  const tab = state.active;
+  if (!tab) return;
+  openMenu(
+    elSend,
+    [
+      { heading: t("In the background") },
+      {
+        label: t("Send in the background"),
+        desc: t("Keeps running when PiBar quits or the connection drops"),
+        onSelect: () => void sendInput("background"),
+      },
+      {
+        label: t("Always send in the background"),
+        desc: t("For this session, until switched off"),
+        selected: tab.background,
+        onSelect: () => setBackground(tab, !tab.background),
+      },
+    ],
+    "right",
+  );
+}
+
+/** Sticky mode of one session (B): saved in sessionMeta, so it survives a restart */
+export function setBackground(tab: SessionTab, on: boolean) {
+  tab.background = on;
+  if (tab.sessionPath) setMeta(`${tab.hostId}|${tab.sessionPath}`, { background: on ? "on" : "off" });
+  renderToolbar();
+  toast(t(on ? "Messages of this session run in the background." : "Messages of this session go the normal way."));
 }
 
 /** Wire header, input and global keyboard shortcuts */
@@ -394,6 +470,11 @@ export function wireChatView() {
   });
   elInput.addEventListener("keydown", (e) => {
     if (slashKey(e)) return;
+    if (e.key === "Enter" && e.shiftKey && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      sendInput("background");
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
       // while Pi works: Enter (and ⌘Enter) queue the message (after Pi is done), ⌥Enter puts it in between
@@ -404,7 +485,14 @@ export function wireChatView() {
   elSend.addEventListener("click", (e) => {
     if (sendMode !== "stop") return; // submit → sendInput
     e.preventDefault();
-    state.active?.abort().catch((err) => toast(errMsg(err), "err"));
+    const tab = state.active;
+    if (!tab) return;
+    if (tab.bg) void tab.stopBackground();
+    else tab.abort().catch((err) => toast(errMsg(err), "err"));
+  });
+  elSend.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    backgroundMenu();
   });
   elInput.addEventListener("input", renderSendButton);
 
@@ -515,6 +603,8 @@ export function wireChatView() {
 export function setTheme(theme: Theme) {
   state.config.ui.theme = theme;
   applyTheme(theme);
+  applyChatColors(); // the profile has its own colours for dark and light
+  applyTermTheme();
   applyUiPrefs();
   saveConfig();
   emit("theme-changed", theme).catch(() => {});

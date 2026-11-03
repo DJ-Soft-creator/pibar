@@ -268,6 +268,26 @@
           <span class="usage-model" id="usage-model"></span>
           <div class="usage-pop" id="usage-pop"></div>
         </div>
+        <div class="hsplit term-split" id="rs-term" hidden data-i18n-title="Drag to resize"></div>
+        <section id="term-dock" class="term-dock" hidden>
+          <div class="term-head">
+            <div class="term-tabs" id="term-tabs"></div>
+            <span class="term-acts">
+              <button class="icon-btn" id="btn-term-new" data-i18n-title="New terminal in this folder">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M8 3.5v9M3.5 8h9" />
+                </svg>
+              </button>
+              <button class="icon-btn" id="btn-term-kill" data-i18n-title="Close this terminal">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+                </svg>
+              </button>
+              <button class="icon-btn" id="btn-term-dock" data-i18n-title="Hide terminal (⌘⌥J)">×</button>
+            </span>
+          </div>
+          <div class="term-body" id="term-body"></div>
+        </section>
       </main>
 
       <aside class="files">
@@ -283,6 +303,12 @@
             ↻
           </button>
           <button class="icon-btn" id="btn-add-folder" data-i18n-title="New file or folder" disabled>＋</button>
+          <button class="icon-btn" id="btn-term" data-i18n-title="Terminal (⌘⌥J)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" />
+              <path d="M4.5 6l2.5 2-2.5 2M8.5 10.5h3" />
+            </svg>
+          </button>
         </div>
         <div id="file-tree" class="file-tree">
           <p class="muted pad" data-i18n="No session open.">No session open.</p>

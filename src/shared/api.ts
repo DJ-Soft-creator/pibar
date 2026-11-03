@@ -31,6 +31,8 @@ export interface HostCfg {
   piCommand: string;
   defaultDir: string;
   useHerdr: boolean;
+  /** Colour profile of the chat on this host, "" = the default from the settings */
+  colorProfile: string;
 }
 
 /** A reminder on a saved session */
@@ -46,6 +48,28 @@ export interface Reminder {
   note: string;
   /** Notification already shown */
   fired: boolean;
+}
+
+/** Colours of one part of the chat; "" = keep what the theme does (see src/shared/colors.ts) */
+export interface RoleColor {
+  background?: string;
+  text?: string;
+}
+
+/** Colours of thinking, tool calls, answers and own messages */
+export interface ChatColors {
+  thinking?: RoleColor;
+  tools?: RoleColor;
+  answer?: RoleColor;
+  own?: RoleColor;
+}
+
+/** Colour profile of the chat: one set for the dark and one for the light theme, chosen per host */
+export interface ColorProfile {
+  id: string;
+  name: string;
+  dark?: ChatColors;
+  light?: ChatColors;
 }
 
 /** Saved combination of model and thinking level; empty fields keep the session's value */
@@ -106,6 +130,10 @@ export interface SessionMeta {
   group?: string;
   /** Pi tools of this session: undefined = Pi's default, [] = none */
   tools?: string[];
+  /** "on"/"off": every message of this session runs in the background; empty = as in the settings */
+  background?: string;
+  /** Start time (ms since epoch) of the newest run in the background, 0 = none */
+  backgroundAt?: number;
 }
 
 export interface SessionGroup {
@@ -124,6 +152,8 @@ export interface AppConfig {
   /** Key "<hostId>|<sessionPath>" */
   sessionMeta: Record<string, SessionMeta>;
   groups: SessionGroup[];
+  /** Colour profiles of the chat (thinking, tool calls, answers, own messages) */
+  colorProfiles?: ColorProfile[];
   ui: {
     /** "auto", "de" or "en" */
     language?: string;
@@ -148,6 +178,8 @@ export interface AppConfig {
     rightWidth?: number | null;
     /** Height of the file tree above the editor (percent of the right panel) */
     filesSplit?: number | null;
+    /** Height of the terminal below the chat in pixels */
+    termHeight?: number | null;
     /** Git status in the file tree */
     showGit?: boolean;
     /** Time of each chat message */
@@ -162,6 +194,12 @@ export interface AppConfig {
     autoScroll?: "auto" | "always" | "off" | "on";
     /** File tree: only Markdown, HTML and images (default: all files) */
     filesDocsOnly?: boolean;
+    /** Send messages as detached runs on the host by default ("in the background") */
+    background?: boolean;
+    /** Last session shown per host (host id → session file), so switching hosts brings it back */
+    sessionByHost?: Record<string, string>;
+    /** Colour profile for hosts without their own, "" = the theme's colours */
+    colorProfile?: string;
     /** Session list: order and sections (src/shared/sessionOrder.ts) */
     sessionSort?: SessionSort;
     sessionGroup?: SessionGroupBy;
@@ -310,6 +348,41 @@ export const api = {
   diagnose: (hostId: string, provider: string, model: string) =>
     invoke<string>("diagnose", { hostId, provider, model }),
   piCloseAll: () => invoke<void>("pi_close_all"),
+  /** Send one message as a detached run on the host; returns the handle of the log stream (see SessionTab.bg) */
+  bgStart: (
+    hostId: string,
+    cwd: string,
+    session: string,
+    prompt: string,
+    provider?: string,
+    modelId?: string,
+    thinking?: string,
+    tools?: string[] | null,
+  ) =>
+    invoke<number>("bg_start", {
+      hostId,
+      cwd,
+      session,
+      prompt,
+      provider: provider ?? null,
+      modelId: modelId ?? null,
+      thinking: thinking ?? null,
+      tools: tools ?? null,
+    }),
+  /** Follow a run in the background that was started earlier (e.g. before PiBar was restarted) */
+  bgFollow: (hostId: string, session: string) => invoke<number>("bg_follow", { hostId, session }),
+  /** Is the session's run in the background still going? */
+  bgRunning: (hostId: string, session: string) => invoke<boolean>("bg_running", { hostId, session }),
+  /** Stop the session's run in the background */
+  bgStop: (hostId: string, session: string) => invoke<void>("bg_stop", { hostId, session }),
+  /** Interactive shell in a pty (src-tauri/src/terminal.rs); returns the terminal id */
+  termOpen: (hostId: string, cwd: string, cols: number, rows: number) =>
+    invoke<number>("term_open", { hostId, cwd, cols, rows }),
+  /** Keys and pasted text */
+  termWrite: (id: number, data: string) => invoke<void>("term_write", { id, data }),
+  termResize: (id: number, cols: number, rows: number) => invoke<void>("term_resize", { id, cols, rows }),
+  termClose: (id: number) => invoke<void>("term_close", { id }),
+  termCloseAll: () => invoke<void>("term_close_all"),
   /** `docsOnly`: only Markdown, HTML and images instead of all files */
   listFiles: (hostId: string, folders: string[], git = false, docsOnly = false) =>
     invoke<FolderListing[]>("list_files", { hostId, folders, git, docsOnly }),

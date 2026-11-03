@@ -35,6 +35,9 @@ pub struct HostCfg {
     /// Reserved: start Pi through herdr
     #[serde(default)]
     pub use_herdr: bool,
+    /// Colour profile of the chat on this host (id from AppConfig.colorProfiles); empty = the default profile
+    #[serde(default)]
+    pub color_profile: String,
 }
 
 /// A reminder on a saved session (managed by the UI, src/main/reminders.ts)
@@ -121,6 +124,9 @@ pub struct UiPrefs {
     /// Height of the file tree above the editor, in percent of the right panel; None = default
     #[serde(default)]
     pub files_split: Option<f64>,
+    /// Height of the terminal below the chat in pixels; None = default
+    #[serde(default)]
+    pub term_height: Option<u32>,
     /// Show the Git status (branch, unpushed commits, changed files) in the file tree
     #[serde(default)]
     pub show_git: bool,
@@ -143,12 +149,21 @@ pub struct UiPrefs {
     /// File tree: only Markdown, HTML and images instead of all files
     #[serde(default)]
     pub files_docs_only: bool,
+    /// Send messages as detached runs on the host by default ("in the background")
+    #[serde(default)]
+    pub background: bool,
     /// Order of the session list: "activity" (last change), "created", "name" or "folder"
     #[serde(default = "default_session_sort")]
     pub session_sort: String,
     /// Sections of the session list: "none", "date" or "folder"
     #[serde(default = "default_session_group")]
     pub session_group: String,
+    /// Last session shown per host (host id → session file), so switching hosts brings it back
+    #[serde(default)]
+    pub session_by_host: HashMap<String, String>,
+    /// Colour profile for hosts without their own (id from AppConfig.colorProfiles); empty = theme colours
+    #[serde(default)]
+    pub color_profile: String,
 }
 
 pub fn default_auto_scroll() -> String {
@@ -211,6 +226,7 @@ impl Default for UiPrefs {
             left_width: None,
             right_width: None,
             files_split: None,
+            term_height: None,
             show_git: false,
             show_times: false,
             notify_done: true,
@@ -219,8 +235,11 @@ impl Default for UiPrefs {
             default_thinking: String::new(),
             auto_scroll: default_auto_scroll(),
             files_docs_only: false,
+            background: false,
             session_sort: default_session_sort(),
             session_group: default_session_group(),
+            session_by_host: HashMap::new(),
+            color_profile: String::new(),
         }
     }
 }
@@ -239,6 +258,10 @@ pub struct SessionMeta {
     /// Pi tools for this session (allowlist); None = Pi's default, empty = no tools
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<String>>,
+    /// "on": every message of this session runs in the background, "off": never, empty: as in the settings
+    pub background: String,
+    /// Start time of the newest run in the background (ms since epoch), 0 = none
+    pub background_at: u64,
 }
 
 /// User-defined group of sessions with a colour
@@ -345,6 +368,36 @@ pub struct VoiceCfg {
     pub improve: ImproveCfg,
 }
 
+/// Background and text colour of one part of the chat (empty = theme default)
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct RoleColor {
+    pub background: String,
+    pub text: String,
+}
+
+/// The four parts of the chat that can be coloured
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ChatColors {
+    pub thinking: RoleColor,
+    pub tools: RoleColor,
+    pub answer: RoleColor,
+    /// Own messages
+    pub own: RoleColor,
+}
+
+/// Colour profile of the chat: one set for the dark and one for the light theme, chosen per host
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ColorProfile {
+    pub id: String,
+    pub name: String,
+    pub dark: ChatColors,
+    pub light: ChatColors,
+}
+
+/// Settings of the app
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -367,6 +420,9 @@ pub struct AppConfig {
     pub session_meta: HashMap<String, SessionMeta>,
     #[serde(default)]
     pub groups: Vec<SessionGroup>,
+    /// Colour profiles for the chat (thinking, tool calls, answers, own messages)
+    #[serde(default)]
+    pub color_profiles: Vec<ColorProfile>,
 }
 
 impl Default for AppConfig {
@@ -382,6 +438,7 @@ impl Default for AppConfig {
                 pi_command: "pi".into(),
                 default_dir: "~".into(),
                 use_herdr: false,
+                color_profile: String::new(),
             }],
             session_folders: HashMap::new(),
             reminders: vec![],
@@ -390,6 +447,7 @@ impl Default for AppConfig {
             voice: VoiceCfg::default(),
             session_meta: HashMap::new(),
             groups: vec![],
+            color_profiles: vec![],
         }
     }
 }

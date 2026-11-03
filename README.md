@@ -4,7 +4,7 @@ Desktop GUI for the [Pi coding agent](https://pi.dev): sessions on the left, cha
 right, plus a quick bar you open from anywhere with a double tap.
 Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 
-**Version 1.4.0** · [Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT
+**Version 1.4.1** · [Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT
 License
 
 > Status: prototype. macOS is the main target; Linux and Windows build, but double tap, area screenshots and OCR are
@@ -47,9 +47,16 @@ License
   date (today, yesterday, last 7 days, …), by folder or none; a click on a section heading collapses it
 - **Messages while Pi works**: Enter queues the message (Pi gets it when done), ⌥Enter puts it in between (before
   Pi's next step); waiting messages stay visible above the input and can be switched, taken back or removed
+- **Chat colours** (settings): colour profiles with background and text colour for thinking, tool calls, answers and
+  your own messages – separately for dark and light, entered as hex values (`#2b3a55`); a profile per host, so each
+  server can look different
+- **Runs in the background**: right click the send button (or ⇧⌘↩) sends the message as a detached run on the host,
+  so it keeps going when you close the laptop or PiBar quits; "Always send in the background" (same menu) or the
+  setting does it for every message. The chat follows the run, and the answer is in the session when you come back;
+  the send button stops it, the session menu has "Stop the run in the background"
 - **Git history**: click the Git line under a folder for the commits of the repository (changed files and diff per
   commit, not pushed ones marked ↑); right click on a file → History for the commits of that file
-- **Auto scroll** with three modes (view menu in the header, round button at the bottom right or Settings → Chat): _automatic_ follows the
+- **Auto scroll** with three modes (view menu in the header or Settings → Chat): _automatic_ follows the
   answer to the end and pauses when you scroll up, _always_ forces every change to the end, _off_ never scrolls by
   itself (good for fast models); ⌘J jumps to the end
 - **Keyboard**: ⌘/ shows all shortcuts – ⌘⇧N new session in the same folder, ⌘[ / ⌘] and ⌘1…9 switch sessions,
@@ -92,7 +99,7 @@ License
 - **Reminders**: in 1 h, 3 h, this evening, tomorrow, next week or a custom time, with a note; due reminders show at
   the top left and as a system notification
 - **Close** (× on hover or ⌘W): the Pi process ends, the session file stays
-- Host switcher "All / Local / other hosts"
+- Host switcher "All / Local / other hosts": the chat jumps back to the session you last had open on that host
 
 ### Files
 
@@ -115,6 +122,8 @@ License
 - Light, dark or automatic colour scheme
 - Side panels: resize by dragging the edge (double click: default width), hide with ⌘B / ⌥⌘B
 - Works in half a screen: in narrow windows the side panels float over the chat
+- **Terminal** at the very bottom, under the input (button in the file panel's header or ⌘⌥J): a real shell in a pty,
+  one tab each, locally or in the session's folder on the SSH host; height by dragging, rememberable
 - Menu bar icon: open PiBar, quick bar, quit; closing the window hides it, the hotkey stays active
 - English and German, automatic from the system language or set in the settings
 

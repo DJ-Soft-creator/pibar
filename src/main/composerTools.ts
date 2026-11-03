@@ -45,6 +45,19 @@ export function takeAttachments(): Attachment[] {
   return list;
 }
 
+/** Attachments belong to the session: exchange them on a switch and return the ones of the session being left */
+export function swapAttachments(next: Attachment[]): Attachment[] {
+  const prev = attachments;
+  attachments = next;
+  renderChips();
+  return prev;
+}
+
+/** Attachments of the active session as they are now (for the session being left) */
+export function currentAttachments(): Attachment[] {
+  return attachments;
+}
+
 // ---------- Reading files ----------
 
 export async function addFiles(files: FileList | File[]) {

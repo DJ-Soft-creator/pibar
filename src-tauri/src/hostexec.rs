@@ -83,39 +83,45 @@ pub fn shell_path(p: &str) -> String {
 }
 
 /// Shell of the user. Apps started from the Finder may lack $SHELL: then zsh (macOS default) or sh.
-fn login_shell() -> String {
+pub fn login_shell() -> String {
     std::env::var("SHELL")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| if cfg!(target_os = "macos") { "/bin/zsh" } else { "/bin/sh" }.into())
 }
 
-fn ssh_command(h: &HostCfg) -> Command {
-    let mut c = disclaim::command("ssh");
-    c.args([
-        "-T",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "ConnectTimeout=10",
-        "-o",
-        "ServerAliveInterval=30",
-        "-o",
-        "ControlMaster=auto",
-        "-o",
-        "ControlPath=/tmp/pibar-%C",
-        "-o",
-        "ControlPersist=600",
-    ]);
+/// Arguments for ssh to the host. `tty` asks for a remote terminal (`-tt`), as an interactive terminal needs
+/// (src-tauri/src/terminal.rs); such a session gets no connection sharing, which does not mix with a tty.
+pub fn ssh_args(h: &HostCfg, tty: bool) -> Vec<String> {
+    let mut args: Vec<String> = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=30"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    if tty {
+        args.push("-tt".into());
+    } else {
+        args.push("-T".into());
+        args.extend(
+            ["-o", "ControlMaster=auto", "-o", "ControlPath=/tmp/pibar-%C", "-o", "ControlPersist=600"]
+                .iter()
+                .map(|s| s.to_string()),
+        );
+    }
     if let Some(port) = h.ssh_port {
-        c.args(["-p", &port.to_string()]);
+        args.extend(["-p".to_string(), port.to_string()]);
     }
     let target = if h.ssh_user.trim().is_empty() {
         h.ssh_target.trim().to_string()
     } else {
         format!("{}@{}", h.ssh_user.trim(), h.ssh_target.trim())
     };
-    c.arg(target);
+    args.push(target);
+    args
+}
+
+fn ssh_command(h: &HostCfg) -> Command {
+    let mut c = disclaim::command("ssh");
+    c.args(ssh_args(h, false));
     c
 }
 

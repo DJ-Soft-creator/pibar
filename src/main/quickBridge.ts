@@ -33,9 +33,15 @@ export async function handleQuick(q: QuickSubmit) {
   }
   if (!tab.alive) return;
   if (q.preset || q.model || q.thinking) tab.presetId = q.preset;
-  if (q.model)
-    await tab.setModel(q.model.provider, q.model.id).catch((e) => toast(`${t("Model")}: ${errMsg(e)}`, "err"));
-  if (q.thinking) await tab.setThinking(q.thinking).catch((e) => toast(`${t("Thinking")}: ${errMsg(e)}`, "err"));
+  if (tab.detached) {
+    // no live process to ask: model and thinking level go with the run in the background
+    if (q.model) tab.model = { provider: q.model.provider, id: q.model.id, name: q.model.id };
+    if (q.thinking) tab.thinkingLevel = q.thinking;
+  } else {
+    if (q.model)
+      await tab.setModel(q.model.provider, q.model.id).catch((e) => toast(`${t("Model")}: ${errMsg(e)}`, "err"));
+    if (q.thinking) await tab.setThinking(q.thinking).catch((e) => toast(`${t("Thinking")}: ${errMsg(e)}`, "err"));
+  }
   tab.readNext = true; // auto read (Settings → Voice: "answers to quick bar messages")
   await tab.send(withFiles(withScreenText(q.text, q.ocr), q.files ?? []), q.images);
 }

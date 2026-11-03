@@ -4,7 +4,7 @@ Desktop-Oberfläche für den [Pi Coding Agent](https://pi.dev): Sessions links, 
 rechts, dazu eine Quick-Leiste, die man von überall per Doppeltipp öffnet.
 Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Windows.
 
-**Version 1.4.0** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
+**Version 1.4.1** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
 MIT-Lizenz
 
 > Stand: Prototyp. Hauptziel ist macOS; Linux und Windows bauen, Doppeltipp, Bereichs-Screenshot und OCR gibt es bisher
@@ -51,9 +51,16 @@ MIT-Lizenz
 - **Nachrichten, während Pi arbeitet**: Enter reiht ein (Pi bekommt sie, wenn es fertig ist), ⌥Enter schiebt sie
   dazwischen (vor Pis nächstem Schritt); wartende Nachrichten bleiben über dem Eingabefeld sichtbar und lassen sich
   umstellen, zurückholen oder löschen
+- **Chat-Farben** (Einstellungen): Farbprofile mit Hintergrund- und Textfarbe für Denken, Toolaufrufe, Antworten und
+  eigene Nachrichten – getrennt für dunkel und hell, als Hex-Werte (`#2b3a55`) eingetragen; ein Profil pro Host, so
+  kann jeder Server anders aussehen
+- **Läufe im Hintergrund**: Rechtsklick auf den Senden-Knopf (oder ⇧⌘↩) schickt die Nachricht als abgekoppelten Lauf
+  auf den Host, sie läuft also weiter, wenn du das Notebook zumachst oder PiBar beendest; „Immer im Hintergrund senden"
+  (gleiches Menü) oder die Einstellung machen das für jede Nachricht. Der Chat folgt dem Lauf, die Antwort steht in der
+  Session, wenn du zurückkommst; der Senden-Knopf stoppt ihn, das Session-Menü hat „Lauf im Hintergrund stoppen"
 - **Git-Verlauf**: Klick auf die Git-Zeile unter einem Ordner zeigt die Commits des Repositories (geänderte Dateien
   und Diff pro Commit, nicht gepushte mit ↑); Rechtsklick auf eine Datei → Verlauf zeigt die Commits dieser Datei
-- **Auto-Scroll** mit drei Modi (Ansichts-Menü oben, runder Knopf unten rechts oder Einstellungen → Chat): _automatisch_ folgt der
+- **Auto-Scroll** mit drei Modi (Ansichts-Menü oben oder Einstellungen → Chat): _automatisch_ folgt der
   Antwort bis ans Ende und pausiert beim Hochscrollen, _immer_ erzwingt bei jeder Änderung das Ende, _aus_ scrollt nie
   von selbst (gut für schnelle Modelle); ⌘J springt ans Ende
 - **Tastatur**: ⌘/ zeigt alle Kürzel – ⌘⇧N neue Session im selben Ordner, ⌘[ / ⌘] und ⌘1…9 wechseln Sessions, ⌘↑ holt
@@ -101,7 +108,7 @@ MIT-Lizenz
 - **Erinnerungen**: in 1 Std., 3 Std., heute Abend, morgen, nächste Woche oder eigene Zeit, mit Notiz; fällige
   Erinnerungen stehen oben links und kommen als Systemmitteilung
 - **Schließen** (× beim Überfahren oder ⌘W): der Pi-Prozess endet, die Session-Datei bleibt
-- Host-Umschalter „Alle / Lokal / weitere Hosts“
+- Host-Umschalter „Alle / Lokal / weitere Hosts“: der Chat springt auf die Session zurück, die du auf diesem Host zuletzt offen hattest
 
 ### Dateien
 
@@ -127,6 +134,8 @@ MIT-Lizenz
 - Helles, dunkles oder automatisches Farbschema
 - Seitenleisten: am Rand in der Breite ziehen (Doppelklick: Standardbreite), mit ⌘B / ⌥⌘B ausblenden
 - Funktioniert auf halbem Bildschirm: in schmalen Fenstern schweben die Seitenleisten über dem Chat
+- **Terminal** ganz unten, unter der Eingabe (Knopf in der Kopfzeile der Dateispalte oder ⌘⌥J): eine echte Shell in
+  einem Pty, ein Tab pro Shell, lokal oder im Ordner der Session auf dem SSH-Host; Höhe per Ziehen, wird gemerkt
 - Menüleisten-Symbol: PiBar öffnen, Quick-Leiste, Beenden; Fenster schließen = ausblenden, der Hotkey bleibt aktiv
 - Englisch und Deutsch, automatisch nach Systemsprache oder fest in den Einstellungen
 
