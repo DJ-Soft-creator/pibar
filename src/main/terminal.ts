@@ -8,7 +8,9 @@ import { api } from "../shared/api";
 import { $, h, errMsg, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
+import { normalizeScale } from "../shared/textScale";
 import { isDark } from "./colors";
+import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
 
 const DEFAULT_H = 260;
@@ -69,6 +71,10 @@ interface TermTab {
   hostId: string;
   cwd: string;
   label: string;
+  /** Fallback name for a shell without a session (a plain shell in a folder) */
+  name: string;
+  /** The session this shell belongs to: its name and colour show in the tab (null = plain shell) */
+  session: SessionTab | null;
   term: XTerm;
   fit: XTermFit;
   pane: HTMLElement;
@@ -125,6 +131,45 @@ function hostName(hostId: string): string {
   return state.config.hosts.find((x) => x.id === hostId)?.name ?? hostId;
 }
 
+/**
+ * Name and colour of a terminal's tab. They follow the session settings (name, colour of the session list, see
+ * src/main/sessionGroups.ts), so renaming or recolouring a session also changes its terminal. A shell without a
+ * session keeps the folder name it was started in.
+ */
+function tabMeta(x: TermTab): { name: string; color: string } {
+  const s = x.session;
+  if (!s) return { name: x.name || x.label, color: "" };
+  const meta = state.config.sessionMeta?.[s.key];
+  return { name: meta?.name?.trim() || s.title || x.label, color: meta?.color ?? "" };
+}
+
+/** Rename and recolour tabs after the session settings changed (called from setMeta/setMetaMany/rekey) */
+export function refreshTermTabs() {
+  if (tabs.length) renderTabs();
+}
+
+/**
+ * Show the terminal of another session (switching sessions in the list): only if that session has a shell of its own
+ * and the dock is open – a hidden terminal stays hidden, and a session without a shell keeps the current one.
+ * Settings → Terminal → "Terminal follows the session" switches this off.
+ */
+export function focusSessionTab(session: SessionTab) {
+  if (!visible() || state.config.ui.termFollowSession === false) return;
+  const tab = tabs.find((x) => x.session === session);
+  if (tab && tab.id !== active) show(tab.id);
+}
+
+/**
+ * A session started. It gets a terminal of its own only when that is wanted: Settings → Terminal → "Own terminal per
+ * session" (`ui.termAutoOpen`, off by default) and only while the dock is already open – sessions you open without
+ * ever showing the terminal do not fill the tab bar. A shell for the current session on demand: the "+" button or
+ * ⌘⌥J.
+ */
+export function sessionStarted(session: SessionTab) {
+  if (!visible() || !state.config.ui.termAutoOpen) return;
+  void openTab(session.hostId, session.cwd, { name: session.title, session, reuse: true });
+}
+
 /** Bytes of a terminal stream arrive base64 encoded, as xterm.js wants them */
 function decode(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -135,15 +180,17 @@ function decode(b64: string): Uint8Array {
 
 function renderTabs() {
   elTabs.replaceChildren(
-    ...tabs.map((x) =>
-      h(
+    ...tabs.map((x) => {
+      const meta = tabMeta(x);
+      return h(
         "div",
         {
-          class: `term-tab ${x.id === active ? "active" : ""} ${x.exited ? "dead" : ""}`,
+          class: `term-tab ${x.id === active ? "active" : ""} ${x.exited ? "dead" : ""} ${meta.color ? `c-${meta.color}` : ""}`,
           title: `${hostName(x.hostId)} · ${x.cwd}`,
           onclick: () => activate(x.id),
         },
-        h("span", { class: "term-tab-name" }, x.label),
+        meta.color ? h("span", { class: "cdot term-tab-dot" }) : null,
+        h("span", { class: "term-tab-name" }, meta.name),
         h(
           "button",
           {
@@ -156,8 +203,8 @@ function renderTabs() {
           },
           "×",
         ),
-      ),
-    ),
+      );
+    }),
   );
 }
 
@@ -213,19 +260,38 @@ function target(): { hostId: string; cwd: string } {
   return { hostId: host?.id ?? "local", cwd: host?.defaultDir ?? "" };
 }
 
+export interface TabOptions {
+  /** Fallback name for a plain shell (without a session) */
+  name?: string;
+  /** Session whose name and colour the tab follows */
+  session?: SessionTab | null;
+  /** Open once per session: a restart of Pi (reconnect, background run) shows the existing shell again */
+  reuse?: boolean;
+}
+
 /** Start a shell and show it in a new tab */
-async function openTab(hostId: string, cwd: string) {
+export async function openTab(hostId: string, cwd: string, opts: TabOptions = {}) {
   await ready.catch(() => {});
+  const { name = "", session = null, reuse = false } = opts;
+  if (reuse && session) {
+    const existing = tabs.find((x) => x.session === session);
+    if (existing) {
+      setVisible(true);
+      show(existing.id);
+      return;
+    }
+  }
   setVisible(true);
   const { Terminal, FitAddon } = await loadLib();
   const term = new Terminal({
     fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
-    fontSize: 12.5,
+    fontSize: termFontSize(),
     lineHeight: 1.25,
     cursorBlink: true,
     scrollback: 5000,
     theme: isDark() ? DARK : LIGHT,
   });
+
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
   const pane = h("div", { class: "term-pane" });
@@ -249,6 +315,8 @@ async function openTab(hostId: string, cwd: string) {
     hostId,
     cwd,
     label: baseName(cwd) || hostName(hostId),
+    name: name || "",
+    session,
     term,
     fit: fitAddon,
     pane,
@@ -270,6 +338,18 @@ export function applyTermTheme() {
   for (const x of tabs) x.term.options.theme = theme;
 }
 
+/** Terminal font follows the text size of the window (called from setFontScale) */
+function termFontSize(): number {
+  return Math.round(12.5 * normalizeScale(state.config.ui.fontScale) * 2) / 2;
+}
+
+export function applyTermFont() {
+  for (const x of tabs) {
+    x.term.options.fontSize = termFontSize();
+    x.fit.fit();
+  }
+}
+
 /** Show the terminal below the chat, starting a shell if there is none yet */
 export function toggleTerminal() {
   if (visible()) {
@@ -278,8 +358,9 @@ export function toggleTerminal() {
   }
   setVisible(true);
   if (!tabs.length) {
-    const { hostId, cwd } = target();
-    void openTab(hostId, cwd);
+    const a = state.active;
+    const { hostId, cwd } = a ? { hostId: a.hostId, cwd: a.cwd } : target();
+    void openTab(hostId, cwd, { name: a?.title, session: a ?? null, reuse: true });
   } else {
     show(active ?? tabs[0].id);
   }
@@ -353,9 +434,15 @@ export function wireTerminal() {
   $("btn-term-dock").addEventListener("click", () => setVisible(false));
   $("btn-term-kill").addEventListener("click", () => active !== null && closeTab(active));
   $("btn-term-new").addEventListener("click", () => {
-    const tab = active === null ? undefined : find(active);
-    const { hostId, cwd } = tab ? { hostId: tab.hostId, cwd: tab.cwd } : target();
-    void openTab(hostId, cwd);
+    const shown = active === null ? undefined : find(active);
+    // The session on screen: a shell of its own, in its folder. If the shown tab already belongs to it, the new shell
+    // stays in that tab's folder (a second shell next to the first).
+    const a = state.active;
+    const session = a && shown?.session !== a ? a : (shown?.session ?? a ?? null);
+    const { hostId, cwd } = session
+      ? { hostId: session.hostId, cwd: session.cwd }
+      : (shown ?? { hostId: target().hostId, cwd: target().cwd });
+    void openTab(hostId, cwd, { name: session?.title ?? shown?.name, session });
   });
   wireSplit();
   window.matchMedia?.("(prefers-color-scheme: dark)").addEventListener?.("change", applyTermTheme);

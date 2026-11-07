@@ -140,6 +140,25 @@ export function baseName(p: string): string {
   return parts[parts.length - 1] || p;
 }
 
+/** Folder for comparing paths: home as "~" (like shortPath), without double or trailing slashes */
+function normFolder(p: string): string {
+  const s = shortPath(p.trim()).replace(/\/{2,}/g, "/");
+  return s.length > 1 ? s.replace(/\/+$/, "") : s;
+}
+
+/**
+ * Is `path` the folder `folder` itself or a folder inside it? "~" stands for the home folder of the host, so "~/x"
+ * and "/Users/me/x" count as the same folder. The home folder itself ("~") does not take the folders inside it –
+ * a project there would swallow every session. Used for the projects in the left column (src/main/projects.ts).
+ */
+export function inFolder(path: string, folder: string): boolean {
+  const p = normFolder(path);
+  const f = normFolder(folder);
+  if (!p || !f) return false;
+  if (p === f) return true;
+  return f !== "~" && p.startsWith(`${f}/`);
+}
+
 /** Relative time ("5 min ago"); `now` only for tests */
 export function relTime(iso: string | number, now = Date.now()): string {
   const ts = typeof iso === "number" ? iso : Date.parse(iso);

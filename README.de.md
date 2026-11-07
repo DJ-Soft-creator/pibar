@@ -4,7 +4,7 @@ Desktop-Oberfläche für den [Pi Coding Agent](https://pi.dev): Sessions links, 
 rechts, dazu eine Quick-Leiste, die man von überall per Doppeltipp öffnet.
 Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Windows.
 
-**Version 1.4.1** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
+**Version 1.5.0** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
 MIT-Lizenz
 
 > Stand: Prototyp. Hauptziel ist macOS; Linux und Windows bauen, Doppeltipp, Bereichs-Screenshot und OCR gibt es bisher
@@ -25,11 +25,16 @@ MIT-Lizenz
 - Die Eingabe wächst mit dem Text bis sechs Zeilen, danach scrollt sie
 - **Uhrzeit der Nachrichten**: Zeigst du auf eine Nachricht, erscheint, wann sie gesendet wurde („14:32“, „Gestern
   09:15“, ältere mit Datum; das volle Datum als Tooltip). Immer sichtbar: Ansicht-Menü → „Uhrzeiten immer anzeigen“
-  (oder Einstellungen → Allgemein → Chat)
+  (oder Einstellungen → Chat)
 - Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides; eine Nachricht direkt nach dem Wechsel
-  wartet, bis Pi umgestellt hat; jede Antwort zeigt das Modell, das sie erzeugt hat (beim Überfahren)
-- **Ansicht** (Kopfzeile): _Natürlich_ (nur Antworten), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte
-  Karten, Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live)
+  wartet, bis Pi umgestellt hat; jede Antwort zeigt das Modell, das sie erzeugt hat (beim Überfahren). Die Wahl gehört
+  zur Session: Sie kommt zurück, wenn du die Session wieder öffnest oder PiBar neu startest – bis du ein anderes
+  Modell oder Preset wählst
+- **Ansicht** (Kopfzeile): _Natürlich_ (nur Pis Antworten – eine Antwort, die nur aus Toolaufrufen besteht oder ohne
+  sichtbaren Text ist, verschwindet ganz), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte Karten,
+  Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live). Die Ansicht gehört zur Session: Beim Wechsel zu
+  einer anderen Session kommt deren Ansicht zurück, und Einstellungen → Chat legt fest, mit welcher neue Sessions
+  starten
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
 - **Werkzeugleiste** an der Eingabe: ein dezentes `+`; kommt die Maus in die Nähe, blenden weitere Knöpfe ein –
   **Dateien anhängen** (Textdateien und Bilder, auch per Drag & Drop oder Einfügen; als Chips über der Eingabe),
@@ -40,14 +45,19 @@ MIT-Lizenz
   startet dafür in derselben Session neu, der Verlauf bleibt
 - **Frühere Nachrichten**: unter jeder eigenen Nachricht – _bearbeiten und neu senden_ (direkt in der Nachricht), _ab
   hier neu ausführen_ oder _bis hierher zurück_ (das Gespräch springt auf den Stand nach dieser Nachricht und ihrer
-  Antwort). Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung:
-  die ursprüngliche Session bleibt immer erhalten. Direkt danach führt eine Leiste **Rückgängig** zur vorherigen
-  Fassung zurück. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_. Das gewählte Modell bleibt beim Verzweigen.
+  Antwort). _Bis hierher zurück_ stellt auch die Dateien wieder her: vor jeder Nachricht hält PiBar den Ordner als
+  Git-Commit fest (nur eigene Objekte und Refs, Index und Historie bleiben unangetastet) und setzt die von Pi seither
+  geänderten Dateien auf diesen Stand zurück – deine übrigen Änderungen bleiben, die Liste steht vorher im Dialog.
+  Alles erst nach Bestätigung (_Abbrechen_ oder Esc lässt alles unverändert) und in einer neuen Verzweigung: die
+  ursprüngliche Session bleibt immer erhalten. Direkt danach führt eine Leiste **Rückgängig** zur vorherigen Fassung
+  zurück, Dateien inklusive. Außerdem _als neue Nachricht übernehmen_ oder _kopieren_. Das gewählte Modell bleibt beim
+  Verzweigen.
 - **Fragen mit Optionen**: endet eine Antwort mit einer Auswahlfrage, öffnet sich ein Dialog mit anhakbaren Optionen
   und einem Feld für eine eigene Antwort (auch für Dialoge von Pi-Erweiterungen)
 - **Session-Liste geordnet**: Knopf im Kopf – sortieren nach letzter Aktivität, Erstellung, Name oder Ordner;
   Abschnitte nach Datum (heute, gestern, letzte 7 Tage, …), nach Ordner oder keine; ein Klick auf eine Überschrift klappt
-  den Abschnitt zu
+  den Abschnitt zu. „Eigene Reihenfolge" macht die Liste zu deiner: eine Session dorthin ziehen, wo sie stehen soll
+  (innerhalb ihres Hosts oder Projekts, auch in eine andere Gruppe) – dort bleibt sie
 - **Nachrichten, während Pi arbeitet**: Enter reiht ein (Pi bekommt sie, wenn es fertig ist), ⌥Enter schiebt sie
   dazwischen (vor Pis nächstem Schritt); wartende Nachrichten bleiben über dem Eingabefeld sichtbar und lassen sich
   umstellen, zurückholen oder löschen
@@ -57,18 +67,26 @@ MIT-Lizenz
 - **Läufe im Hintergrund**: Rechtsklick auf den Senden-Knopf (oder ⇧⌘↩) schickt die Nachricht als abgekoppelten Lauf
   auf den Host, sie läuft also weiter, wenn du das Notebook zumachst oder PiBar beendest; „Immer im Hintergrund senden"
   (gleiches Menü) oder die Einstellung machen das für jede Nachricht. Der Chat folgt dem Lauf, die Antwort steht in der
-  Session, wenn du zurückkommst; der Senden-Knopf stoppt ihn, das Session-Menü hat „Lauf im Hintergrund stoppen"
+  Session, wenn du zurückkommst; der Senden-Knopf stoppt ihn, das Session-Menü hat „Lauf im Hintergrund stoppen". Der
+  Lauf nimmt Modell und Denkaufwand der Session mit und antwortet so mit demselben Modell wie auf dem Schirm; die
+  kleine Ecke am Senden-Knopf ist der Hinweis auf sein Menü.
+  Solange der Modus an ist, steht neben dem Eingabefeld die Plakette „Im Hintergrund" (Klick schaltet ihn aus) und
+  der Senden-Knopf hat einen gestrichelten Ring – so siehst du vor dem Senden, was die Nachricht tut
+- **Einstellungen** (Zahnrad): links eine Abschnittsliste – Allgemein, Chat, Modelle & Presets, Schnellstart,
+  Terminal, Quick-Launcher, Sprache & Audio, Chat-Farben, Hosts; der Dialog öffnet sich wieder im zuletzt
+  gewählten Abschnitt
 - **Git-Verlauf**: Klick auf die Git-Zeile unter einem Ordner zeigt die Commits des Repositories (geänderte Dateien
   und Diff pro Commit, nicht gepushte mit ↑); Rechtsklick auf eine Datei → Verlauf zeigt die Commits dieser Datei
 - **Auto-Scroll** mit drei Modi (Ansichts-Menü oben oder Einstellungen → Chat): _automatisch_ folgt der
   Antwort bis ans Ende und pausiert beim Hochscrollen, _immer_ erzwingt bei jeder Änderung das Ende, _aus_ scrollt nie
   von selbst (gut für schnelle Modelle); ⌘J springt ans Ende
 - **Tastatur**: ⌘/ zeigt alle Kürzel – ⌘⇧N neue Session im selben Ordner, ⌘[ / ⌘] und ⌘1…9 wechseln Sessions, ⌘↑ holt
-  die letzte eigene Nachricht zurück, ⌘L in die Eingabe, ⌘. stoppt; Dialoge und Ordnerauswahl gehen per Tastatur
+  die letzte eigene Nachricht zurück, ⌘L in die Eingabe, ⌘. stoppt; ⌘+ / ⌘− / ⌘0 machen die Schrift größer, kleiner
+  oder wieder 100 % (Chat-Nachrichten, Listen und Spalten); Dialoge und Ordnerauswahl gehen per Tastatur
 - **Versionen einer Nachricht**: wo sich Verzweigungen trennen, wechselt „‹ 2/3 ›“ unter der eigenen Nachricht
   zwischen den Versionen
 - **Standardmodell** für neue Sessions: Stern in der Kopfzeile (übernimmt Modell und Denkaufwand bzw. Preset der
-  aktuellen Session) oder Einstellungen → Allgemein
+  aktuellen Session) oder Einstellungen → Modelle & Presets
 - **Statuszeile unter der Eingabe**, wie Pis Fußzeile und mit Pis Zahlen: `↑` Eingabe, `↓` Ausgabe, `R` aus dem Cache
   gelesen (mit Anteil an der Eingabe in %), `W` in den Cache geschrieben, Kosten, belegter Kontext/Kontextfenster (orange
   ab 70 %, rot ab 90 %); rechts Modell und Denkaufwand. Beim Überfahren Tokens pro Sekunde, Zeit bis zum ersten Token und
@@ -89,14 +107,42 @@ MIT-Lizenz
   die fertig wurde, während du woanders warst, ist mit „Fertig“ (oder „Fehler“) markiert, bis du sie öffnest. Zähler an
   jedem Host und Host-Reiter, die Zahl fertiger Sessions am App-Symbol und eine Mitteilung, wenn PiBar im Hintergrund
   ist (in den Einstellungen abschaltbar)
-- Linke Spalte nach Host gruppiert (lokal und SSH); starten (auf Wunsch gleich mit Namen), öffnen, Verlauf laden,
-  mehrere Sessions parallel
+- Linke Spalte nach Host gruppiert (lokal und SSH), je eine zuklappbare Karte pro Host und pro Projekt; am Griff im
+  Kopf lässt sich eine Karte nach oben oder unten ziehen, zugeklappte Karten bleiben nach einem Neustart zu. Starten
+  (auf Wunsch gleich mit Namen), öffnen, Verlauf laden, mehrere Sessions parallel
+- **Schnellstart** (Einstellungen → Schnellstart): bis zu vier Presets mit Name und festem Ordner stehen als Chips
+  oben im Dialog „Neue Session“ – ein Klick startet sofort eine Session in diesem Ordner; ein Chip ohne Ordner
+  öffnet die Einstellungen, leere Zeilen bleiben verborgen
 - **Ordnerauswahl** für den Arbeitsordner einer neuen Session und für weitere Ordner: durchsucht den Host (lokal und
   SSH), nach oben/Benutzerordner, neuer Ordner, auf Wunsch versteckte Ordner; „Als Standardordner merken“ belegt ihn für die nächste neue Session auf diesem Host vor (auch in der
   Quick-Bar)
+- **Suche** (Feld über der Liste, ⌘F): Tippen filtert die Liste sofort nach Name und Ordner, und nach einer kurzen
+  Pause wird jeder gezeigte Host nach Sessions gefragt, deren **Nachrichten** den Text enthalten – ein `grep` über
+  seine Session-Dateien, lokal oder per SSH. Die Treffer stehen über den Hosts, mit der Rolle der Nachricht (Du, Pi,
+  Tool) und einem Ausschnitt um die Fundstelle; ein Klick öffnet die Session. Esc oder × zeigt wieder alles
 - **Aufräumen** (Archiv-Kiste neben ↻): verschiebt Sessions in eine zugeklappte Gruppe „Archiv“ am Ende der Liste –
   alle oder nur ältere, auf Wunsch auch gruppierte oder angepinnte; gelöscht wird nichts, die Meldung bietet
   „Rückgängig“
+- **Projekte** (unter den Hosts): ein benannter Ordner auf einem Host – Sessions, deren Arbeitsordner darin liegt,
+  erscheinen unter der Projektkarte statt in der Host-Liste, und `＋` startet eine neue Session direkt in diesem Ordner;
+  ein Projekt kann ein festes **Inferenz-Preset** (Modell und Denkaufwand) tragen, mit dem jede dort gestartete Session
+  beginnt – es steht neben dem Projektnamen –, und ein Projekt kann die **Chat-Ansicht** festlegen, mit der seine
+  Sessions starten, damit technische Arbeit gleich mit Denken und Toolaufrufen aufgeht und ein Schreibprojekt schlicht
+  bleibt; arbeitet eine Session im Projekt, zeigt der Projektkopf den Spinner und die Zähler und die Karte ist eingefärbt
+  (auch bei zugeklapptem Projekt und für einen Hintergrund-Lauf, dessen Tab geschlossen ist); per Rechtsklick oder `⋯`
+  umbenennen, Ordner, Preset, Ansicht oder das Projekt ändern bzw. löschen (die Sessions bleiben)
+- **Ansichten der Liste** (Trichter in ihrer Kopfzeile): „Nur woran ich arbeite" zeigt über alle Hosts die Sessions,
+  die gerade aktiv sind – Pi arbeitet darin (auch als Hintergrund-Lauf), eine Antwort ist ungelesen, oder der Tab ist
+  geöffnet; dazu je eine Ansicht pro Farbe und „ohne Farbe", kombinierbar mit der Arbeits-Ansicht. Ein Chip über der
+  Liste nennt die Ansicht und schaltet sie ab; die Wahl bleibt gespeichert
+- **Ungelesen**: Rechtsklick → „Als ungelesen markieren" (oder ⇧⌘U für die Session auf dem Bildschirm) hält eine
+  Session im Blick, bis du sie öffnest: Akzentbalken links, kräftigere Tönung, Titel in der Akzentfarbe, Plakette
+  „ungelesen". Ein Lauf, der fertig wird, während du woanders hinschaust, bekommt dieselbe Markierung – und sie bleibt
+  über einen Neustart von PiBar erhalten: Zeile und ✓-Zähler an Host, Projekt und Gruppe sind nach dem Start wieder da.
+  Ein Punkt vor
+  Host oder Projekt erscheint nur, wenn es etwas zu melden gibt – nicht erreichbar (rot) oder prüft (gelb);
+  „verbunden" braucht keinen Punkt. Überfahre den Namen für den Verbindungszustand. Sessions tragen keinen
+  Status-Punkt, sie sagen „arbeitet" in Worten
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
 - **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue
@@ -123,7 +169,7 @@ MIT-Lizenz
   bekommt den Pfad und liest mit seinen Werkzeugen, was es braucht
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
-- Optional **Git-Status** (Einstellungen → Allgemein): für den Session-Ordner und für Repositories in seinen
+- Optional **Git-Status** (Einstellungen → Chat): für den Session-Ordner und für Repositories in seinen
   Unterordnern Branch, nicht gepushte (↑) oder zu holende Commits (↓) und Änderungen; ein kleiner Buchstabe an
   geänderten Dateien (M, A, U, D)
 - **Neu laden** (↻ im Kopf der Spalte oder ⌘⇧R): Baum, Git-Status und die offene Datei (wenn unverändert); auch
@@ -132,10 +178,14 @@ MIT-Lizenz
 ### Layout
 
 - Helles, dunkles oder automatisches Farbschema
+- **Textgröße** für das ganze Fenster (Einstellungen → Allgemein, oder ⌘+ / ⌘− / ⌘0): Chat-Nachrichten, Listen und
+  Spalten wachsen und schrumpfen zusammen; die Größe bleibt gemerkt
 - Seitenleisten: am Rand in der Breite ziehen (Doppelklick: Standardbreite), mit ⌘B / ⌥⌘B ausblenden
 - Funktioniert auf halbem Bildschirm: in schmalen Fenstern schweben die Seitenleisten über dem Chat
 - **Terminal** ganz unten, unter der Eingabe (Knopf in der Kopfzeile der Dateispalte oder ⌘⌥J): eine echte Shell in
-  einem Pty, ein Tab pro Shell, lokal oder im Ordner der Session auf dem SSH-Host; Höhe per Ziehen, wird gemerkt
+  einem Pty, ein Tab pro Shell, lokal oder im Ordner der Session auf dem SSH-Host; Höhe per Ziehen, wird gemerkt.
+  Ein Tab kann zu seiner Session gehören und trägt dann deren Namen und Farbe; beides optional (Einstellungen →
+  Terminal): eine Shell pro Session und das Mitwechseln beim Session-Wechsel
 - Menüleisten-Symbol: PiBar öffnen, Quick-Leiste, Beenden; Fenster schließen = ausblenden, der Hotkey bleibt aktiv
 - Englisch und Deutsch, automatisch nach Systemsprache oder fest in den Einstellungen
 
@@ -159,6 +209,10 @@ PiBar selbst schickt keine Daten irgendwohin: Es spricht nur mit Pi auf deinen e
 Welches Modell deine Prompts, Dateiinhalte und Tool-Ausgaben sieht, legt Pis Konfiguration auf dem jeweiligen Host
 fest. Ein lokales Modell (z. B. auf einem LLM-Server im eigenen Netz) hält alles im Haus; ein Cloud-Modell bekommt,
 was die Session ihm schickt.
+
+Was in PiBar zu sehen ist, kommt bereinigt an: Markdown von einem Modell wird saniert (keine Stile, keine Formulare,
+keine eingebetteten Frames, keine Bilder aus dem Netz), und beide Fenster laufen unter einer Content Security
+Policy – die App selbst lädt nichts aus dem Netz; HTML-Vorschauen eigener Dateien sind ebenso abgeschottet.
 
 **Gemeinsame Skills mit Syncthing.** Lege `~/.pi/agent/skills/`, `prompts/` und, falls genutzt, `extensions/` in
 einen [Syncthing](https://syncthing.net)-Ordner. Er synchronisiert direkt zwischen deinen Rechnern, ohne Cloud-Dienst
@@ -200,6 +254,9 @@ Node-Version, relevante Umgebungsvariablen (Geheimnisse verborgen), Pis Modell-K
 Konfiguration und Erweiterungen gefundenen Serveradressen, ob sie erreichbar sind (per curl und Node wie Pi) und das
 Ergebnis einer kurzen Test-Anfrage über Pi – dazu Hinweise auf typische Ursachen in Klartext (Freigabe „Lokales Netzwerk“, Server läuft nicht,
 API-Schlüssel fehlt, Proxy). „Bericht kopieren“ legt alles in die Zwischenablage.
+
+Wurde Pi auf einem Host aktualisiert oder entfernt, während eine Session lief, sagt der Chat genau das und bietet
+**Session neu starten** – Session-Datei und Verlauf bleiben erhalten.
 
 ## macOS-Rechte
 

@@ -32,11 +32,17 @@ export async function handleQuick(q: QuickSubmit) {
     tab = await openSession(hostId, null, cwd, t("New session"));
   }
   if (!tab.alive) return;
-  if (q.preset || q.model || q.thinking) tab.presetId = q.preset;
   if (tab.detached) {
-    // no live process to ask: model and thinking level go with the run in the background
+    // no live process to ask: model and thinking level go with the run in the background (and stay for the session)
     if (q.model) tab.model = { provider: q.model.provider, id: q.model.id, name: q.model.id };
     if (q.thinking) tab.thinkingLevel = q.thinking;
+    if (q.preset || q.model || q.thinking) {
+      tab.presetId = q.preset ?? "";
+      tab.saveChoice();
+    }
+  } else if (q.preset) {
+    // a preset brings its own model and thinking level; the session keeps them (see SessionTab.saveChoice)
+    await tab.setPreset(q.preset).catch((e) => toast(`${t("Preset")}: ${errMsg(e)}`, "err"));
   } else {
     if (q.model)
       await tab.setModel(q.model.provider, q.model.id).catch((e) => toast(`${t("Model")}: ${errMsg(e)}`, "err"));

@@ -1,7 +1,8 @@
-// Order and sections of the session list: sort by last activity, creation, name or folder; sections by date
-// ("Today", "Yesterday", "This week", …, then months) or by folder. Pure logic, tested in sessionOrder.test.ts.
+// Order and sections of the session list: sort by last activity, creation, name, folder or the order the user dragged
+// ("own"); sections by date ("Today", "Yesterday", "This week", …, then months) or by folder. Pure logic, tested in
+// sessionOrder.test.ts.
 
-export type SessionSort = "activity" | "created" | "name" | "folder";
+export type SessionSort = "activity" | "created" | "name" | "folder" | "own";
 export type SessionGroupBy = "none" | "date" | "folder";
 
 export interface OrderRow {
@@ -14,6 +15,8 @@ export interface OrderRow {
   modified: number;
   /** Not saved yet (new session): always first */
   fresh?: boolean;
+  /** Manual position ("own" order): higher = further down; 0/undefined = not arranged yet */
+  order?: number;
 }
 
 /** The time a row is shown and grouped by: last activity, or creation when sorted by it */
@@ -28,6 +31,13 @@ export function sortRows<T extends OrderRow>(rows: T[], sort: SessionSort): T[] 
     created: byTime,
     name: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true }) || byTime(a, b),
     folder: (a, b) => a.cwd.localeCompare(b.cwd) || byTime(a, b),
+    // arranged by hand: the places the user dragged come first, the sessions not arranged yet (new ones) above them
+    own: (a, b) => {
+      const [oa, ob] = [a.order ?? 0, b.order ?? 0];
+      if (oa && ob && oa !== ob) return oa - ob;
+      if (oa !== ob) return oa ? 1 : -1;
+      return byTime(a, b);
+    },
   };
   return [...rows].sort((a, b) => Number(!!b.fresh) - Number(!!a.fresh) || cmp[sort](a, b));
 }

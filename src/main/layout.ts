@@ -1,7 +1,9 @@
 // Panel layout of the main window: show/hide the side panels, drag their width, the divider between file tree
-// and editor, and floating panels when the window is narrow (e.g. half a screen).
+// and editor, floating panels when the window is narrow (e.g. half a screen), and the text size of the window.
 import { $ } from "../shared/dom";
+import { normalizeScale, stepScale } from "../shared/textScale";
 import { saveConfig, state } from "./state";
+import { applyTermFont } from "./terminal";
 
 type Side = "left" | "right";
 
@@ -14,6 +16,29 @@ const MIN_CHAT = 360;
 const NARROW: Record<Side, number> = { left: 820, right: 1120 };
 /** Floating panels opened by hand (only in narrow windows) */
 const overlay: Record<Side, boolean> = { left: false, right: false };
+
+/** Current text size of the window (1 = 100 %); anything unknown in the config counts as 100 % */
+export function fontScale(): number {
+  return normalizeScale(state.config.ui.fontScale);
+}
+
+/** Apply the text size: one factor on the root element, every font size scales with it (`calc(… * var(--fs))`) */
+export function applyFontScale() {
+  document.documentElement.style.setProperty("--fs", String(fontScale()));
+}
+
+/** Set the text size (settings dialog, ⌘+ / ⌘− / ⌘0), saved right away */
+export function setFontScale(scale: number) {
+  state.config.ui.fontScale = normalizeScale(scale);
+  applyFontScale();
+  applyTermFont();
+  saveConfig();
+}
+
+/** One step bigger or smaller; does nothing at the ends of the offered sizes */
+export function stepFontScale(dir: 1 | -1) {
+  setFontScale(stepScale(fontScale(), dir));
+}
 
 function isNarrow(side: Side): boolean {
   return window.innerWidth < NARROW[side];

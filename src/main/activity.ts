@@ -8,21 +8,65 @@ import { t } from "../shared/i18n";
 import type { SessionTab } from "./sessionTab";
 import { state } from "./state";
 
-/** Working and finished-but-unseen sessions of a host (all hosts without id) */
-export function activityOf(hostId?: string): { working: number; done: number; failed: number } {
+/** Working, finished-but-unseen and failed sessions of one block of the list */
+export interface Activity {
+  working: number;
+  done: number;
+  failed: number;
+}
+
+/** Is a run of this session going on: a live one at Pi, or one started as a run in the background? */
+export function isWorking(tab: SessionTab | undefined): boolean {
+  return !!tab && (!!tab.bg || (tab.alive && tab.streaming));
+}
+
+/** One row of the session list as far as the marks are concerned: its tab (if open), its "running" and "unread" marks */
+export interface ActivityRow {
+  ref: { tab?: SessionTab };
+  running?: boolean;
+  /** "Mark as unread" in the session meta: counts as not read, also without an open tab */
+  unread?: boolean;
+}
+
+/** Count the sessions of a block (a host heading, a project, a group) by their state; `running` also counts */
+export function activityOfRows(rows: ActivityRow[]): Activity {
   let working = 0;
   let done = 0;
   let failed = 0;
-  for (const tab of state.tabs.values()) {
-    if (hostId && tab.hostId !== hostId) continue;
-    if (tab.alive && tab.streaming) working++;
-    else if (tab.unseen && tab.failed) failed++;
-    else if (tab.unseen) done++;
+  for (const row of rows) {
+    const tab = row.ref.tab;
+    if (row.running || isWorking(tab)) working++;
+    else if (tab?.unseen && tab.failed) failed++;
+    else if (tab?.unseen || row.unread) done++;
   }
   return { working, done, failed };
 }
 
-/** Pi finished a run: mark it until it is looked at; notify if PiBar is in the background */
+/** Same for a list of tabs (the host switcher has no rows) */
+export function activityOfTabs(tabs: (SessionTab | undefined)[]): Activity {
+  return activityOfRows(tabs.map((tab) => ({ ref: { tab } })));
+}
+
+/**
+ * Working and unread sessions of a host (all hosts without id). Besides the open tabs this counts sessions marked
+ * "unread" in the session meta – also when their tab is closed (the badge and the host tabs then show it as well).
+ */
+export function activityOf(hostId?: string): Activity {
+  const a = activityOfTabs([...state.tabs.values()].filter((tab) => !hostId || tab.hostId === hostId));
+  const prefix = hostId ? `${hostId}|` : "";
+  for (const [key, m] of Object.entries(state.config.sessionMeta ?? {})) {
+    if (!m?.unread || !key.startsWith(prefix)) continue;
+    if (state.tabs.get(key)?.unseen) continue; // the tab already counts this session
+    a.done++;
+  }
+  return a;
+}
+
+/**
+ * Pi finished a run: mark it until it is looked at; notify if PiBar is in the background. The mark lives on the tab
+ * (`unseen`); the caller also keeps it in the session meta (`unread`, see `onSettled` in sessions.ts), so the row, the
+ * ✓ counters and the Dock badge are there again after a restart.
+ */
 export function markSettled(tab: SessionTab) {
   const looking = tab === state.active && document.hasFocus();
   if (!looking) {
@@ -63,30 +107,31 @@ async function notifyDone(tab: SessionTab) {
   }
 }
 
-/** Mark at a session in the list: spinner while working, "Done"/"Error" until opened, else a dot if open */
-export function sessionMark(tab: SessionTab | undefined): HTMLElement | null {
-  if (!tab?.alive && !tab?.unseen) return null;
-  if (tab.alive && tab.streaming) return h("span", { class: "sess-state busy", title: t("Pi is working …") });
-  if (tab.unseen)
-    return h("span", {
-      class: `sess-state ${tab.failed ? "failed" : "done"}`,
-      title: tab.failed ? t("Error") : t("Done"),
-    });
-  return h("span", { class: "sess-state open", title: t("Open") });
-}
-
-/** Pill on the right of a session row */
-export function sessionPill(tab: SessionTab | undefined): HTMLElement | null {
-  if (!tab) return null;
-  if (tab.alive && tab.streaming) return h("span", { class: "sess-pill busy" }, t("working"));
-  if (tab.unseen)
-    return h("span", { class: `sess-pill ${tab.failed ? "failed" : "done"}` }, tab.failed ? t("Error") : t("Done"));
+/**
+ * Mark at the left of a session row: a spinner while Pi works (also a run in the background, `running`). Nothing else:
+ * unread and failed sessions are named in the pill on the right – a dot nobody can read is gone.
+ */
+export function sessionMark(tab: SessionTab | undefined, running = false): HTMLElement | null {
+  if (running || isWorking(tab)) return h("span", { class: "sess-state busy", title: t("Pi is working …") });
   return null;
 }
 
-/** Counters in a host header or host tab: "● 2" working, "✓ 1" done */
-export function hostMarks(hostId?: string): HTMLElement[] {
-  const a = activityOf(hostId);
+/**
+ * Pill on the right of a session row, with words instead of a dot: "working", "unread" or "Error".
+ * `unread` is the session's mark in the list (a finished run nobody looked at, or "Mark as unread").
+ */
+export function sessionPill(tab: SessionTab | undefined, running = false, unread = false): HTMLElement | null {
+  if (running || isWorking(tab)) return h("span", { class: "sess-pill busy" }, t("working"));
+  if (!tab?.unseen && !unread) return null;
+  if (tab?.unseen && tab.failed) return h("span", { class: "sess-pill failed" }, t("Error"));
+  return h("span", { class: "sess-pill unread", title: t("Not read yet") }, t("unread"));
+}
+
+/**
+ * Counters in a host header, a project heading or a host tab: a spinner and "2" while sessions work, "✓ 1" for
+ * finished ones. Glyphs instead of coloured dots – a dot in front of a name reads like a notification.
+ */
+export function marks(a: Activity): HTMLElement[] {
   const out: HTMLElement[] = [];
   if (a.working)
     out.push(
@@ -103,13 +148,18 @@ export function hostMarks(hostId?: string): HTMLElement[] {
         "span",
         {
           class: `act-count ${a.failed ? "failed" : "done"}`,
-          title: t("{n} finished, not looked at yet", { n: a.done + a.failed }),
+          title: t("{n} unread", { n: a.done + a.failed }),
         },
-        h("span", { class: `sess-state ${a.failed ? "failed" : "done"}` }),
+        h("span", { class: "act-mark" }, a.failed ? "!" : "✓"),
         String(a.done + a.failed),
       ),
     );
   return out;
+}
+
+/** Counters of a whole host (its tab in the switcher, whatever its projects are doing) */
+export function hostMarks(hostId?: string): HTMLElement[] {
+  return marks(activityOf(hostId));
 }
 
 /** Back in the window: the session on screen counts as seen */

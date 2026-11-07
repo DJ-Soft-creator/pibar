@@ -3,3 +3,4 @@ dist/
 src-tauri/
 package-lock.json
 *.md
+.vitest/

@@ -2,11 +2,12 @@
 // theme toggle, keyboard shortcuts.
 import { emit } from "@tauri-apps/api/event";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
+import { VIEWS } from "../shared/chatViews";
 import { $, h, errMsg, toast } from "../shared/dom";
 import { cleanTitle, shortPath, stripAnswerStyle, thinkingLabel, withContext, withFiles } from "../shared/format";
 import { hasAttachments, renderDock, swapAttachments, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
-import { matchPreset, splitModelKey } from "../shared/presets";
+import { matchPreset } from "../shared/presets";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
@@ -14,14 +15,14 @@ import { keepScroll, scrollModeItems, showEnd, wireAutoScroll } from "./autoScro
 import { applyChatColors } from "./colors";
 import { wireShortcuts } from "./shortcuts";
 import type { QueueItem, QueueWhen } from "./sessionTab";
-import { applyLayout } from "./layout";
+import { applyFontScale, applyLayout } from "./layout";
 import { openMenu } from "./menu";
 import { applyTermTheme } from "./terminal";
 import { cleanupDialog } from "./cleanup";
 import { displayTitle, setMeta } from "./sessionGroups";
 import { slashKey, wireSlashMenu } from "./slashMenu";
 import { renderUsage, wireUsage } from "./usageStats";
-import type { SessionTab } from "./sessionTab";
+import { defaultViewMode, type SessionTab } from "./sessionTab";
 import { defaultHostId, loadAllSessions, newSessionDialog, openQuestions, undoBranch } from "./sessions";
 import { settingsDialog } from "./settings";
 import { saveConfig, state } from "./state";
@@ -30,6 +31,7 @@ const elChatScroll = $("chat-scroll");
 const elEmpty = $("empty");
 const elInput = $("input") as HTMLTextAreaElement;
 const elSend = $("btn-send") as HTMLButtonElement;
+const elBg = $("btn-bg") as HTMLButtonElement;
 
 const SEND_ICON: Record<"send" | "steer" | "stop", string> = {
   send: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2"/></svg>',
@@ -38,6 +40,16 @@ const SEND_ICON: Record<"send" | "steer" | "stop", string> = {
   stop: '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="4.5" y="4.5" width="7" height="7" rx="1.6" fill="currentColor"/></svg>',
 };
 let sendMode: "send" | "steer" | "stop" | "" = "";
+
+/**
+ * Background mode of the session on screen, visible in two places: the pill next to the input (click = off again) and
+ * a dashed ring around the send button, so the user sees what the button will do before pressing it.
+ */
+function renderBackground(tab: SessionTab | null) {
+  const on = !!tab?.background;
+  elBg.hidden = !on;
+  elSend.classList.toggle("background", on);
+}
 
 /** One round button: send · while Pi works (or a run in the background goes on): stop · otherwise steer */
 function renderSendButton() {
@@ -48,15 +60,17 @@ function renderSendButton() {
   if (mode === sendMode) return;
   sendMode = mode;
   elSend.innerHTML = SEND_ICON[mode];
-  elSend.className = `send-btn ${mode}`;
+  elSend.className = `send-btn ${mode}${tab?.background ? " background" : ""}`;
   elSend.title =
-    mode === "stop" && tab?.bg
+    (mode === "stop" && tab?.bg
       ? t("Stop the run in the background")
       : mode === "stop"
         ? t("Stop (Esc)")
         : mode === "steer"
           ? t("Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step")
-          : t("Send (Enter) · ⇧⌘↩ in the background");
+          : t("Send (Enter) · ⇧⌘↩ in the background")) +
+    (tab?.background ? ` · ${t("This session sends in the background")}` : "") +
+    ` · ${t("Right-click: background menu")}`;
 }
 const elPreset = $("sel-preset") as HTMLSelectElement;
 const elModel = $("sel-model") as HTMLSelectElement;
@@ -75,11 +89,6 @@ const elTbSession = $("tb-session");
 const elAddFolder = $("btn-add-folder") as HTMLButtonElement;
 const elReloadFiles = $("btn-reload-files") as HTMLButtonElement;
 
-const VIEWS: [ChatMode, Msg, Msg][] = [
-  ["natural", "Natural", "Only Pi's answers, no thinking or tool blocks"],
-  ["technical", "Technical", "Thinking and tool calls as small collapsed blocks"],
-  ["debug", "Debug", "Thinking and tool calls open and live"],
-];
 const ANSWERS: [AnswerMode, Msg, Msg][] = [
   ["short", "Short", "Rather short answers"],
   ["normal", "Normal", "Normal answers"],
@@ -96,9 +105,9 @@ const THEME_ICON: Record<Theme, string> = {
 };
 const THEME_NAME: Record<Theme, Msg> = { auto: "Automatic", light: "Light", dark: "Dark" };
 
+/** View of the session on screen (each session has its own, see SessionTab.viewMode); without one the setting */
 function chatMode(): ChatMode {
-  const m = state.config.ui.chatMode;
-  return m === "natural" || m === "debug" ? m : "technical";
+  return state.active?.viewMode() ?? defaultViewMode();
 }
 
 function answerMode(): AnswerMode {
@@ -126,21 +135,26 @@ function ddOpen<V extends string>(btn: HTMLElement, list: [V, Msg, Msg][], value
   );
 }
 
-/** Open or close all thinking/tool cards of open sessions (debug view: open) */
+/** Open or close all thinking/tool cards of the session on screen (debug view: open) */
 function setCardsOpen(open: boolean) {
-  for (const tab of state.tabs.values())
-    tab.el.querySelectorAll<HTMLDetailsElement>(".part details.card").forEach((d) => (d.open = open));
+  state.active?.el.querySelectorAll<HTMLDetailsElement>(".part details.card").forEach((d) => (d.open = open));
 }
 
-/** Panels, chat view, answer style and theme according to the settings */
+/** Chat view classes and the view menu's label for the session on screen */
+function applyViewMode() {
+  const mode = chatMode();
+  for (const [m] of VIEWS) elChatScroll.classList.toggle(`mode-${m}`, m === mode);
+  ddLabel(elView, VIEWS, mode);
+}
+
+/** Panels, text size, chat view, answer style and theme according to the settings */
 export function applyUiPrefs() {
   const ui = state.config.ui;
   applyLayout();
-  const mode = chatMode();
-  for (const [m] of VIEWS) elChatScroll.classList.toggle(`mode-${m}`, m === mode);
+  applyFontScale();
+  applyViewMode();
   elChatScroll.classList.toggle("show-times", !!ui.showTimes);
   const answer = answerMode();
-  ddLabel(elView, VIEWS, mode);
   ddLabel(elAnswer, ANSWERS, answer);
   elAnswer.classList.toggle("set", answer !== "normal");
   showVoiceButtons({ mic: elMic, improveBtn: elImprove }, state.config.voice);
@@ -183,7 +197,9 @@ export function showEmpty() {
   elInput.value = "";
   swapAttachments([]);
   autoGrow();
+  renderBackground(null);
   renderSendButton();
+  applyViewMode();
   applyChatColors();
 }
 
@@ -212,8 +228,12 @@ export function renderToolbar() {
   elSlash.disabled = !ready;
   renderDock();
   $("undo-bar").hidden = !tab?.undo;
+  renderBackground(tab);
   renderQueue(tab);
   $("question-bar").hidden = !tab?.questions.length || tab.streaming;
+
+  // switching sessions also switches their view
+  applyViewMode();
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
   elActivity.hidden = !(tab?.streaming && chatMode() === "natural");
@@ -495,20 +515,19 @@ export function wireChatView() {
     backgroundMenu();
   });
   elInput.addEventListener("input", renderSendButton);
+  elBg.addEventListener("click", () => {
+    const tab = state.active;
+    if (tab?.background) setBackground(tab, false);
+  });
 
   elPreset.addEventListener("change", async () => {
     const tab = state.active;
     if (!tab) return;
     const p = (state.config.presets ?? []).find((x) => x.id === elPreset.value);
-    tab.presetId = p?.id ?? "";
-    renderToolbar();
-    if (!p) return;
-    const m = splitModelKey(p.model);
     try {
-      if (m) await tab.setModel(m.provider, m.id);
-      if (p.thinking) await tab.setThinking(p.thinking);
+      await tab.setPreset(p?.id ?? null);
     } catch (e) {
-      toast(`${p.name}: ${errMsg(e)}`, "err");
+      toast(`${p?.name ?? t("Preset")}: ${errMsg(e)}`, "err");
       renderToolbar();
     }
   });
@@ -535,7 +554,10 @@ export function wireChatView() {
         desc: t(desc),
         selected: v === mode,
         onSelect: () => {
-          state.config.ui.chatMode = v;
+          // belongs to the session: another session keeps its own view. Without a session it changes the setting,
+          // i.e. the default for new sessions.
+          if (state.active) state.active.setViewMode(v);
+          else state.config.ui.chatMode = v;
           setCardsOpen(v === "debug");
           applyUiPrefs();
           renderToolbar();

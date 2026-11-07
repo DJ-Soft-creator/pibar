@@ -25,13 +25,33 @@ let anchor: string | null = null;
 let order: string[] = [];
 /** Keys being dragged right now */
 let dragging: string[] = [];
+/** Rows of the block being rendered (a host or a project), in display order: "Own order" drags rows up and down */
+let block = "";
+const blocks = new Map<string, string[]>();
 
 export function resetOrder() {
   order = [];
+  block = "";
+  blocks.clear();
+}
+
+/** The rows rendered from now on belong to this block of the list ("h:<hostId>" or "p:<projectId>") */
+export function startBlock(id: string) {
+  block = id;
+}
+
+/** Sessions arranged by dragging: the rows of `key`'s block in display order (empty = not rendered yet) */
+export function blockKeysOf(key: string): string[] {
+  for (const keys of blocks.values()) if (keys.includes(key)) return keys;
+  return [];
 }
 
 export function noteVisible(key: string) {
   order.push(key);
+  if (!block) return;
+  const keys = blocks.get(block) ?? [];
+  keys.push(key);
+  blocks.set(block, keys);
 }
 
 export function clearSelection() {

@@ -1,5 +1,8 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
-import { api, PiCommand, PiModel } from "../shared/api";
+import { api, ChatMode, PiCommand, PiModel } from "../shared/api";
+import { isChatMode } from "../shared/chatViews";
+import { projectAt } from "../shared/projects";
+import { sessionStarted } from "./terminal";
 import type { BranchChoice } from "../shared/branches";
 import { findQuestions, type QuestionGroup } from "../shared/questions";
 import type {
@@ -25,11 +28,13 @@ import {
   withAnswerStyle,
 } from "../shared/format";
 import { getLang, t } from "../shared/i18n";
+import { isStaleInstallError } from "../shared/piErrors";
+import { resolveChoice } from "../shared/presets";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
 import type { Attachment } from "./composerTools";
 import { diagnoseDialog } from "./diagnose";
-import { state } from "./state";
+import { saveConfig, state } from "./state";
 
 type PartKind = "text" | "thinking" | "tool";
 
@@ -64,6 +69,8 @@ export interface BranchUndo {
   fromPath: string;
   /** File of the branch (deleted on undo), null if Pi has not saved it */
   branchPath: string | null;
+  /** Files that "go back" restored: the undo puts them back (src/main/rewindFiles.ts) */
+  files?: { cwd: string; commit: string; paths: string[] };
 }
 
 type Image = { data: string; mimeType: string };
@@ -97,6 +104,9 @@ export interface TabCallbacks {
 }
 
 const MAX_RESULT = 20000;
+
+/** Running number for sessions without a file yet: their key stays stable from the start (see `key`) */
+let sessionSeq = 0;
 
 /** Token counters of a session (shown in the header, see usageStats.ts) */
 export interface TabStats {
@@ -163,9 +173,10 @@ export function readAloud(text: string, btn: HTMLElement | null = null) {
     });
 }
 
-/** Cards open live in the "debug" chat view */
-function debugView(): boolean {
-  return state.config?.ui.chatMode === "debug";
+/** Chat view from the settings: the default for sessions without a view of their own (see `SessionTab.viewMode`) */
+export function defaultViewMode(): ChatMode {
+  const m = state.config?.ui.chatMode;
+  return m === "natural" || m === "debug" ? m : "technical";
 }
 
 export class SessionTab {
@@ -235,6 +246,8 @@ export class SessionTab {
   private firstToken = 0;
   /** Number of user messages shown (index for the message actions) */
   private userCount = 0;
+  /** Own number of this tab; a session without a file is known by it from the start (see `key`) */
+  private readonly uid = ++sessionSeq;
 
   constructor(hostId: string, cwd: string, sessionPath: string | null, title: string, cb: TabCallbacks) {
     this.hostId = hostId;
@@ -245,8 +258,45 @@ export class SessionTab {
     this.el = h("div", { class: "messages" });
   }
 
+  /**
+   * Key of this session in the settings: "<hostId>|<sessionPath>". A session that has no file yet gets a key of its
+   * own from the first moment (`new-<number>`), so name, colour and group can be set before the first message. When
+   * Pi saves the session, the settings move over to the file (see `rekey` in sessions.ts).
+   */
   get key(): string {
-    return `${this.hostId}|${this.sessionPath ?? `new-${this.handle}`}`;
+    return `${this.hostId}|${this.sessionPath ?? `new-${this.uid}`}`;
+  }
+
+  // ---------- The chat view of this session ----------
+
+  /** View this session starts with when it has none of its own: that of its project, else the setting */
+  startView(): ChatMode {
+    const own = projectAt(state.config.projects ?? [], this.hostId, this.cwd)?.view;
+    return isChatMode(own) ? own : defaultViewMode();
+  }
+
+  /** Own view of this session, else the default of its project or of the settings */
+  viewMode(): ChatMode {
+    const own = state.config.sessionMeta?.[this.key]?.chatMode;
+    return isChatMode(own) ? own : this.startView();
+  }
+
+  /**
+   * Keep the chat view for this session only: switching to another session shows that session's view again. Choosing
+   * the view the session starts with (project or settings) drops the own choice, so it follows that again.
+   */
+  setViewMode(mode: ChatMode) {
+    const all = (state.config.sessionMeta ??= {});
+    const m = (all[this.key] ??= {});
+    if (mode === this.startView()) delete m.chatMode;
+    else m.chatMode = mode;
+    if (!Object.keys(m).length) delete all[this.key];
+    saveConfig();
+  }
+
+  /** Cards open and live (thinking, tool input and output) in the "debug" chat view */
+  private debug(): boolean {
+    return this.viewMode() === "debug";
   }
 
   // ---------- Lifecycle ----------
@@ -256,11 +306,14 @@ export class SessionTab {
     this.handle = await api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined, this.toolset);
     this.alive = true;
     this.detached = false;
+    // A terminal belongs to this session: its tab shows the session's name and colour (only if wanted and open)
+    sessionStarted(this);
     onHandle?.(this);
     await this.refreshState();
     if (this.sessionPath) await this.loadHistory();
     this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
     await this.refreshModels();
+    await this.applyChoice();
     this.cb.onStateChange(this);
   }
 
@@ -428,6 +481,8 @@ export class SessionTab {
       return;
     }
     this.questions = [];
+    // the state before this message, so "go back" can restore the files Pi is about to change
+    if (!this.streaming) await this.rememberFiles();
     await this.settling.catch(() => {});
     const message = withAnswerStyle(text, state.config.ui.answerMode);
     const cmd: { type: "prompt"; [key: string]: unknown } = { type: "prompt", message };
@@ -437,6 +492,26 @@ export class SessionTab {
       if (images.length) this.queuedImages.set(message, images);
     }
     await api.pi(this.handle, cmd);
+  }
+
+  /** No Git repository (or no Git): no file states for this session, "go back" then only touches the conversation */
+  private snapshotOff = false;
+
+  /**
+   * Record the files of the working folder as the state after the answer to the last own message
+   * (src-tauri/src/snapshot.rs). Going back to that message later restores what Pi changes from here on; nothing is
+   * recorded outside a Git repository. The state is kept under Pi's entry id, which survives branches and compaction.
+   */
+  private async rememberFiles(): Promise<void> {
+    if (this.snapshotOff || !this.sessionId) return;
+    try {
+      const points = await this.forkPoints();
+      const tag = points[points.length - 1]?.entryId;
+      if (!tag) return; // the first message: there is no state before it yet
+      if (!(await api.snapshotTake(this.hostId, this.cwd, this.sessionId, tag))) this.snapshotOff = true;
+    } catch {
+      this.snapshotOff = true;
+    }
   }
 
   // ---------- Runs in the background (src-tauri/src/bg.rs) ----------
@@ -469,8 +544,11 @@ export class SessionTab {
       await this.send(text, images);
       return true;
     }
+    await this.rememberFiles();
     const message = withAnswerStyle(text, state.config.ui.answerMode);
     const path = this.sessionPath;
+    // before detaching: the live process knows model and thinking level of the session
+    const choice = await this.runChoice();
     try {
       await this.detach();
       const handle = await api.bgStart(
@@ -478,9 +556,9 @@ export class SessionTab {
         this.cwd,
         path,
         message,
-        this.model?.provider,
-        this.model?.id,
-        this.thinkingLevel,
+        choice.provider,
+        choice.modelId,
+        choice.thinking,
         this.toolset,
       );
       this.startRun(handle);
@@ -491,6 +569,27 @@ export class SessionTab {
       await this.attach().catch(() => {});
       return false;
     }
+  }
+
+  /**
+   * Model and thinking level a detached run has to start with. A new Pi process takes the model of the device's default
+   * (an extension sets it at start), not the one of the session – without these arguments the run in the background
+   * would answer with another model than the session on screen. Live values first, then the choice saved for the session.
+   */
+  private async runChoice(): Promise<{ provider?: string; modelId?: string; thinking?: string }> {
+    if ((!this.model || !this.thinkingLevel) && this.alive && this.handle) {
+      try {
+        await this.refreshState();
+      } catch {
+        /* Pi may be gone already: the saved choice below still knows the model */
+      }
+    }
+    const saved = resolveChoice(state.config.presets ?? [], state.config.sessionMeta?.[this.key] ?? {});
+    return {
+      provider: this.model?.provider || saved.model?.provider,
+      modelId: this.model?.id || saved.model?.id,
+      thinking: this.thinkingLevel || saved.thinking,
+    };
   }
 
   /** Open a session whose run is still going in the background (e.g. after PiBar was restarted) */
@@ -613,11 +712,13 @@ export class SessionTab {
   setModel(provider: string, modelId: string) {
     if (this.streaming)
       this.note(t("The new model applies from the next message; the running answer keeps the old one."));
+    this.presetId = ""; // an individual model is no preset
     return this.settle(async () => {
       const m = await api.pi(this.handle, { type: "set_model", provider, modelId });
       this.model = m ?? this.model;
       await this.refreshModels();
       await this.refreshState();
+      this.saveChoice();
       this.cb.onStateChange(this);
     });
   }
@@ -626,8 +727,81 @@ export class SessionTab {
     return this.settle(async () => {
       await api.pi(this.handle, { type: "set_thinking_level", level });
       this.thinkingLevel = level;
+      this.saveChoice();
       this.cb.onStateChange(this);
     });
+  }
+
+  /**
+   * Choose a preset (id, null/"" = an individual choice): model and thinking level of the preset go to Pi, and the
+   * choice is kept for this session (see `saveChoice`).
+   */
+  async setPreset(id: string | null) {
+    const { preset, model, thinking } = resolveChoice(state.config.presets ?? [], { preset: id ?? "" });
+    if (this.detached || !this.handle) {
+      // no process to ask: the choice goes with the next run in the background
+      if (model) this.model = { provider: model.provider, id: model.id, name: model.id };
+      if (thinking) this.thinkingLevel = thinking;
+    } else {
+      if (model) await this.setModel(model.provider, model.id); // clears the preset, set again below
+      if (thinking) await this.setThinking(thinking);
+    }
+    this.presetId = preset?.id ?? "";
+    this.saveChoice();
+    this.cb.onStateChange(this);
+  }
+
+  // ---------- The model chosen for this session ----------
+
+  /**
+   * Keep model, thinking level and preset of this session in the settings (SessionMeta). Pi takes the model from the
+   * session file when it opens it – the one used back then, and in a session without messages Pi's default. A session
+   * therefore stays with the model it was started with until another one is chosen.
+   */
+  saveChoice() {
+    const all = (state.config.sessionMeta ??= {});
+    const key = this.key;
+    const m = (all[key] ??= {});
+    if (this.model) m.model = `${this.model.provider}/${this.model.id}`;
+    else delete m.model;
+    if (this.thinkingLevel) m.thinking = this.thinkingLevel;
+    else delete m.thinking;
+    if (this.presetId) m.preset = this.presetId;
+    else delete m.preset;
+    if (!Object.keys(m).length) delete all[key];
+    saveConfig();
+  }
+
+  /** Apply the choice saved for this session again (after Pi loaded the session file), unless Pi already has it */
+  async applyChoice() {
+    const saved = state.config.sessionMeta?.[this.key];
+    if (!saved?.model && !saved?.thinking && !saved?.preset) return;
+    const { preset, model, thinking } = resolveChoice(state.config.presets ?? [], saved);
+    try {
+      if (model && (this.model?.provider !== model.provider || this.model?.id !== model.id))
+        await this.setModel(model.provider, model.id);
+      if (thinking && this.thinkingLevel !== thinking) await this.setThinking(thinking);
+      this.presetId = preset?.id ?? "";
+      this.saveChoice();
+    } catch (e) {
+      toast(`${t("Model")}: ${errMsg(e)}`, "err");
+    }
+  }
+
+  /**
+   * A model or thinking level changed inside Pi itself (Pi's own /model or /thinking command, a fallback): take it
+   * over as the session's choice – otherwise opening the session again would undo it. Sessions without a saved choice
+   * are left alone; they keep following Pi.
+   */
+  adoptChoice() {
+    const saved = state.config.sessionMeta?.[this.key];
+    if (!saved?.model && !saved?.thinking) return;
+    const model = this.model ? `${this.model.provider}/${this.model.id}` : "";
+    const changed =
+      (!!model && model !== saved.model) || (!!this.thinkingLevel && this.thinkingLevel !== saved.thinking);
+    if (!changed) return;
+    this.presetId = ""; // the preset no longer describes what Pi runs
+    this.saveChoice();
   }
 
   // ---------- History ----------
@@ -732,7 +906,7 @@ export class SessionTab {
         break;
       case "tool_execution_update":
         // partial output of a running tool, shown live in the debug view
-        if (debugView()) this.toolResult(ev.toolCallId, ev.partialResult?.content, false, undefined, true);
+        if (this.debug()) this.toolResult(ev.toolCallId, ev.partialResult?.content, false, undefined, true);
         break;
       case "tool_execution_end":
         this.toolResult(ev.toolCallId, ev.result?.content, !!ev.isError, ev.durationMs);
@@ -1047,6 +1221,8 @@ export class SessionTab {
     if (msg?.stopReason === "error" || msg?.errorMessage) {
       if (this.streaming) this.failed = true;
       const error = msg.errorMessage || t("Error in the response");
+      // Pi was updated or removed on the host while this process was running: only a new process helps
+      const stale = isStaleInstallError(error);
       cur.el.append(
         h(
           "div",
@@ -1055,9 +1231,25 @@ export class SessionTab {
             "div",
             { class: "error" },
             error,
+            stale
+              ? h(
+                  "div",
+                  { class: "error-hint" },
+                  t(
+                    "Pi was updated or removed on the host while this session was running. Restart the session; the history stays.",
+                  ),
+                )
+              : null,
             h(
               "div",
               { class: "error-acts" },
+              stale
+                ? h(
+                    "button",
+                    { class: "ghost small", onclick: () => this.restart().catch((e) => toast(errMsg(e), "err")) },
+                    t("Restart session"),
+                  )
+                : null,
               h("button", { class: "ghost small", onclick: () => this.diagnose(error) }, t("Diagnose")),
             ),
           ),
@@ -1118,7 +1310,7 @@ export class SessionTab {
         { class: "part thinking" },
         h(
           "details",
-          { class: "card", open: debugView() },
+          { class: "card", open: this.debug() },
           h("summary", {}, h("span", { class: "label" }, t("Thinking")), h("span", { class: "preview" }, "")),
           body,
         ),
@@ -1175,7 +1367,7 @@ export class SessionTab {
     const result = h("div", {});
     const card = h(
       "details",
-      { class: "card", open: debugView() },
+      { class: "card", open: this.debug() },
       h("summary", {}, h("span", { class: "label" }, name || "Tool"), preview, status),
       h("div", { class: "body" }, h("div", { class: "sub" }, t("Input")), args, result),
     ) as HTMLDetailsElement;
@@ -1191,7 +1383,7 @@ export class SessionTab {
     if (!card) return;
     card.argsRaw += delta;
     card.args.textContent = card.argsRaw;
-    if (debugView()) this.schedule();
+    if (this.debug()) this.schedule();
   }
 
   /** Files Pi changed in this session (paths as Pi got them: absolute, "~/…" or relative to the working folder) */
@@ -1229,7 +1421,7 @@ export class SessionTab {
     if (partial) return this.schedule();
     const dur = durationMs !== undefined ? ` · ${(durationMs / 1000).toFixed(1)} s` : "";
     this.setToolStatus(id, isError ? "err" : "ok", (isError ? t("Error") : t("done")) + dur);
-    if (debugView()) this.schedule();
+    if (this.debug()) this.schedule();
   }
 
   private addUsage(u: Usage) {

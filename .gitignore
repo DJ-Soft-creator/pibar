@@ -92,3 +92,6 @@ memory-bank/
 # ---------- Lokale Skripte ----------
 # persönliches Deploy-Skript (dev, prod, github)
 deploy.sh
+
+# Testberichte des Agenten-Harness (generiert)
+.vitest/

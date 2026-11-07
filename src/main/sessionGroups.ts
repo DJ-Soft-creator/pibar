@@ -11,6 +11,7 @@ import type { SessionTab } from "./sessionTab";
 import { selection } from "./sessionSelect";
 import { closeSession, loadSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
+import { refreshTermTabs } from "./terminal";
 
 const COLOR_NAMES: Record<string, Msg> = {
   "": "No colour",
@@ -40,6 +41,7 @@ export function setMeta(key: string, patch: SessionMeta) {
   if (Object.keys(m).length) all[key] = m;
   else delete all[key];
   saveConfig();
+  refreshTermTabs();
   renderHosts();
 }
 
@@ -53,11 +55,36 @@ export function setMetaMany(keys: string[], patch: SessionMeta) {
     else delete all[key];
   }
   saveConfig();
+  refreshTermTabs();
+  renderHosts();
+}
+
+/**
+ * Save the order the user dragged ("Own order" in the session list): every given session gets its place in steps of 10,
+ * the `moved` ones also take the group and pin state of the row they were dropped on. One save, one render.
+ */
+export function applyOrder(keys: string[], moved: string[] = [], patch: SessionMeta = {}) {
+  const all = (state.config.sessionMeta ??= {});
+  keys.forEach((key, i) => {
+    const m = (all[key] ??= {});
+    m.order = (i + 1) * 10;
+    if (moved.includes(key)) Object.assign(m, patch);
+  });
+  saveConfig();
   renderHosts();
 }
 
 export function groups(): SessionGroup[] {
   return (state.config.groups ??= []);
+}
+
+/**
+ * Session is on screen: drop its "unread" mark. `unseen` (Pi finished while you looked elsewhere) lives on the tab,
+ * the mark in the session meta – written by "Mark as unread" and by every run that settled unseen – survives a
+ * restart, so opening the session has to clear this one.
+ */
+export function clearUnread(key: string) {
+  if (metaOf(key).unread) setMeta(key, { unread: false });
 }
 
 /** Title shown in the list: own name, otherwise Pi's name or first message */
@@ -99,6 +126,14 @@ export interface SessionRef {
   tab?: SessionTab;
 }
 
+/**
+ * Key of a session in the settings (name, colour, group, …): "<hostId>|<sessionPath>". A session without a file yet
+ * is kept under the key of its tab, so it can be organised right away, before the first message.
+ */
+export function refKey(s: SessionRef): string {
+  return s.tab?.key ?? `${s.hostId}|${s.path}`;
+}
+
 /** Rename: own name in PiBar; an open session also tells Pi (set_session_name), so the name is in the file */
 export function renameDialog(s: SessionRef) {
   const key = `${s.hostId}|${s.path}`;
@@ -116,6 +151,7 @@ export function renameDialog(s: SessionRef) {
           if (!s.path) toast(`${t("Rename session")}: ${errMsg(e)}`, "err");
         }
       }
+      refreshTermTabs();
       renderHosts();
       renderToolbar();
     },
@@ -184,6 +220,12 @@ function splitKey(key: string): { hostId: string; path: string } {
   return { hostId: key.slice(0, i), path: key.slice(i + 1) };
 }
 
+/** Only a session that Pi has saved has a file on the host that could be deleted */
+function savedKey(key: string): boolean {
+  const tab = state.tabs.get(key);
+  return tab ? !!tab.sessionPath : !!splitKey(key).path;
+}
+
 /** Title for confirmations: own name, Pi's name or first message */
 function titleOf(key: string): string {
   const { hostId, path } = splitKey(key);
@@ -242,7 +284,7 @@ export function closeSessionsDialog(keys: string[]) {
 
 /** Delete sessions for good (session files on the host), after asking */
 export function deleteSessionsDialog(keys: string[]) {
-  keys = keys.filter((k) => splitKey(k).path);
+  keys = keys.filter(savedKey);
   if (!keys.length) return;
   const n = keys.length;
   confirmDialog(
@@ -293,6 +335,7 @@ export function bulkMenu(keys: string[]): MenuEntry[] {
   return [
     { heading: t("{n} selected", { n: keys.length }) },
     { label: allPinned ? t("Unpin") : t("Pin to top"), onSelect: () => setMetaMany(keys, { pinned: !allPinned }) },
+    { label: t("Mark as unread"), onSelect: () => setMetaMany(keys, { unread: true }) },
     { separator: true },
     { heading: t("Colour") },
     { colors: true, current: "-", title: colorName, onPick: (color) => setMetaMany(keys, { color }) },
@@ -308,7 +351,15 @@ export function bulkMenu(keys: string[]): MenuEntry[] {
           },
         ]
       : []),
-    { label: t("Delete {n} sessions …", { n: keys.length }), danger: true, onSelect: () => deleteSessionsDialog(keys) },
+    ...(keys.some(savedKey)
+      ? [
+          {
+            label: t("Delete {n} sessions …", { n: keys.length }),
+            danger: true,
+            onSelect: () => deleteSessionsDialog(keys),
+          },
+        ]
+      : []),
     { separator: true },
     {
       label: t("Clear selection (Esc)"),
@@ -322,31 +373,41 @@ export function bulkMenu(keys: string[]): MenuEntry[] {
 
 /** Right click or "⋯" on a session (on a selected one: actions for the whole selection) */
 export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number; y: number }) {
-  const key = `${s.hostId}|${s.path}`;
-  if (s.path && selection.has(key) && selection.size > 1)
-    return openMenu(anchor, bulkMenu([...selection]), "right", at);
+  const key = refKey(s);
+  if (selection.has(key) && selection.size > 1) return openMenu(anchor, bulkMenu([...selection]), "right", at);
   const m = metaOf(key);
   const saved = !!s.path;
-  const entries: MenuEntry[] = [{ label: t("Rename …"), onSelect: () => renameDialog(s) }];
-  if (saved) {
+  // name, pin, colour and group work from the start, also for a session without a file (see refKey)
+  const entries: MenuEntry[] = [
+    { label: t("Rename …"), onSelect: () => renameDialog(s) },
+    { label: m.pinned ? t("Unpin") : t("Pin to top"), onSelect: () => setMeta(key, { pinned: !m.pinned }) },
+    // marks the row until the session is opened (opening it clears the mark again); "read" also drops the
+    // transient mark of a run that finished while you looked elsewhere
+    m.unread || state.tabs.get(key)?.unseen
+      ? {
+          label: t("Mark as read"),
+          onSelect: () => {
+            const tab = state.tabs.get(key);
+            if (tab) tab.unseen = false;
+            setMeta(key, { unread: false });
+          },
+        }
+      : { label: t("Mark as unread"), onSelect: () => setMeta(key, { unread: true }) },
+    { separator: true },
+    { heading: t("Colour") },
+    { colors: true, current: m.color ?? "", title: colorName, onPick: (color) => setMeta(key, { color }) },
+    { separator: true },
+    { heading: t("Move to group") },
+    ...groupEntries([key]),
+  ];
+  if (saved)
     entries.push(
-      {
-        label: m.pinned ? t("Unpin") : t("Pin to top"),
-        onSelect: () => setMeta(key, { pinned: !m.pinned }),
-      },
-      { separator: true },
-      { heading: t("Colour") },
-      { colors: true, current: m.color ?? "", title: colorName, onPick: (color) => setMeta(key, { color }) },
-      { separator: true },
-      { heading: t("Move to group") },
-      ...groupEntries([key]),
       { separator: true },
       {
         label: reminderFor(key) ? t("Change reminder") : t("Remind me later"),
         onSelect: () => reminderDialog({ hostId: s.hostId, path: s.path, cwd: s.cwd, title: s.title }),
       },
     );
-  }
   if (s.tab?.sessionId)
     entries.push({
       label: t("Copy session ID"),
@@ -412,8 +473,21 @@ export function groupMenu(anchor: HTMLElement, g: SessionGroup, at?: { x: number
   );
 }
 
-export function toggleGroup(g: SessionGroup) {
-  g.collapsed = !g.collapsed;
+/**
+ * Collapse state of groups per block of the list (a host or a project): "<block>|<group id>" → closed. Blocks without
+ * an entry start as the group was created (the archive starts closed).
+ */
+function groupCollapse(): Record<string, boolean> {
+  return (state.config.ui.groupCollapsed ??= {});
+}
+
+/** A group is closed in this block of the list (see `toggleGroup`) */
+export function groupCollapsed(block: string, g: SessionGroup): boolean {
+  return groupCollapse()[`${block}|${g.id}`] ?? g.collapsed;
+}
+
+export function toggleGroup(block: string, g: SessionGroup) {
+  groupCollapse()[`${block}|${g.id}`] = !groupCollapsed(block, g);
   saveConfig();
   renderHosts();
 }

@@ -3,6 +3,7 @@ import {
   baseName,
   cleanTitle,
   fmtTokens,
+  inFolder,
   relTime,
   shortModel,
   shortPath,
@@ -59,6 +60,20 @@ describe("paths and numbers", () => {
   it("baseName", () => {
     expect(baseName("/a/b/c.md")).toBe("c.md");
     expect(baseName("/a/b/")).toBe("b");
+  });
+  it("inFolder matches a folder and its subfolders, home as ~", () => {
+    expect(inFolder("~/proj", "~/proj")).toBe(true);
+    expect(inFolder("~/proj/src", "~/proj")).toBe(true);
+    expect(inFolder("/Users/anna/proj/src", "~/proj")).toBe(true);
+    expect(inFolder("~/proj2", "~/proj")).toBe(false);
+    expect(inFolder("~/proj/", "~/proj/")).toBe(true);
+    expect(inFolder("/opt/x/y", "/opt/x")).toBe(true);
+    expect(inFolder("/opt/x", "/opt/x/y")).toBe(false);
+  });
+  it("inFolder: the home folder itself takes no subfolders", () => {
+    expect(inFolder("~", "~")).toBe(true);
+    expect(inFolder("/Users/anna", "~")).toBe(true);
+    expect(inFolder("~/proj", "~")).toBe(false);
   });
   it("fmtTokens in English and German", () => {
     expect(fmtTokens(812)).toBe("812 tok.");

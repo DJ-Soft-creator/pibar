@@ -24,6 +24,11 @@ describe("diagnosis hints", () => {
       "curl http://mini.local:1234/v1 -> HTTP 200 in 0.1s\nnode http://mini.local:1234/v1 -> TypeError: fetch failed | cause: ENOTFOUND";
     expect(diagnoseHints(r).some((x) => x.includes("Node"))).toBe(true);
   });
+  it("names a Pi that was updated while the session was running", () => {
+    const e =
+      "Cannot find module '/home/user/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/openai-completions-27RKPL37.js' imported from /home/user/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/chunk-MM3LKT73.js";
+    expect(diagnoseHints("", e).join(" ")).toContain("Restart the session");
+  });
   it("stays quiet when all is fine", () => {
     expect(diagnoseHints("https://api.anthropic.com -> HTTP 404 in 0.1s")).toEqual([]);
   });

@@ -12,6 +12,62 @@ export interface HeadVersion {
   text: string | null;
 }
 
+/** A session file with a message that contains the search text, see src-tauri/src/sessions.rs */
+export interface SearchHit {
+  path: string;
+  /** Working folder of the session (from the file's header), so a hit opens without the session list */
+  cwd: string;
+  /** Name from Pi or the first own message; empty if the file has neither */
+  title: string;
+  /** Role of that message: "user", "assistant" or a tool result */
+  role: string;
+  /** Text around the match, JSON escapes removed */
+  snippet: string;
+}
+
+/** File state recorded before a message, see src-tauri/src/snapshot.rs */
+export interface SnapshotTaken {
+  /** Root of the repository the session folder is in */
+  repo: string;
+  commit: string;
+  /** Entry id of the own message this state belongs to (the state after its answer) */
+  tag: string;
+}
+
+/** Files Pi changed after one own message, see src-tauri/src/sessions.rs */
+export interface MessageTouches {
+  /** Entry id of the message (stable across branches and compaction) */
+  id: string;
+  paths: string[];
+}
+
+/** One file that going back changes: "M" changed, "A" created (goes away), "D" deleted (comes back) */
+export interface RewindChange {
+  /** Relative to the repository root */
+  path: string;
+  status: "M" | "A" | "D";
+}
+
+/** What going back would restore, see src-tauri/src/snapshot.rs */
+export interface RewindPreview {
+  /** Repository root, null if the session folder is not in a Git repository */
+  repo: string | null;
+  /** Recorded state of that point, null if there is none */
+  commit: string | null;
+  changes: RewindChange[];
+  /** Paths Pi changed that lie outside the repository */
+  skipped: string[];
+}
+
+/** What going back restored, see src-tauri/src/snapshot.rs */
+export interface RewindRestored {
+  /** State before restoring (for the undo), "" when undoing itself */
+  backup: string;
+  restored: string[];
+  deleted: string[];
+  failed: string[];
+}
+
 /** Answer of list_dirs, see src-tauri/src/files.rs */
 export interface DirListing {
   /** Resolved absolute path */
@@ -130,17 +186,60 @@ export interface SessionMeta {
   group?: string;
   /** Pi tools of this session: undefined = Pi's default, [] = none */
   tools?: string[];
+  /** Model chosen for this session ("provider/model-id"); empty = Pi's model from the session file */
+  model?: string;
+  /** Thinking level chosen for this session; empty = as in the session file */
+  thinking?: string;
+  /** Model preset chosen for this session (id from AppConfig.presets); empty = own model and thinking level */
+  preset?: string;
   /** "on"/"off": every message of this session runs in the background; empty = as in the settings */
   background?: string;
   /** Start time (ms since epoch) of the newest run in the background, 0 = none */
   backgroundAt?: number;
+  /** Chat view of this session (see ChatMode); empty = as in the settings */
+  chatMode?: ChatMode;
+  /**
+   * Unread: set in the session menu or by a run that settled while nobody looked; it survives a restart and goes
+   * away when the session is opened
+   */
+  unread?: boolean;
+  /** Manual position in the list ("Own order", see sortRows in shared/sessionOrder.ts): higher = further down, 0 = not arranged yet */
+  order?: number;
 }
 
 export interface SessionGroup {
   id: string;
   name: string;
   color: string;
+  /** Closed when a block of the list shows it for the first time; then each block keeps its own state */
   collapsed: boolean;
+}
+
+/**
+ * Named project folder in the left column (src/main/projects.ts): sessions whose working folder lies in this folder
+ * appear under the project, and a new session started from the project runs in this folder.
+ */
+export interface Project {
+  id: string;
+  name: string;
+  /** Host the folder lives on */
+  hostId: string;
+  /** Folder of the project, "~/…" or absolute */
+  dir: string;
+  collapsed: boolean;
+  /** Fixed model preset for the sessions started here (id from AppConfig.presets); empty = the default of the settings */
+  preset?: string;
+  /**
+   * Chat view its sessions start with: "natural", "technical" or "debug"; empty = as in the settings. A session that
+   * was switched to another view in the header keeps its own.
+   */
+  view?: string;
+}
+
+/** Quick start preset of the new-session dialog: name and fixed working folder */
+export interface SessionPreset {
+  name: string;
+  dir: string;
 }
 
 export interface AppConfig {
@@ -152,6 +251,8 @@ export interface AppConfig {
   /** Key "<hostId>|<sessionPath>" */
   sessionMeta: Record<string, SessionMeta>;
   groups: SessionGroup[];
+  /** Named project folders in the left column, below the hosts */
+  projects?: Project[];
   /** Colour profiles of the chat (thinking, tool calls, answers, own messages) */
   colorProfiles?: ColorProfile[];
   ui: {
@@ -163,6 +264,8 @@ export interface AppConfig {
     collapsedHosts?: string[];
     /** Collapsed date or folder sections of the session list: "<hostId>|<date|folder>|<section>" */
     collapsedSections?: string[];
+    /** Groups closed in a block of the list (host or project): "<block>|<group id>"; see sessionGroups.ts */
+    groupCollapsed?: Record<string, boolean>;
     leftCollapsed?: boolean;
     rightCollapsed?: boolean;
     quickHotkey?: string;
@@ -180,6 +283,10 @@ export interface AppConfig {
     filesSplit?: number | null;
     /** Height of the terminal below the chat in pixels */
     termHeight?: number | null;
+    /** The terminal shows the shell of the session you switch to (default on) */
+    termFollowSession?: boolean;
+    /** Every session gets a terminal tab of its own (default off: only the "+" button opens one) */
+    termAutoOpen?: boolean;
     /** Git status in the file tree */
     showGit?: boolean;
     /** Time of each chat message */
@@ -203,6 +310,14 @@ export interface AppConfig {
     /** Session list: order and sections (src/shared/sessionOrder.ts) */
     sessionSort?: SessionSort;
     sessionGroup?: SessionGroupBy;
+    /** View of the session list: everything, or only what I am working on (see listFilter.ts) */
+    sessionFilter?: "all" | "active";
+    /** Colour filter: colour names (COLORS in src/main/menu.ts) or "none"; empty = every colour */
+    sessionColors?: string[];
+    /** Quick start presets at the top of the new-session dialog: up to 4, each with its own folder */
+    sessionPresets?: SessionPreset[];
+    /** Text size of the whole window as a factor (1 = 100 %), see src/main/layout.ts */
+    fontScale?: number;
   };
 }
 
@@ -395,6 +510,21 @@ export const api = {
   /** Diff of a file in a commit; `top`: path relative to the repository root, otherwise to `dir` */
   gitDiff: (hostId: string, dir: string, hash: string, path: string, top: boolean) =>
     invoke<string>("git_diff", { hostId, dir, hash, path, top }),
+  /** Remember the files of the session folder as the state before a message; null if the folder is not in a Git
+   * repository (src-tauri/src/snapshot.rs) */
+  snapshotTake: (hostId: string, dir: string, sessionId: string, tag: string) =>
+    invoke<SnapshotTaken | null>("snapshot_take", { hostId, dir, sessionId, tag }),
+  /** Files Pi changed since that point of the session (`paths` as Pi named them), see src/main/rewindFiles.ts */
+  rewindPreview: (hostId: string, dir: string, sessionIds: string[], tag: string, paths: string[]) =>
+    invoke<RewindPreview>("rewind_preview", { hostId, dir, sessionIds, tag, paths }),
+  /** Put those files back to the recorded state of that point; null if there is none */
+  rewindRestore: (hostId: string, dir: string, sessionIds: string[], tag: string, paths: string[]) =>
+    invoke<RewindRestored | null>("rewind_restore", { hostId, dir, sessionIds, tag, paths }),
+  /** Undo a restore: the same files back to the state before it (`backup`) */
+  rewindUndo: (hostId: string, dir: string, commit: string, paths: string[]) =>
+    invoke<RewindRestored>("rewind_undo", { hostId, dir, commit, paths }),
+  /** Files Pi changed, per own message of a session file (see src-tauri/src/sessions.rs) */
+  sessionTouches: (hostId: string, path: string) => invoke<MessageTouches[]>("session_touches", { hostId, path }),
   /** Image of the file panel (png, jpeg, gif, webp) as base64; read only */
   readImage: (hostId: string, path: string) =>
     invoke<{ mimeType: string; data: string }>("read_image", { hostId, path }),
@@ -406,6 +536,8 @@ export const api = {
   /** Subfolders of a folder on the host, for the folder picker (src/main/folderPicker.ts) */
   /** User messages (entry ids) of session files, to find where branches part (src/shared/branches.ts) */
   sessionOutlines: (hostId: string, paths: string[]) => invoke<SessionOutline[]>("session_outlines", { hostId, paths }),
+  /** Sessions of a host whose messages contain `query` (src/main/search.ts) */
+  searchSessions: (hostId: string, query: string) => invoke<SearchHit[]>("search_sessions", { hostId, query }),
   listDirs: (hostId: string, path: string, hidden = false) => invoke<DirListing>("list_dirs", { hostId, path, hidden }),
   /** Screenshot: "region" (drag an area) or "screen"; null if cancelled */
   captureScreen: (mode: "region" | "screen") =>

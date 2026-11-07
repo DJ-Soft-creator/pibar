@@ -1,14 +1,18 @@
 // Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets and hosts.
 import { getVersion } from "@tauri-apps/api/app";
 import { emit } from "@tauri-apps/api/event";
-import { api, DoubleTapStatus, HostCfg, ModelPreset, Theme } from "../shared/api";
+import { api, ChatMode, DoubleTapStatus, HostCfg, ModelPreset, SessionPreset, Theme } from "../shared/api";
 import { h, errMsg, openModal, toast, type KeysWith } from "../shared/dom";
 import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t, type Msg } from "../shared/i18n";
+import { scaleLabel } from "../shared/textScale";
 import { cleanPresets } from "../shared/presets";
+import { VIEWS } from "../shared/chatViews";
 import { applyUiPrefs, defaultLabel, renderToolbar, setTheme } from "./chatView";
 import { renderFiles } from "./files";
+import { setFontScale, stepFontScale } from "./layout";
 import { scrollMode, type ScrollMode } from "./autoScroll";
+import { defaultViewMode } from "./sessionTab";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 import { colorEditor } from "./colorSettings";
@@ -127,6 +131,9 @@ function presetEditor(): { el: HTMLElement; get: () => ModelPreset[] } {
   );
   return { el, get: () => cleanPresets(draft) };
 }
+
+/** Section shown last in the settings dialog (kept while PiBar runs, so reopening lands where you left off) */
+let lastSection = 0;
 
 export function settingsDialog() {
   const draft: HostCfg[] = JSON.parse(JSON.stringify(state.config.hosts));
@@ -295,11 +302,57 @@ export function settingsDialog() {
     style: "width:auto",
   }) as HTMLInputElement;
 
+  // Text size of the whole window: − / + steps in percent, applied right away (see src/main/layout.ts)
+  const sizeVal = h("span", { class: "size-val" }, scaleLabel(state.config.ui.fontScale));
+  const showSize = () => (sizeVal.textContent = scaleLabel(state.config.ui.fontScale));
+  const sizeCtl = h(
+    "div",
+    { class: "size-ctl" },
+    h(
+      "button",
+      {
+        class: "ghost small",
+        type: "button",
+        title: t("Smaller text (⌘−)"),
+        onclick: () => (stepFontScale(-1), showSize()),
+      },
+      "−",
+    ),
+    sizeVal,
+    h(
+      "button",
+      {
+        class: "ghost small",
+        type: "button",
+        title: t("Larger text (⌘+)"),
+        onclick: () => (stepFontScale(1), showSize()),
+      },
+      "+",
+    ),
+    h(
+      "button",
+      {
+        class: "ghost small",
+        type: "button",
+        title: t("Text size back to 100 % (⌘0)"),
+        onclick: () => (setFontScale(1), showSize()),
+      },
+      t("Reset"),
+    ),
+  );
+
   const showTimes = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.showTimes,
     style: "width:auto",
   }) as HTMLInputElement;
+
+  // Default of the header's view menu; a session keeps the view chosen there for itself
+  const viewSel = h(
+    "select",
+    {},
+    ...VIEWS.map(([v, label]) => h("option", { value: v, selected: defaultViewMode() === v }, t(label))),
+  ) as HTMLSelectElement;
 
   const autoScroll = h(
     "select",
@@ -322,6 +375,18 @@ export function settingsDialog() {
   const background = h("input", {
     type: "checkbox",
     checked: !!state.config.ui.background,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
+  const termFollow = h("input", {
+    type: "checkbox",
+    checked: state.config.ui.termFollowSession !== false,
+    style: "width:auto",
+  }) as HTMLInputElement;
+
+  const termOwn = h("input", {
+    type: "checkbox",
+    checked: !!state.config.ui.termAutoOpen,
     style: "width:auto",
   }) as HTMLInputElement;
 
@@ -368,12 +433,32 @@ export function settingsDialog() {
   const presets = presetEditor();
   const voice = voiceEditor();
 
+  // Quick start: 4 presets with a fixed folder each, clicked at the top of the new-session dialog
+  const qsDraft: SessionPreset[] = JSON.parse(JSON.stringify(state.config.ui.sessionPresets ?? [])).slice(0, 4);
+  while (qsDraft.length < 4) qsDraft.push({ name: "", dir: "" });
+  const qsList = h("div", {});
+  const qsRender = () => {
+    qsList.replaceChildren(
+      ...qsDraft.map((p, i) => {
+        const name = h("input", { type: "text", value: p.name, placeholder: t("Name") }) as HTMLInputElement;
+        name.addEventListener("input", () => (p.name = name.value));
+        const dir = h("input", { type: "text", value: p.dir, placeholder: "~/project" }) as HTMLInputElement;
+        dir.addEventListener("input", () => (p.dir = dir.value));
+        return h("div", { class: "preset-row" }, h("span", { class: "muted" }, `${i + 1}`), name, dir);
+      }),
+    );
+  };
+  qsRender();
+
   const save = async () => {
     state.config.hosts = draft;
     state.config.colorProfiles = colors.get();
     state.config.ui.colorProfile = colors.getDefault();
     state.config.presets = presets.get();
     state.config.voice = voice.get();
+    state.config.ui.sessionPresets = qsDraft
+      .map((p) => ({ name: p.name.trim(), dir: p.dir.trim() }))
+      .filter((p) => p.name || p.dir);
     state.config.ui.doubleTap = tapSel.value;
     await api.setDoubleTap(tapSel.value).catch(() => {});
     const hk = hotkey.value.trim() || "Alt+Shift+Space";
@@ -396,6 +481,9 @@ export function settingsDialog() {
     const gitChanged = !!state.config.ui.showGit !== showGit.checked;
     state.config.ui.showGit = showGit.checked;
     state.config.ui.showTimes = showTimes.checked;
+    state.config.ui.chatMode = viewSel.value as ChatMode;
+    state.config.ui.termFollowSession = termFollow.checked;
+    state.config.ui.termAutoOpen = termOwn.checked;
     state.config.ui.autoScroll = autoScroll.value as ScrollMode;
     state.config.ui.notifyDone = notifyDone.checked;
     state.config.ui.background = background.checked;
@@ -414,104 +502,195 @@ export function settingsDialog() {
     loadAllSessions();
   };
 
-  const close = openModal(
-    t("Settings"),
+  // The dialog is too big for one long list: a section list on the left, only the chosen section on the right.
+  // The last section stays chosen when the dialog is opened again.
+  const secs: { label: Msg; el: HTMLElement }[] = [];
+  const section = (label: Msg, ...children: (HTMLElement | null)[]) =>
+    secs.push({ label, el: h("section", { class: "set-sec" }, ...children.filter((c): c is HTMLElement => !!c)) });
+
+  section(
+    "General",
+    h("div", { class: "row" }, h("label", {}, t("Language")), lang),
+    h("div", { class: "row" }, h("label", {}, t("Colour scheme")), theme),
+    h("div", { class: "row" }, h("label", {}, t("Text size")), sizeCtl),
+    h("p", { class: "hint" }, t("Text size of the whole window – also with ⌘+ and ⌘−, ⌘0 goes back to 100 %.")),
+    // where the shortcuts are listed, the text-size keys included (shortcuts.ts, ⌘/ in the main window)
+    h("div", { class: "row" }, h("label", {}, t("Keyboard shortcuts")), h("kbd", { class: "kbd" }, "⌘ /")),
+    h(
+      "p",
+      { class: "hint" },
+      t("Shows every shortcut while you work – the keys for bigger and smaller text (⌘+ and ⌘−) are listed there too."),
+    ),
+  );
+
+  section(
+    "Chat",
     h(
       "div",
-      {},
-      h("h4", { class: "set-head" }, t("General")),
-      h("div", { class: "row" }, h("label", {}, t("Language")), lang),
-      h("div", { class: "row" }, h("label", {}, t("Colour scheme")), theme),
-      h("div", { class: "row" }, h("label", {}, t("Default model")), defaultSel),
-      h(
-        "p",
-        { class: "hint" },
-        t("Model and thinking level for new sessions. Tip: the star in the header sets the current session's choice."),
-      ),
+      { class: "row" },
+      h("label", {}, t("Messages")),
       h(
         "div",
-        { class: "row" },
-        h("label", {}, t("Chat")),
+        {},
+        h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
+        h("label", { class: "check" }, `${t("Auto scroll")}: `, autoScroll),
+        h("label", { class: "check" }, `${t("View")}: `, viewSel),
         h(
-          "div",
-          {},
-          h("label", { class: "check" }, showTimes, ` ${t("Always show message times")}`),
-          h("label", { class: "check" }, `${t("Auto scroll")}: `, autoScroll),
-        ),
-      ),
-      h(
-        "div",
-        { class: "row" },
-        h("label", {}, ""),
-        h(
-          "label",
-          { class: "check" },
-          notifyDone,
-          ` ${t("Notify me when Pi is done (while PiBar is in the background)")}`,
-        ),
-      ),
-      h(
-        "div",
-        { class: "row" },
-        h("label", {}, ""),
-        h(
-          "div",
-          {},
-          h("label", { class: "check" }, background, ` ${t("Start sessions in the background by default")}`),
-          h(
-            "p",
-            { class: "hint" },
-            t(
-              "Messages then keep running when PiBar quits or the connection drops; the answer is there on the next start.",
-            ),
+          "p",
+          { class: "hint" },
+          t(
+            "View that sessions start with. The header switches it for the session on screen, the other sessions keep theirs.",
           ),
         ),
       ),
-      h(
-        "div",
-        { class: "row" },
-        h("label", {}, "Git"),
-        h("label", { class: "check" }, showGit, ` ${t("Show Git status in the file tree")}`),
-      ),
-      h("h4", { class: "set-head" }, t("Quick launcher")),
-      h("div", { class: "row" }, h("label", {}, t("Double tap")), tapSel),
-      tapStatus,
-      h("div", { class: "row" }, h("label", {}, t("Keyboard shortcut")), hotkey),
-      hotkeyHint,
-      h(
-        "div",
-        { class: "row" },
-        h("label", {}, t("Bar position")),
-        h(
-          "div",
-          {},
-          h(
-            "button",
-            { class: "ghost", onclick: () => api.quickResetPos().then(() => toast(t("Position reset"))) },
-            t("Reset"),
-          ),
-          h("span", { class: "muted" }, `  ${t("The bar remembers where you drag it.")}`),
-        ),
-      ),
-      h("h4", { class: "set-head" }, t("Voice")),
-      voice.el,
-      h("h4", { class: "set-head" }, t("Chat colours")),
-      colors.el,
-      h("h4", { class: "set-head" }, t("Presets")),
-      presets.el,
-      h("h4", { class: "set-head" }, t("Hosts")),
-      h(
-        "p",
-        { class: "hint" },
-        t("SSH uses your ~/.ssh/config and ssh-agent. Login must work without a password prompt (key)."),
-      ),
-      list,
-      h("button", { class: "ghost", onclick: add }, t("+ Add host")),
-      version,
     ),
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Notification")),
+      h(
+        "label",
+        { class: "check" },
+        notifyDone,
+        ` ${t("Notify me when Pi is done (while PiBar is in the background)")}`,
+      ),
+    ),
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Sending")),
+      h(
+        "div",
+        {},
+        h("label", { class: "check" }, background, ` ${t("Start sessions in the background by default")}`),
+        h(
+          "p",
+          { class: "hint" },
+          t(
+            "Messages then keep running when PiBar quits or the connection drops; the answer is there on the next start.",
+          ),
+        ),
+      ),
+    ),
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, "Git"),
+      h("label", { class: "check" }, showGit, ` ${t("Show Git status in the file tree")}`),
+    ),
+  );
+
+  section(
+    "Models & presets",
+    h("div", { class: "row" }, h("label", {}, t("Default model")), defaultSel),
+    h(
+      "p",
+      { class: "hint" },
+      t("Model and thinking level for new sessions. Tip: the star in the header sets the current session's choice."),
+    ),
+    presets.el,
+  );
+
+  section(
+    "Quick start",
+    qsList,
+    h(
+      "p",
+      { class: "hint" },
+      t(
+        "Up to 4 presets at the top of the new-session dialog: each starts a session right away in its own fixed folder. Leave a row empty to hide it.",
+      ),
+    ),
+  );
+
+  section(
+    "Terminal",
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Shells")),
+      h(
+        "div",
+        {},
+        h("label", { class: "check" }, termFollow, ` ${t("Terminal follows the session")}`),
+        h(
+          "p",
+          { class: "hint" },
+          t(
+            "Switching to another session also shows that session's shell. Off: the terminal keeps the shell it is showing.",
+          ),
+        ),
+        h("label", { class: "check" }, termOwn, ` ${t("Own terminal tab per session")}`),
+        h(
+          "p",
+          { class: "hint" },
+          t(
+            "On: every session started while the terminal is open gets its own shell. Off: only the + button starts one, in the session's folder.",
+          ),
+        ),
+      ),
+    ),
+  );
+
+  section(
+    "Quick launcher",
+    h("div", { class: "row" }, h("label", {}, t("Double tap")), tapSel),
+    tapStatus,
+    h("div", { class: "row" }, h("label", {}, t("Keyboard shortcut")), hotkey),
+    hotkeyHint,
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Bar position")),
+      h(
+        "div",
+        {},
+        h(
+          "button",
+          { class: "ghost", onclick: () => api.quickResetPos().then(() => toast(t("Position reset"))) },
+          t("Reset"),
+        ),
+        h("span", { class: "muted" }, `  ${t("The bar remembers where you drag it.")}`),
+      ),
+    ),
+  );
+
+  section("Voice", voice.el);
+  section("Chat colours", colors.el);
+
+  section(
+    "Hosts",
+    h(
+      "p",
+      { class: "hint" },
+      t("SSH uses your ~/.ssh/config and ssh-agent. Login must work without a password prompt (key)."),
+    ),
+    list,
+    h("button", { class: "ghost", onclick: add }, t("+ Add host")),
+    version,
+  );
+
+  const nav = h("nav", { class: "set-nav" });
+  // only the chosen section is in the dialog, so the first visible field can take the focus
+  const pane = h("div", { class: "set-body" });
+  const show = (i: number) => {
+    lastSection = i;
+    pane.replaceChildren(secs[i].el);
+    nav.querySelectorAll("button").forEach((b, j) => b.classList.toggle("active", j === i));
+  };
+  nav.replaceChildren(
+    ...secs.map((s, i) => h("button", { type: "button", class: "set-nav-btn", onclick: () => show(i) }, t(s.label))),
+  );
+  show(Math.min(lastSection, secs.length - 1));
+
+  const close = openModal(
+    t("Settings"),
+    h("div", { class: "set-layout" }, nav, pane),
     [
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
       h("button", { class: "primary", onclick: save }, t("Save")),
     ],
+    undefined,
+    "settings-modal",
   );
 }

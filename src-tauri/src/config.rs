@@ -75,6 +75,14 @@ pub struct ModelPreset {
     pub thinking: String,
 }
 
+/// Quick start preset of the new-session dialog: name and fixed working folder
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SessionPreset {
+    pub name: String,
+    pub dir: String,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct UiPrefs {
@@ -94,6 +102,9 @@ pub struct UiPrefs {
     /// Collapsed date or folder sections of the session list: "<hostId>|<date|folder>|<section>"
     #[serde(default)]
     pub collapsed_sections: Vec<String>,
+    /// Groups closed in a block of the session list (a host or a project): "<block>|<group id>" → true
+    #[serde(default)]
+    pub group_collapsed: HashMap<String, bool>,
     #[serde(default)]
     pub left_collapsed: bool,
     #[serde(default)]
@@ -127,6 +138,12 @@ pub struct UiPrefs {
     /// Height of the terminal below the chat in pixels; None = default
     #[serde(default)]
     pub term_height: Option<u32>,
+    /// The terminal shows the shell of the session you switch to (off: it keeps the shell it is showing)
+    #[serde(default = "yes")]
+    pub term_follow_session: bool,
+    /// Every session gets a terminal tab of its own (off: only when the "+" button opens one)
+    #[serde(default)]
+    pub term_auto_open: bool,
     /// Show the Git status (branch, unpushed commits, changed files) in the file tree
     #[serde(default)]
     pub show_git: bool,
@@ -158,16 +175,33 @@ pub struct UiPrefs {
     /// Sections of the session list: "none", "date" or "folder"
     #[serde(default = "default_session_group")]
     pub session_group: String,
+    /// View of the session list: "all" or "active" (Pi is running, an answer is unread, or the session is open), see
+    /// src/shared/listFilter.ts
+    #[serde(default = "default_session_filter")]
+    pub session_filter: String,
+    /// Colour filter of the session list: colour names (COLORS in src/main/menu.ts) or "none"; empty = every colour
+    #[serde(default)]
+    pub session_colors: Vec<String>,
     /// Last session shown per host (host id → session file), so switching hosts brings it back
     #[serde(default)]
     pub session_by_host: HashMap<String, String>,
     /// Colour profile for hosts without their own (id from AppConfig.colorProfiles); empty = theme colours
     #[serde(default)]
     pub color_profile: String,
+    /// Quick start presets at the top of the new-session dialog: up to 4, each with its own folder
+    #[serde(default)]
+    pub session_presets: Vec<SessionPreset>,
+    /// Text size of the whole window as a factor (1 = 100 %, see `FONT_SCALES` in src/main/layout.ts)
+    #[serde(default = "one")]
+    pub font_scale: f64,
 }
 
 pub fn default_auto_scroll() -> String {
     "auto".into()
+}
+
+pub fn default_session_filter() -> String {
+    "all".into()
 }
 
 pub fn default_session_sort() -> String {
@@ -206,6 +240,10 @@ fn yes() -> bool {
     true
 }
 
+fn one() -> f64 {
+    1.0
+}
+
 impl Default for UiPrefs {
     fn default() -> Self {
         UiPrefs {
@@ -215,6 +253,7 @@ impl Default for UiPrefs {
             selected_host: all(),
             collapsed_hosts: vec![],
             collapsed_sections: vec![],
+            group_collapsed: HashMap::new(),
             left_collapsed: false,
             right_collapsed: false,
             quick_hotkey: default_hotkey(),
@@ -227,6 +266,8 @@ impl Default for UiPrefs {
             right_width: None,
             files_split: None,
             term_height: None,
+            term_follow_session: true,
+            term_auto_open: false,
             show_git: false,
             show_times: false,
             notify_done: true,
@@ -238,8 +279,12 @@ impl Default for UiPrefs {
             background: false,
             session_sort: default_session_sort(),
             session_group: default_session_group(),
+            session_filter: default_session_filter(),
+            session_colors: vec![],
             session_by_host: HashMap::new(),
             color_profile: String::new(),
+            session_presets: vec![],
+            font_scale: 1.0,
         }
     }
 }
@@ -258,10 +303,23 @@ pub struct SessionMeta {
     /// Pi tools for this session (allowlist); None = Pi's default, empty = no tools
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<String>>,
+    /// Model chosen for this session, "<provider>/<model id>"; empty = Pi's model from the session file
+    pub model: String,
+    /// Thinking level chosen for this session; empty = as in the session file
+    pub thinking: String,
+    /// Model preset chosen for this session (id from AppConfig.presets); empty = own model and thinking level
+    pub preset: String,
     /// "on": every message of this session runs in the background, "off": never, empty: as in the settings
     pub background: String,
     /// Start time of the newest run in the background (ms since epoch), 0 = none
     pub background_at: u64,
+    /// Chat view of this session: "natural", "technical" or "debug"; empty = as in the settings or in its project
+    pub chat_mode: String,
+    /// Manual position in the list ("Own order"): higher = further down, 0 = not arranged yet
+    pub order: f64,
+    /// Unread: set in the session menu or by a run that settled unseen. The row and the ✓ counters of the list keep
+    /// the mark over a restart, until the session is opened
+    pub unread: bool,
 }
 
 /// User-defined group of sessions with a colour
@@ -271,7 +329,29 @@ pub struct SessionGroup {
     pub id: String,
     pub name: String,
     pub color: String,
+    /// Closed when a block of the list shows it for the first time; then each block keeps its own state
+    /// (`UiPrefs::group_collapsed`)
     pub collapsed: bool,
+}
+
+/// Named project folder in the left column (managed by the UI, src/main/projects.ts): sessions whose working folder
+/// lies in this folder appear under the project, and a new session started from the project runs in this folder.
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    /// Host the folder lives on
+    pub host_id: String,
+    /// Folder of the project, "~/…" or absolute
+    pub dir: String,
+    pub collapsed: bool,
+    /// Fixed model preset for the sessions started here (id from AppConfig.presets); empty = the default of the
+    /// settings
+    pub preset: String,
+    /// Chat view its sessions start with: "natural", "technical" or "debug"; empty = as in the settings. A session
+    /// switched to another view in the header keeps its own (SessionMeta::chat_mode)
+    pub view: String,
 }
 
 /// Speech to text (dictation). Used by src-tauri/src/voice.rs.
@@ -420,6 +500,9 @@ pub struct AppConfig {
     pub session_meta: HashMap<String, SessionMeta>,
     #[serde(default)]
     pub groups: Vec<SessionGroup>,
+    /// Named project folders in the left column, below the hosts
+    #[serde(default)]
+    pub projects: Vec<Project>,
     /// Colour profiles for the chat (thinking, tool calls, answers, own messages)
     #[serde(default)]
     pub color_profiles: Vec<ColorProfile>,
@@ -447,6 +530,7 @@ impl Default for AppConfig {
             voice: VoiceCfg::default(),
             session_meta: HashMap::new(),
             groups: vec![],
+            projects: vec![],
             color_profiles: vec![],
         }
     }
@@ -587,6 +671,7 @@ mod tests {
         let cfg: AppConfig = serde_json::from_str(json).unwrap();
         let m = &cfg.session_meta["local|/s.jsonl"];
         assert!(m.pinned && m.name.is_empty() && m.group.is_empty());
+        assert!(m.chat_mode.is_empty()); // no own view: the setting decides
         assert_eq!(cfg.groups[0].color, "");
     }
 

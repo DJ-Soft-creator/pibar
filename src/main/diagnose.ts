@@ -3,6 +3,7 @@
 import { api } from "../shared/api";
 import { copyText, errMsg, h, openModal, toast } from "../shared/dom";
 import { Msg, t } from "../shared/i18n";
+import { isStaleInstallError } from "../shared/piErrors";
 import { state } from "./state";
 
 /** Plain-language hints for typical causes, derived from the report and the error text */
@@ -25,6 +26,10 @@ export function diagnoseHints(report: string, error = ""): Msg[] {
     hints.push("The server refuses the connection: is the model server running, and are address and port right?");
   if (/timed out|ETIMEDOUT|Timeout was reached/i.test(all))
     hints.push("No answer in time: server switched off, wrong address, firewall or VPN.");
+  if (isStaleInstallError(all))
+    hints.push(
+      "Pi was updated or removed on the host while this session was running. Restart the session; the history stays.",
+    );
   if (/\(NOT SET\)/.test(report))
     hints.push("An API key variable used in models.json is not set in this environment (see Pi configuration).");
   if (/^pi: not found/m.test(report))

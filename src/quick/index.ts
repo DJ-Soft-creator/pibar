@@ -10,6 +10,7 @@ import { setLang, t, translateDom } from "../shared/i18n";
 import { applyTheme } from "../shared/theme";
 import { isRecording, showVoiceButtons, wireVoice } from "../shared/voice";
 import { splitModelKey } from "../shared/presets";
+import { normalizeScale } from "../shared/textScale";
 import { readAttachment, type FileAttachment } from "../shared/attach";
 
 interface Capture {
@@ -339,6 +340,8 @@ function resolveTarget(): QuickTarget {
 async function refresh() {
   config = await api.getConfig();
   applyTheme(config.ui.theme);
+  // text size chosen in the main window (see src/shared/textScale.ts)
+  document.documentElement.style.setProperty("--fs", String(normalizeScale(config.ui.fontScale)));
   showVoiceButtons({ mic: micBtn, improveBtn }, config.voice);
   renderPresets();
   renderTargets();

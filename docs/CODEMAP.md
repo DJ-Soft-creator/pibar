@@ -59,12 +59,13 @@ flowchart LR
 | [`gitlog.rs`](../src-tauri/src/gitlog.rs) | Git history, read only: commits of a repository or a file, files of a commit, diff of a file | [`gitlog::log`](../src-tauri/src/gitlog.rs), [`gitlog::commit`](../src-tauri/src/gitlog.rs), [`gitlog::diff`](../src-tauri/src/gitlog.rs), [`parse_log`](../src-tauri/src/gitlog.rs) |
 | [`lib.rs`](../src-tauri/src/lib.rs) | All Tauri commands, tray, window events, startup | [`run`](../src-tauri/src/lib.rs), [`setup_tray`](../src-tauri/src/lib.rs), [`tray_menu`](../src-tauri/src/lib.rs), [`set_language`](../src-tauri/src/lib.rs), [`pi_close_all`](../src-tauri/src/lib.rs) |
 | [`i18n.rs`](../src-tauri/src/i18n.rs) | Language of messages from Rust (errors, tray menu) | [`tr`](../src-tauri/src/i18n.rs), [`i18n::set`](../src-tauri/src/i18n.rs) |
+| [`snapshot.rs`](../src-tauri/src/snapshot.rs) | File states for "go back": before each own message the working tree of the session folder becomes a Git commit below `refs/pibar/<session id>/<entry id>` (own objects and refs only, the index and history of the user stay untouched); going back puts the files Pi changed back to that state, with the state before as undo | [`snapshot::take`](../src-tauri/src/snapshot.rs), [`snapshot::preview`](../src-tauri/src/snapshot.rs), [`repo_path`](../src-tauri/src/snapshot.rs), [`parse_probe`](../src-tauri/src/snapshot.rs), [`snapshot::parse_preview`](../src-tauri/src/snapshot.rs), [`snapshot::restore`](../src-tauri/src/snapshot.rs), [`snapshot::restore_commit`](../src-tauri/src/snapshot.rs) |
 | [`config.rs`](../src-tauri/src/config.rs) | Settings as JSON in the app config folder; kept in memory, saved atomically, a damaged file is backed up ([`read_from`](../src-tauri/src/config.rs), [`write_atomic`](../src-tauri/src/config.rs), [`take_load_error`](../src-tauri/src/config.rs)) | [`AppConfig`](../src-tauri/src/config.rs), [`HostCfg`](../src-tauri/src/config.rs), [`UiPrefs`](../src-tauri/src/config.rs), [`VoiceCfg`](../src-tauri/src/config.rs), [`SessionMeta`](../src-tauri/src/config.rs), [`SessionGroup`](../src-tauri/src/config.rs), [`Reminder`](../src-tauri/src/config.rs), [`ModelPreset`](../src-tauri/src/config.rs), [`load`](../src-tauri/src/config.rs), [`find_host`](../src-tauri/src/config.rs) |
 | [`hostexec.rs`](../src-tauri/src/hostexec.rs) | Shell commands locally or over SSH; quoting | [`run_shell`](../src-tauri/src/hostexec.rs), [`spawn_pi`](../src-tauri/src/hostexec.rs), [`user_env`](../src-tauri/src/hostexec.rs), [`shell_command`](../src-tauri/src/hostexec.rs), [`ssh_args`](../src-tauri/src/hostexec.rs), [`sq`](../src-tauri/src/hostexec.rs), [`shell_path`](../src-tauri/src/hostexec.rs) |
 | [`pi.rs`](../src-tauri/src/pi.rs) | One Pi process per open session, match RPC responses, forward events; also follows the log of a run in the background (same events); waiting calls fail at once when Pi ends, ended processes are reaped | [`PiManager`](../src-tauri/src/pi.rs), [`pump`](../src-tauri/src/pi.rs), [`PiManager::open`](../src-tauri/src/pi.rs), [`PiManager::open_follow`](../src-tauri/src/pi.rs), [`PiManager::send`](../src-tauri/src/pi.rs), [`PiManager::close`](../src-tauri/src/pi.rs) |
 | [`terminal.rs`](../src-tauri/src/terminal.rs) | Interactive terminal: one shell per tab in a pty (local login shell or `ssh -tt`), output as base64 `term-output` events, keys and size from the UI | [`TermManager`](../src-tauri/src/terminal.rs), [`TermManager::open`](../src-tauri/src/terminal.rs), [`TermManager::write`](../src-tauri/src/terminal.rs), [`TermManager::resize`](../src-tauri/src/terminal.rs), [`shell_command`](../src-tauri/src/terminal.rs), [`expand`](../src-tauri/src/terminal.rs) |
 | [`bg.rs`](../src-tauri/src/bg.rs) | Runs in the background: Pi started detached (`setsid`/`nohup`) on the host with `pi --mode json`, its log and pid file below `~/.pibar`; ask whether it still runs and stop it | [`bg::start`](../src-tauri/src/bg.rs), [`bg::running`](../src-tauri/src/bg.rs), [`bg::stop`](../src-tauri/src/bg.rs), [`follow_script`](../src-tauri/src/bg.rs), [`paths`](../src-tauri/src/bg.rs), [`hash`](../src-tauri/src/bg.rs) |
-| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions` (incl. `parent` of a branch); user messages per file for the versions of a message; delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`outlines`](../src-tauri/src/sessions.rs), [`parse_outlines`](../src-tauri/src/sessions.rs), [`SessionOutline`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
+| [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions` (incl. `parent` of a branch); search the messages of all session files (one `grep` per host); user messages per file for the versions of a message; files Pi changed per own message (from the tool calls); delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`outlines`](../src-tauri/src/sessions.rs), [`parse_outlines`](../src-tauri/src/sessions.rs), [`SessionOutline`](../src-tauri/src/sessions.rs), [`search`](../src-tauri/src/sessions.rs), [`parse_hits`](../src-tauri/src/sessions.rs), [`SearchHit`](../src-tauri/src/sessions.rs), [`snippet_for`](../src-tauri/src/sessions.rs), [`touches`](../src-tauri/src/sessions.rs), [`touched_by_message`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
 | [`files.rs`](../src-tauri/src/files.rs) | List all files of the session folders (or only documents and images, `DOCS_FILTER`); read and write text files (binary and >2 MB refused, paths checked by [`check_path_shape`](../src-tauri/src/files.rs)); images read only ([`read_image`](../src-tauri/src/files.rs)); flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
 | [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`hotkey_status`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
@@ -79,30 +80,34 @@ flowchart LR
 | --- | --- | --- |
 | [`index.ts`](../src/main/index.ts) | Entry: load settings and language, wire modules, dispatch Rust events | [`init`](../src/main/index.ts) |
 | [`state.ts`](../src/main/state.ts) | Shared state (settings, sessions, active session) | [`state`](../src/main/state.ts), [`saveConfig`](../src/main/state.ts) |
-| [`sessions.ts`](../src/main/sessions.ts) | Left column; open, activate and close sessions; "New session"; remembers the session per host | [`renderHosts`](../src/main/sessions.ts), [`openSession`](../src/main/sessions.ts), [`activate`](../src/main/sessions.ts), [`closeSession`](../src/main/sessions.ts), [`loadSessions`](../src/main/sessions.ts), [`newSessionDialog`](../src/main/sessions.ts) |
+| [`sessions.ts`](../src/main/sessions.ts) | Left column: one collapsible card per host (move it by the grip), sessions inside; open, activate and close sessions; "New session"; remembers the session per host; session rows of a host (with `running`, `unread`, `color` and `open` for the marks and the views, see [`onSettled`](../src/main/sessions.ts)); views of the list (only what I am working on, a colour), the funnel menu and the chip that names the view | [`renderHosts`](../src/main/sessions.ts), [`openSession`](../src/main/sessions.ts), [`activate`](../src/main/sessions.ts), [`closeSession`](../src/main/sessions.ts), [`loadSessions`](../src/main/sessions.ts), [`newSessionDialog`](../src/main/sessions.ts), [`hostRows`](../src/main/sessions.ts), [`sessionSections`](../src/main/sessions.ts), [`filterMenu`](../src/main/sessions.ts), [`filterChip`](../src/main/sessions.ts), [`setFilter`](../src/main/sessions.ts) |
+| [`search.ts`](../src/main/search.ts) | Search field above the list: filters the rows while typing and asks every shown host (after a pause) for sessions whose messages contain the text; answers of an older query are dropped, ⌘F jumps into the field | [`wireSearch`](../src/main/search.ts), [`focusSearch`](../src/main/search.ts), [`clearSearch`](../src/main/search.ts), [`searchAll`](../src/main/search.ts) |
+| [`projects.ts`](../src/main/projects.ts) | "Projects" rubric under the hosts: named folders whose sessions are grouped under the project, plus the fixed preset of a project; dialogs, context menu, dragging a project to another position and the session a project starts | [`projects`](../src/main/projects.ts), [`projectOf`](../src/main/projects.ts), [`projectDialog`](../src/main/projects.ts), [`projectMenu`](../src/main/projects.ts), [`renderProjects`](../src/main/projects.ts), [`newSessionInProject`](../src/main/projects.ts), [`presetName`](../src/main/projects.ts), [`moveProject`](../src/main/projects.ts) |
+| [`blockDrag.ts`](../src/main/blockDrag.ts) | Drag a whole block in the left column (a host or a project) by the grip in its header to move it; the drop target calls the block's own reorder function | [`blockGrip`](../src/main/blockDrag.ts), [`blockDrop`](../src/main/blockDrag.ts) |
 | [`reminders.ts`](../src/main/reminders.ts) | Reminders on sessions: dialog, list at the top left, notifications | [`reminderDialog`](../src/main/reminders.ts), [`presetTimes`](../src/main/reminders.ts), [`renderReminders`](../src/main/reminders.ts), [`openReminder`](../src/main/reminders.ts), [`startReminderClock`](../src/main/reminders.ts) |
-| [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands, send a message as a detached run and follow it | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
+| [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands, send a message as a detached run and follow it; keeps the model and the chat view chosen for the session | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.setPreset`](../src/main/sessionTab.ts), [`SessionTab.saveChoice`](../src/main/sessionTab.ts), [`SessionTab.viewMode`](../src/main/sessionTab.ts), [`SessionTab.setViewMode`](../src/main/sessionTab.ts), [`defaultViewMode`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
+| [`rewindFiles.ts`](../src/main/rewindFiles.ts) | "Go back" also restores files: which files Pi changed since then (from the session file), the confirmation with the list, the restore and its undo | [`planRewind`](../src/main/rewindFiles.ts), [`applyRewind`](../src/main/rewindFiles.ts), [`undoFiles`](../src/main/rewindFiles.ts), [`RewindPlan`](../src/main/rewindFiles.ts) |
 | [`branchNav.ts`](../src/main/branchNav.ts) | Versions of a message: "‹ 2/3 ›" under own messages that exist in other branches | [`refreshBranches`](../src/main/branchNav.ts), [`SessionTab.showBranches`](../src/main/sessionTab.ts), [`SessionTab.scrollToUser`](../src/main/sessionTab.ts), [`switchBranch`](../src/main/sessions.ts) |
 | [`answerDialog.ts`](../src/main/answerDialog.ts) | Questions to the user: choice questions at the end of an answer (tick options, own answer) and Pi's own dialogs (extension UI) | [`questionDialog`](../src/main/answerDialog.ts), [`uiRequest`](../src/main/answerDialog.ts), [`openQuestions`](../src/main/sessions.ts) |
 | [`gitHistory.ts`](../src/main/gitHistory.ts) | Git history dialog: commits of a repository (Git line in the tree) or of a file (right click), changed files, diff | [`repoHistory`](../src/main/gitHistory.ts), [`fileHistory`](../src/main/gitHistory.ts) |
 | [`autoScroll.ts`](../src/main/autoScroll.ts) | Auto scroll of the chat, modes automatic (pauses on scrolling up), always (forced) and off; entries for the view menu and the setting; keeps the chat still while the input changes height | [`wireAutoScroll`](../src/main/autoScroll.ts), [`answerStarted`](../src/main/autoScroll.ts), [`setScrollMode`](../src/main/autoScroll.ts), [`jumpToEnd`](../src/main/autoScroll.ts), [`keepScroll`](../src/main/autoScroll.ts) |
 | [`shortcuts.ts`](../src/main/shortcuts.ts) | Keyboard shortcuts of the main window and their overview (⌘/) | [`wireShortcuts`](../src/main/shortcuts.ts), [`shortcutsDialog`](../src/main/shortcuts.ts) |
-| [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, theme), chat area, input, send menu (also runs in the background), shortcuts | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts) |
-| [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts) |
+| [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, theme), chat area, input, send menu (also runs in the background; the mode shows as a pill next to the input and a ring around the send button), shortcuts; shows the view of the session on screen (the views come from [`VIEWS`](../src/shared/chatViews.ts)), the right mouse button on the send button opens the background menu | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts), [`setBackground`](../src/main/chatView.ts) |
+| [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows; text size of the window (`--fs` on `<html>`, ⌘+ / ⌘− / ⌘0) | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts), [`applyFontScale`](../src/main/layout.ts), [`stepFontScale`](../src/main/layout.ts) |
 | [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
-| [`sessionGroups.ts`](../src/main/sessionGroups.ts) | Own session names, pins, colours, coloured groups; context menus of sessions and groups | [`sessionMenu`](../src/main/sessionGroups.ts), [`groupMenu`](../src/main/sessionGroups.ts), [`renameDialog`](../src/main/sessionGroups.ts), [`setMeta`](../src/main/sessionGroups.ts), [`displayTitle`](../src/main/sessionGroups.ts) |
+| [`sessionGroups.ts`](../src/main/sessionGroups.ts) | Own session names, pins, colours, unread marks, coloured groups (also for a session without a file yet); a group opens and closes per block of the list (host, project); context menus of sessions and groups | [`sessionMenu`](../src/main/sessionGroups.ts), [`groupMenu`](../src/main/sessionGroups.ts), [`renameDialog`](../src/main/sessionGroups.ts), [`setMeta`](../src/main/sessionGroups.ts), [`refKey`](../src/main/sessionGroups.ts), [`displayTitle`](../src/main/sessionGroups.ts), [`clearUnread`](../src/main/sessionGroups.ts), [`groupCollapsed`](../src/main/sessionGroups.ts), [`toggleGroup`](../src/main/sessionGroups.ts) |
 | [`sessionSelect.ts`](../src/main/sessionSelect.ts) | Multi-selection (⌘/⇧-click), drag & drop onto groups and drop zones, selection bar | [`selectClick`](../src/main/sessionSelect.ts), [`dragStart`](../src/main/sessionSelect.ts), [`dropTarget`](../src/main/sessionSelect.ts), [`renderSelectionBar`](../src/main/sessionSelect.ts), [`wireSessionSelect`](../src/main/sessionSelect.ts) |
 | [`diagnose.ts`](../src/main/diagnose.ts) | Diagnosis dialog: error, Pi's stderr, hints for typical causes, report; tested in `diagnose.test.ts` | [`diagnoseDialog`](../src/main/diagnose.ts), [`diagnoseHints`](../src/main/diagnose.ts) |
 | [`voiceSettings.ts`](../src/main/voiceSettings.ts) | Settings section "Voice": dictation, read aloud, text improvement | [`voiceEditor`](../src/main/voiceSettings.ts) |
 | [`composerTools.ts`](../src/main/composerTools.ts) | Tool dock at the input (fades in near the mouse): attach files, screenshot, skills, tools of a session; attachment chips | [`wireComposerTools`](../src/main/composerTools.ts), [`addFiles`](../src/main/composerTools.ts), [`takeAttachments`](../src/main/composerTools.ts), [`swapAttachments`](../src/main/composerTools.ts), [`renderDock`](../src/main/composerTools.ts) |
 | [`slashMenu.ts`](../src/main/slashMenu.ts) | "/" menu in the input: skills, prompt templates, extension commands | [`wireSlashMenu`](../src/main/slashMenu.ts), [`slashKey`](../src/main/slashMenu.ts), [`commandText`](../src/main/slashMenu.ts) |
 | [`usageStats.ts`](../src/main/usageStats.ts) | Status line under the input like Pi's footer, and its hover panel (counters, speed, context) | [`renderUsage`](../src/main/usageStats.ts), [`wireUsage`](../src/main/usageStats.ts) |
-| [`activity.ts`](../src/main/activity.ts) | Working / finished sessions: marks in the list, counters at hosts, Dock badge, notification | [`markSettled`](../src/main/activity.ts), [`markSeen`](../src/main/activity.ts), [`sessionMark`](../src/main/activity.ts), [`hostMarks`](../src/main/activity.ts), [`updateBadge`](../src/main/activity.ts) |
+| [`activity.ts`](../src/main/activity.ts) | Working / finished sessions: a spinner while Pi works and a pill with words ("working", "unread", "Error") in the row, counters and a tinted heading at a block of the list (host, project, group), Dock badge, notification; a run in the background counts too, also when only the session meta knows about it; counters use a spinner and the glyphs ✓ / ! instead of coloured dots, and the mark of an unseen run is kept in the session meta, so ✓ counters and Dock badge are there again after a restart | [`markSettled`](../src/main/activity.ts), [`markSeen`](../src/main/activity.ts), [`sessionMark`](../src/main/activity.ts), [`activityOfTabs`](../src/main/activity.ts), [`marks`](../src/main/activity.ts), [`hostMarks`](../src/main/activity.ts), [`updateBadge`](../src/main/activity.ts), [`isWorking`](../src/main/activity.ts), [`activityOfRows`](../src/main/activity.ts) |
 | [`cleanup.ts`](../src/main/cleanup.ts) | "Tidy up": move many sessions into the collapsed "Archive" group, with undo | [`cleanupDialog`](../src/main/cleanup.ts), [`cleanupCandidates`](../src/main/cleanup.ts), [`archive`](../src/main/cleanup.ts) |
 | [`folderPicker.ts`](../src/main/folderPicker.ts) | Folder picker for local and SSH hosts (new session, add folder) | [`pickFolder`](../src/main/folderPicker.ts), [`folderField`](../src/main/folderPicker.ts), [`tildePath`](../src/main/folderPicker.ts) |
 | [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`folderMenu`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
-| [`terminal.ts`](../src/main/terminal.ts) | Terminal at the bottom of the chat column (xterm.js): tabs, open/close/hide, drag height, keys and size to the Rust pty | [`wireTerminal`](../src/main/terminal.ts), [`toggleTerminal`](../src/main/terminal.ts), [`openTab`](../src/main/terminal.ts), [`closeTab`](../src/main/terminal.ts) |
-| [`settings.ts`](../src/main/settings.ts) | Settings dialog: language, hotkeys, bar position, chat colours, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
+| [`terminal.ts`](../src/main/terminal.ts) | Terminal at the bottom of the chat column (xterm.js): tabs named and coloured like their session, open/close/hide, drag height, keys and size to the Rust pty | [`wireTerminal`](../src/main/terminal.ts), [`toggleTerminal`](../src/main/terminal.ts), [`openTab`](../src/main/terminal.ts), [`closeTab`](../src/main/terminal.ts), [`tabMeta`](../src/main/terminal.ts), [`refreshTermTabs`](../src/main/terminal.ts), [`focusSessionTab`](../src/main/terminal.ts) |
+| [`settings.ts`](../src/main/settings.ts) | Settings dialog with a section list on the left (general, chat, models & presets, quick start, terminal, quick launcher, voice, chat colours, hosts); the last section is kept; language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
 | [`colorSettings.ts`](../src/main/colorSettings.ts) | Settings section "Chat colours": profiles with hex values for thinking, tool calls, answers and own messages, one set per theme | [`colorEditor`](../src/main/colorSettings.ts) |
 | [`colors.ts`](../src/main/colors.ts) | Applies the chat colours of the active session's host to `<html>` as CSS variables; follows the system theme | [`applyChatColors`](../src/main/colors.ts), [`isDark`](../src/main/colors.ts), [`wireChatColors`](../src/main/colors.ts) |
 | [`quickBridge.ts`](../src/main/quickBridge.ts) | Accept messages from the quick bar | [`handleQuick`](../src/main/quickBridge.ts), [`broadcastActive`](../src/main/quickBridge.ts) |
@@ -116,15 +121,21 @@ flowchart LR
 | [`shared/api.ts`](../src/shared/api.ts) | Types and `invoke` calls into the Rust core | [`api`](../src/shared/api.ts), [`QuickSubmit`](../src/shared/api.ts), [`AppConfig`](../src/shared/api.ts), [`Reminder`](../src/shared/api.ts) |
 | [`shared/piProtocol.ts`](../src/shared/piProtocol.ts) | Types of Pi's RPC protocol: events, messages, content parts, answers per command (`api.pi` returns the matching type) | [`PiEvent`](../src/shared/piProtocol.ts), [`PiMessage`](../src/shared/piProtocol.ts), [`ContentPart`](../src/shared/piProtocol.ts), [`PiRpcResults`](../src/shared/piProtocol.ts), [`PiSessionStats`](../src/shared/piProtocol.ts) |
 | [`shared/branches.ts`](../src/shared/branches.ts) | Where branches part: related sessions via `parent`, versions per message by comparing entry ids (tested) | [`branchFamily`](../src/shared/branches.ts), [`branchesAt`](../src/shared/branches.ts) |
+| [`shared/listFilter.ts`](../src/shared/listFilter.ts) | Views of the session list: is a filter set, and does a row belong to it – only what I am working on (running, unread or open) and/or only one colour ("none" counts as its own); tested in `listFilter.test.ts` | [`passesFilter`](../src/shared/listFilter.ts), [`filterSet`](../src/shared/listFilter.ts), [`SessionFilterMode`](../src/shared/listFilter.ts) |
+| [`shared/search.ts`](../src/shared/search.ts) | Search in the left column: the cleaned query, whether a row matches it, the parts of a snippet to highlight and the role label of a hit, tested in `search.test.ts` | [`cleanQuery`](../src/shared/search.ts), [`isSearching`](../src/shared/search.ts), [`matchesQuery`](../src/shared/search.ts), [`highlight`](../src/shared/search.ts), [`roleLabel`](../src/shared/search.ts) |
 | [`shared/questions.ts`](../src/shared/questions.ts) | Find choice questions with options at the end of an answer, compose the answer message (tested) | [`findQuestions`](../src/shared/questions.ts), [`composeAnswer`](../src/shared/questions.ts) |
-| [`shared/sessionOrder.ts`](../src/shared/sessionOrder.ts) | Order and sections of the session list: by last activity, creation, name or folder; sections by date or folder (tested) | [`sortRows`](../src/shared/sessionOrder.ts), [`sectionRows`](../src/shared/sessionOrder.ts), [`dateBucket`](../src/shared/sessionOrder.ts) |
+| [`shared/sessionOrder.ts`](../src/shared/sessionOrder.ts) | Order and sections of the session list: by last activity, creation, name, folder or the order the user dragged ("own"); sections by date or folder (tested) | [`sortRows`](../src/shared/sessionOrder.ts), [`sectionRows`](../src/shared/sessionOrder.ts), [`dateBucket`](../src/shared/sessionOrder.ts) |
 | [`shared/attach.ts`](../src/shared/attach.ts) | Read attached files (main window and quick bar): images as images, text files as text | [`readAttachment`](../src/shared/attach.ts) |
+| [`shared/piErrors.ts`](../src/shared/piErrors.ts) | Errors that Pi's install changed under a running Pi ("Cannot find module …/dist/bundle/chunks/…" after `pi update` on the host), tested in `piErrors.test.ts` | [`isStaleInstallError`](../src/shared/piErrors.ts) |
+| [`shared/textScale.ts`](../src/shared/textScale.ts) | Text size of both windows: offered steps, current factor, next step, label; tested in `textScale.test.ts` | [`FONT_SCALES`](../src/shared/textScale.ts), [`normalizeScale`](../src/shared/textScale.ts), [`stepScale`](../src/shared/textScale.ts), [`scaleLabel`](../src/shared/textScale.ts) |
 | [`shared/i18n.ts`](../src/shared/i18n.ts) | Translations: English text is the key, German dictionary; tested in `i18n.test.ts` | [`t`](../src/shared/i18n.ts), [`setLang`](../src/shared/i18n.ts), [`resolveLang`](../src/shared/i18n.ts), [`translateDom`](../src/shared/i18n.ts), [`LANGUAGES`](../src/shared/i18n.ts) |
 | [`shared/dom.ts`](../src/shared/dom.ts) | Element builder, Markdown (marked + DOMPurify), toasts, modals | [`h`](../src/shared/dom.ts), [`renderMarkdown`](../src/shared/dom.ts), [`openModal`](../src/shared/dom.ts) |
 | [`shared/colors.ts`](../src/shared/colors.ts) | Pure chat colour logic: hex values, roles, CSS variables per theme, profile per host; tested in `colors.test.ts` | [`cleanColor`](../src/shared/colors.ts), [`colorVars`](../src/shared/colors.ts), [`profileFor`](../src/shared/colors.ts), [`cleanProfiles`](../src/shared/colors.ts), [`RoleColor`](../src/shared/colors.ts) |
-| [`shared/presets.ts`](../src/shared/presets.ts) | Pure preset logic, tested in `presets.test.ts` | [`matchPreset`](../src/shared/presets.ts), [`cleanPresets`](../src/shared/presets.ts), [`splitModelKey`](../src/shared/presets.ts) |
+| [`shared/presets.ts`](../src/shared/presets.ts) | Pure preset logic, tested in `presets.test.ts`: split model keys, clean presets, match a session's model, resolve a session's saved choice, pick the preset a new session starts with | [`matchPreset`](../src/shared/presets.ts), [`cleanPresets`](../src/shared/presets.ts), [`splitModelKey`](../src/shared/presets.ts), [`resolveChoice`](../src/shared/presets.ts), [`presetForNewSession`](../src/shared/presets.ts), [`ModelChoice`](../src/shared/presets.ts) |
 | [`shared/diff.ts`](../src/shared/diff.ts) | Line diff for the editor's diff view, tested in `diff.test.ts` | [`diffLines`](../src/shared/diff.ts), [`hunks`](../src/shared/diff.ts), [`diffStats`](../src/shared/diff.ts) |
 | [`shared/format.ts`](../src/shared/format.ts) | Pure formatters, tested in `format.test.ts` | [`shortModel`](../src/shared/format.ts), [`cleanTitle`](../src/shared/format.ts), [`withScreenText`](../src/shared/format.ts), [`withAnswerStyle`](../src/shared/format.ts), [`stripAnswerStyle`](../src/shared/format.ts), [`tokensPerSecond`](../src/shared/format.ts), [`relTime`](../src/shared/format.ts) |
+| [`shared/chatViews.ts`](../src/shared/chatViews.ts) | The three chat views (natural, technical, debug) with labels and descriptions, and whether a saved value is one of them: the header dropdown, the settings and a project's default view use them | [`VIEWS`](../src/shared/chatViews.ts), [`isChatMode`](../src/shared/chatViews.ts) |
+| [`shared/projects.ts`](../src/shared/projects.ts) | Which project a session belongs to: same host and working folder inside the project's folder, the innermost folder wins | [`projectAt`](../src/shared/projects.ts) |
 | [`shared/tree.ts`](../src/shared/tree.ts) | Relative paths → folder tree, tested in `tree.test.ts` | [`buildTree`](../src/shared/tree.ts), [`countFiles`](../src/shared/tree.ts) |
 | [`shared/voice.ts`](../src/shared/voice.ts) | Microphone recording, mic and improve buttons for both windows, read aloud; tested in `voice.test.ts` | [`wireVoice`](../src/shared/voice.ts), [`startRecording`](../src/shared/voice.ts), [`stopRecording`](../src/shared/voice.ts), [`speak`](../src/shared/voice.ts), [`improve`](../src/shared/voice.ts), [`DEFAULT_IMPROVE_PROMPT`](../src/shared/voice.ts) |
 | [`shared/git.ts`](../src/shared/git.ts) | Git status line and file letters in the tree; tested in `git.test.ts` | [`gitLine`](../src/shared/git.ts), [`gitInline`](../src/shared/git.ts), [`gitMark`](../src/shared/git.ts), [`gitStatusFor`](../src/shared/git.ts) |
@@ -173,6 +184,15 @@ move the chat ([`keepScroll`](../src/main/autoScroll.ts)).
 → `pi_close` → [`PiManager::close`](../src-tauri/src/pi.rs). The session file stays and can be reopened. On reload the
 main window calls [`pi_close_all`](../src-tauri/src/lib.rs) so no orphaned processes remain.
 
+### Pi updated on the host while a session runs
+
+PiBar keeps one Pi process per open session, and an update on the host (`pi update`, npm or pnpm) replaces the
+package on disk. The running process then misses the hashed chunk it wants next and answers with
+`Cannot find module … /dist/bundle/chunks/…` — only a new process helps.
+[`isStaleInstallError`](../src/shared/piErrors.ts) names that case: the error in the chat gets the hint and a
+"Restart session" button ([`SessionTab.restart`](../src/main/sessionTab.ts), which reopens the same session file, so the
+history stays), and [`diagnoseHints`](../src/main/diagnose.ts) says the same in the diagnosis dialog.
+
 ### Runs in the background
 
 A message can be sent as a detached run on the host, so it keeps going when PiBar quits or the connection drops:
@@ -187,6 +207,16 @@ Ways to start it: one message with the send button menu (right click) or ⇧⌘�
 toggle in that menu (stored as `sessionMeta.background`, "on"/"off", [`setBackground`](../src/main/chatView.ts)); or
 every session with the setting "Start sessions in the background by default" (`ui.background`). While a run goes on,
 the send button stops it ([`SessionTab.stopBackground`](../src/main/sessionTab.ts) → `bg_stop` → SIGTERM).
+
+The toggle is visible while it is on: a pill "In the background" next to the input (a click switches it off) and a
+dashed ring around the send button ([`renderBackground`](../src/main/chatView.ts)), so it is clear what the next
+Enter does. The session line in the header says "· In the background" as well.
+
+A detached run gets the model of the session on its command line ([`SessionTab.sendToBackground`](../src/main/sessionTab.ts),
+`runChoice` in the same class): a fresh Pi process would otherwise start with the device's default model (an extension
+sets it at start) and answer with another model than the session on screen – the run in the background then ends on a
+model that is not even reachable. Live values of the tab come first, then the choice saved for the session
+([`resolveChoice`](../src/shared/presets.ts)).
 
 The first message of a new session has no session file yet and goes the normal way. `sessionMeta.backgroundAt` marks
 a run that is still going: opening that session checks `bg_running` and follows the run instead of starting a second
@@ -224,6 +254,16 @@ chosen; "Custom" shows them again. Which preset a session shows: `SessionTab.pre
 [`matchPreset`](../src/shared/presets.ts) against the session's model and thinking level. In the quick bar,
 [`renderPresets`](../src/quick/index.ts) does the same; [`submit`](../src/quick/index.ts) sends the preset's model and
 thinking level plus its id, and [`handleQuick`](../src/main/quickBridge.ts) applies them.
+
+**The choice belongs to the session.** Model, thinking level and preset a session was given are kept in its
+[`SessionMeta`](../src-tauri/src/config.rs) (`model`, `thinking`, `preset`): [`SessionTab.saveChoice`](../src/main/sessionTab.ts)
+writes them whenever the user picks something (model dropdown, thinking dropdown, preset dropdown, quick bar) and
+[`SessionTab.applyChoice`](../src/main/sessionTab.ts) sets them again right after Pi opened the session. Without that,
+opening a session shows the model Pi took from the session file – the one used back then – and a session without
+messages falls back to Pi's default. [`resolveChoice`](../src/shared/presets.ts) decides what a saved choice means (the
+preset if it still exists, otherwise its own model and thinking level). Only a new choice in the header or the quick bar
+changes it – and a model Pi switches itself (its `/model` command, taken over by [`SessionTab.adoptChoice`](../src/main/sessionTab.ts)
+after an answer). The model of a branch does not overwrite it.
 
 ### Files on the right
 
@@ -266,7 +306,16 @@ temp file first and then renames.
 
 The button in the file panel's header or ⌘⌥J calls [`toggleTerminal`](../src/main/terminal.ts), which shows the dock at
 the very bottom of the chat column (under the input and the status line) and starts a shell for the active session (host and working folder; otherwise the selected or first host
-and its home folder). [`openTab`](../src/main/terminal.ts) creates an xterm.js terminal and calls `term_open` →
+and its home folder). Every tab knows its [`SessionTab`](../src/main/sessionTab.ts) (`TabOptions.session`):
+[`sessionStarted`](../src/main/terminal.ts) gives a starting session a shell of its own only with `ui.termAutoOpen`
+(off by default) and only while the dock is open; `reuse` in [`openTab`](../src/main/terminal.ts) makes a restart,
+reconnect or background run bring back that shell instead of adding another. [`tabMeta`](../src/main/terminal.ts) reads
+name and colour of the session (the same `sessionMeta` colours as the session list, see `COLORS` in
+[`menu.ts`](../src/main/menu.ts)); [`refreshTermTabs`](../src/main/terminal.ts) redraws the tabs after `setMeta`,
+`setMetaMany`, a rename or `rekey`, and [`focusSessionTab`](../src/main/terminal.ts) follows a switch to another session
+while the dock is open (`ui.termFollowSession`, default on; Settings → Terminal). A shell started with the "+" button
+belongs to the session next to it (folder, name, colour); on demand that is the way to a shell per session. `openTab`
+creates an xterm.js terminal and calls `term_open` →
 [`TermManager::open`](../src-tauri/src/terminal.rs): [`shell_command`](../src-tauri/src/terminal.rs) starts the login shell
 locally or `ssh -tt` with a login shell in the session's folder ([`ssh_args`](../src-tauri/src/hostexec.rs)); on macOS through
 [`wrap`](../src-tauri/src/disclaim.rs), so the terminal does not count as PiBar's network access. A reader thread sends the
@@ -278,7 +327,12 @@ shortcuts step aside while it has the focus (only ⌘⌥J still works).
 
 ### Chat view and answer style
 
-The header dropdowns set `ui.chatMode` and `ui.answerMode` ([`applyUiPrefs`](../src/main/chatView.ts)).
+The chat view belongs to the session: the header dropdown writes it into `SessionMeta.chatMode`
+([`SessionTab.setViewMode`](../src/main/sessionTab.ts)), so switching sessions switches the view with them
+([`applyViewMode`](../src/main/chatView.ts), [`SessionTab.viewMode`](../src/main/sessionTab.ts)). A session without its
+own choice follows `ui.chatMode` ([`defaultViewMode`](../src/main/sessionTab.ts)) – the default in Settings → Chat, and
+with no session on screen the header dropdown changes that default. The answer style stays a setting
+(`ui.answerMode`, [`applyUiPrefs`](../src/main/chatView.ts)).
 `natural` hides thinking and tool cards via CSS (`.mode-natural`) and shows an activity line while Pi works;
 `technical` shows them collapsed; `debug` opens them as they appear and streams tool output (`tool_execution_update`)
 into the card. The answer style is a short hint that [`SessionTab.send`](../src/main/sessionTab.ts) appends with
@@ -318,6 +372,24 @@ puts the text into the input ([`fillInput`](../src/main/chatView.ts)).
 When Pi loads a session file (fork, switch) it takes model and thinking level from that point of the history, i.e. the
 model used back then. `SessionTab.keepModel` sets the model chosen before again — also around
 [`SessionTab.restart`](../src/main/sessionTab.ts), so a reconnect or a tool change does not silently fall back to it.
+After a PiBar restart the choice comes back from the settings through `SessionTab.applyChoice` (see
+[Model presets](#model-presets)).
+
+"Go back to here" also restores the files: [`SessionTab.send`](../src/main/sessionTab.ts) records the working tree of
+before each own message ([`snapshot::take`](../src-tauri/src/snapshot.rs), a commit below
+`refs/pibar/<session id>/<entry id>`). The state hangs on Pi's entry id of the message whose answer just ended, so
+branches and compaction cannot shift which state belongs to which message. Going back to a message asks
+[`planRewind`](../src/main/rewindFiles.ts) for the state of that message: the paths Pi changed from there on come from
+the session file
+([`touches`](../src-tauri/src/sessions.rs), the `path` of the `edit`/`write` calls), the state from the same session or a
+branch of it (a Pi fork keeps the history), the difference from [`snapshot::preview`](../src-tauri/src/snapshot.rs)
+– shown as a list before anything changes. After the fork [`applyRewind`](../src/main/rewindFiles.ts) puts exactly those
+files back ([`snapshot::restore`](../src-tauri/src/snapshot.rs)); `SessionTab.undo` keeps the state from right before, so
+[`undoBranch`](../src/main/sessions.ts) returns the files too ([`undoFiles`](../src/main/rewindFiles.ts)).
+
+A session run from the Pi CLI has no recorded states; there "go back" only moves the conversation. Only files Pi changed
+with `edit` and `write` come back – one it changed through `bash` (`rm`, `mv`, generators) does not, and folders without
+Git have no states at all.
 
 Versions of a message: Pi's fork keeps the entry ids of the shared history and writes `parentSession` into the
 header. [`refreshBranches`](../src/main/branchNav.ts) takes the related sessions ([`branchFamily`](../src/shared/branches.ts)),
@@ -348,9 +420,10 @@ select, confirm, input, editor) open [`uiRequest`](../src/main/answerDialog.ts) 
 
 `ui.defaultPreset` or `ui.defaultModel` + `ui.defaultThinking`, set with the star in the header
 ([`renderToolbar`](../src/main/chatView.ts)) or in the settings. [`openSession`](../src/main/sessions.ts) applies it to
-new sessions ([`applyDefaults`](../src/main/sessions.ts)); the quick bar shows it as "Model: default (…)". For an
-existing session the quick bar keeps the session's model ("Model: as in the session") unless something is picked in
-the bar right then ([`keepSession`](../src/quick/index.ts)).
+new sessions ([`applyDefaults`](../src/main/sessions.ts), via [`SessionTab.setPreset`](../src/main/sessionTab.ts)) and the
+session keeps it like any other choice; the quick bar shows it as "Model: default (…)". For an existing session the
+quick bar keeps the session's model ("Model: as in the session") unless something is picked in the bar right then
+([`keepSession`](../src/quick/index.ts)).
 
 ### Tool dock, attachments and tools
 
@@ -385,6 +458,14 @@ id (`get_state` → `sessionId`, copied on click; `SessionTab.sessionId`), the s
 panel floating over the chat instead of as a column. [`applyTheme`](../src/shared/theme.ts) sets `data-theme` and the
 native window theme; [`setTheme`](../src/main/chatView.ts) saves it and emits `theme-changed` for the quick bar.
 
+**Text size**: [`applyFontScale`](../src/main/layout.ts) puts the factor from `ui.fontScale`
+([`normalizeScale`](../src/shared/textScale.ts)) on `<html>` as `--fs`. Every `font-size` in
+[`styles.css`](../src/main/styles.css) and [`quick.css`](../src/quick/quick.css) is `calc(… * var(--fs))`, so the whole
+window scales without touching the panel widths; the terminal follows via `applyTermFont`
+([font size of xterm.js](../src/main/terminal.ts)), the quick bar reads the factor in `refresh`
+([`quick/index.ts`](../src/quick/index.ts)). Steps: [`stepScale`](../src/shared/textScale.ts) (⌘+ / ⌘−) and the
+"Text size" row in the settings; ⌘0 is 100 %.
+
 ### Sessions: names, pins, colours, groups
 
 [`sessionItem`](../src/main/sessions.ts) rows open [`sessionMenu`](../src/main/sessionGroups.ts) on right click or "⋯":
@@ -392,6 +473,26 @@ rename ([`renameDialog`](../src/main/sessionGroups.ts): own name in `AppConfig.s
 for an open session), pin, colour, move to group, reminder, close. [`sessionSections`](../src/main/sessions.ts) renders
 pinned sessions first, then each group of `AppConfig.groups` (coloured, collapsible, [`groupMenu`](../src/main/sessionGroups.ts)),
 then the rest. The quick bar uses the same names and lists pinned sessions first.
+
+**A session before its first message** can be organised too. A tab without a session file is known by the key
+`<hostId>|new-<n>` (getter `key` of [`SessionTab`](../src/main/sessionTab.ts)), and [`refKey`](../src/main/sessionGroups.ts) uses it
+for name, colour, group and pin – so the row in the list can be moved into a group, coloured or renamed right after
+"New session" (the dialog also offers a group). When Pi saves the session, [`rekey`](../src/main/sessions.ts) moves
+these settings to `<hostId>|<sessionPath>`; closing a session that never got a file drops them again.
+
+**Unread**: a session whose answer nobody looked at is shown with a tinted row (accent bar on the left, stronger
+tint), an accent-coloured title and the pill "unread" ([`sessionPill`](../src/main/activity.ts)); the same look
+comes from the session menu ("Mark as unread" / "Mark as read", ⇧⌘U for the session on screen) or from a run that
+settled while you were looking elsewhere (the tab's `unseen`). Such a run also writes `sessionMeta.unread` once it is
+settled ([`onSettled`](../src/main/sessions.ts)), and a run in the background that ended while PiBar was closed leaves
+it there as well – so the row, the ✓ counters and the Dock badge are back after a restart. The mark goes away when the
+session is opened ([`activate`](../src/main/sessions.ts) → [`clearUnread`](../src/main/sessionGroups.ts), and again
+when the window gets the focus).
+
+**Connection dots** are not this: a dot in front of a host, a project or a host tab appears only when there is
+something to report – "not reachable" (red) or "checking" (yellow); "connected" needs no dot, so the green dots are
+gone ([`hostStatusDot`](../src/main/sessions.ts), tooltip [`hostStatusTitle`](../src/main/sessions.ts) and as title
+on the host name). Sessions never carry a status dot, they say "working" in words.
 
 ⌘-click and ⇧-click select several sessions ([`selectClick`](../src/main/sessionSelect.ts)); the bar at the bottom
 ([`renderSelectionBar`](../src/main/sessionSelect.ts)) and the context menu ([`bulkMenu`](../src/main/sessionGroups.ts))
@@ -403,6 +504,91 @@ sessions, closes open ones, calls [`sessions::delete`](../src-tauri/src/sessions
 folders of the deleted sessions; closing several open sessions asks first too
 ([`closeSessionsDialog`](../src/main/sessionGroups.ts)). HTML drag & drop needs `dragDropEnabled: false` on the main window
 (`tauri.conf.json`).
+
+### Views of the list: what I am working on
+
+The funnel in the header of the left column ([`filterMenu`](../src/main/sessions.ts)) sets `ui.sessionFilter` ("all" or
+"active") and `ui.sessionColors` (a colour name, or "none" for sessions without one). "Only what I am working on" keeps
+the sessions that are active right now: Pi works there (in the foreground or as a run in the background), an answer is
+unread, or the tab is open – [`passesFilter`](../src/shared/listFilter.ts) decides over the marks
+[`hostRows`](../src/main/sessions.ts) puts on a row. [`renderHosts`](../src/main/sessions.ts) drops the rows that do not
+belong to the view and hides hosts, projects and groups without a match, as it does while searching; a chip above the
+list names the view and clears it ([`filterChip`](../src/main/sessions.ts)), and a view with nothing in it offers
+"Show everything" ([`filterEmpty`](../src/main/sessions.ts)). The chip sits above the hosts, so a session that stops
+working and was read disappears from the view on the next render – the chat on screen stays open.
+
+### Search in the list and in the messages
+
+The field above the list ([`wireSearch`](../src/main/search.ts)) filters the rows while typing:
+[`renderHosts`](../src/main/sessions.ts) keeps only the rows whose title, name or folder contains the text
+([`matchesQuery`](../src/shared/search.ts)) and hides hosts and projects without a match. From two characters on, and
+after a pause of 350 ms, [`searchAll`](../src/main/search.ts) asks every shown host (all of them, or the chosen one) in
+parallel: `search_sessions` → [`search`](../src-tauri/src/sessions.rs), one `grep` over
+`~/.pi/agent/sessions/*/*.jsonl`, locally or over SSH – the first matching line per file, plus that file's session
+header and first own message; at most 40 files and 4000 characters per line (a tool result can be megabytes).
+[`parse_hits`](../src-tauri/src/sessions.rs) turns such a line into a [`SearchHit`](../src-tauri/src/sessions.rs): the
+role of the message, folder and title from the file itself (so a hit also works for a session outside the list, which
+PiBar only reads the newest 300 of) and a snippet around the match – clean message text when the line still parses as
+JSON, the raw text of the cut line otherwise. The hits land in `state.search` and [`searchHitsBlock`](../src/main/sessions.ts)
+draws them above the hosts, newest first, with role ("You", "Pi", "Tool"), host and snippet
+([`highlight`](../src/shared/search.ts) marks the match); a click opens the session. Each host's answer renders as soon
+as it is there, and a counter drops the answers of a query that was typed over in the meantime; another host tab
+(`pibar-host-changed` from [`selectHost`](../src/main/sessions.ts)) asks the hosts again, because only the shown ones
+are searched. Esc or × shows the
+whole list again ([`clearSearch`](../src/main/search.ts)); ⌘F jumps into the field
+([`focusSearch`](../src/main/search.ts)).
+
+### Sorting the list, also by hand
+
+The ⇅ button in the header of the left column ([`viewMenu`](../src/main/sessions.ts)) sets `ui.sessionSort` – last
+activity, creation, name, folder or "own order" – and `ui.sessionGroup` for the sections (date, folder, none). Every
+block of the list sorts with it: [`sessionSections`](../src/main/sessions.ts) calls
+[`sortRows`](../src/shared/sessionOrder.ts) for the pinned rows, each group and the rest of a host or a project, and
+[`sectionRows`](../src/shared/sessionOrder.ts) adds the date or folder sections.
+
+**Own order** is the one order the user makes: dragging a row up or down in the list
+([`dropTarget`](../src/main/sessionSelect.ts) on the row, only in this mode – elsewhere a drop belongs to a group or a
+drop zone) numbers the rows of that block again through [`applyOrder`](../src/main/sessionGroups.ts), which keeps the
+place in `SessionMeta.order` (steps of 10). The dropped sessions take the group and pin state of the row they land on,
+so a drop into another group also moves them there. Sections switch off with this mode
+([`sessionSections`](../src/main/sessions.ts) passes `none`), and sessions without a place yet – new ones – stay above
+the arranged ones ([`sortRows`](../src/shared/sessionOrder.ts)). A block is a host or a project, so a project can be
+arranged differently from its host; [`startBlock`](../src/main/sessionSelect.ts) and
+[`blockKeysOf`](../src/main/sessionSelect.ts) know the rows of the block being rendered.
+
+### Projects: named folders below the hosts
+
+A project is a name plus a folder on a host (`AppConfig.projects`, [`Project`](../src-tauri/src/config.rs)). The
+["Projects" rubric](../src/main/projects.ts) sits under the hosts in the left column: [`renderProjects`](../src/main/projects.ts)
+draws one collapsible card per project (the state stays in `collapsed`), which can be moved to another position by
+dragging its grip ([`blockGrip`](../src/main/blockDrag.ts) → [`moveProject`](../src/main/projects.ts)), [`projectDialog`](../src/main/projects.ts) creates and edits it (name, host,
+folder via the folder picker) and [`projectMenu`](../src/main/projects.ts) offers "New session", rename, change folder
+and delete. [`projectOf`](../src/main/projects.ts) matches a session to a project by host and working folder
+([`inFolder`](../src/shared/format.ts) treats "~" as the host's home); such sessions appear under the project instead of
+in the host's own list ([`hostRows`](../src/main/sessions.ts) filtered in [`renderHosts`](../src/main/sessions.ts)).
+[`newSessionInProject`](../src/main/projects.ts) opens the new-session dialog with the project's host and folder fixed
+([`newSessionDialog`](../src/main/sessions.ts) with `locked`), so a session started inside a project always runs in the
+project's folder. Its own settings (name, group, pin, colour) keep working as usual.
+
+A session working under a project shows at the project heading, also with the project collapsed: a spinner and a
+counter ([`activityOfRows`](../src/main/activity.ts) over the project's [`ListRow`](../src/main/sessions.ts)s) plus a
+tinted heading (class `working`). The rows carry `running`, which [`hostRows`](../src/main/sessions.ts) fills from the
+tab and, while a tab is closed, from `sessionMeta.backgroundAt`; such marks are checked against `bg_running` in
+[`renderHosts`](../src/main/sessions.ts) (`verifyBackgroundRun`), so a run that ended while PiBar was closed stops
+spinning.
+
+A project can fix an inference preset (`Project.preset`, id from `AppConfig.presets`): the new-session dialog shows the
+name, [`newSessionInProject`](../src/main/projects.ts) passes it to [`newSessionDialog`](../src/main/sessions.ts) and on
+to [`openSession`](../src/main/sessions.ts), where [`applyDefaults`](../src/main/sessions.ts) picks it through
+[`presetForNewSession`](../src/shared/presets.ts) – it wins over `ui.defaultPreset`, and a preset deleted in the settings
+falls back to the default. Existing sessions keep their own model (the saved choice in `SessionMeta`).
+
+A project can also fix the **chat view** its sessions start with (`Project.view`, "View" in the project dialog and
+in its menu): [`SessionTab.startView`](../src/main/sessionTab.ts) reads it through
+[`projectAt`](../src/shared/projects.ts) and falls back to `ui.chatMode` ([`defaultViewMode`](../src/main/sessionTab.ts)).
+The header dropdown still sets the view of the session on screen ([`SessionTab.setViewMode`](../src/main/sessionTab.ts));
+choosing the view the session starts with drops that own choice again. The view options themselves are
+[`VIEWS`](../src/shared/chatViews.ts).
 
 ### Voice: dictation, read aloud, text improvement
 
@@ -434,8 +620,11 @@ A new command needs both.
 | `config_load_error` | Settings file was damaged at start (reset, backup path); the main window shows it once |
 | `set_language` | Language for messages from Rust and the tray menu |
 | `test_host`, `list_sessions`, `list_models` | Check a host, list sessions and models |
+| `search_sessions` | Sessions of a host whose messages contain the query (snippet, role, folder and title from the file) |
 | `delete_sessions` | Delete session files (paths must lie in Pi's `sessions` folder) |
 | `session_outlines` | User messages (entry ids) of session files, for the versions of a message |
+| `session_touches` | Files Pi changed, per own message of a session file (for "go back") |
+| `snapshot_take`, `rewind_preview`, `rewind_restore`, `rewind_undo` | File states for "go back": record before a message, show what changes, restore the files Pi changed, undo that |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
 | `bg_start`, `bg_follow`, `bg_running`, `bg_stop` | Run a message in the background: start detached, follow the log, ask whether it still runs, stop it |
 | `pi_reply` | Answer to a dialog of a Pi extension (`extension_ui_response`, Pi sends no response) |
@@ -467,14 +656,23 @@ A new command needs both.
 | Goal | Starting point |
 | --- | --- |
 | Explain a chat error / add a diagnosis check | [`diag::run`](../src-tauri/src/diag.rs), [`diagnoseHints`](../src/main/diagnose.ts) |
+| Chat error that only a restart fixes (Pi updated or removed on the host) | [`isStaleInstallError`](../src/shared/piErrors.ts), [`SessionTab.restart`](../src/main/sessionTab.ts) |
 | Render a new Pi event | [`SessionTab.onEvent`](../src/main/sessionTab.ts) |
 | Runs in the background (detached Pi, log, pid) | [`bg.rs`](../src-tauri/src/bg.rs), [`SessionTab.sendToBackground`](../src/main/sessionTab.ts) |
-| Chat views, answer style hints | [`applyUiPrefs`](../src/main/chatView.ts), [`withAnswerStyle`](../src/shared/format.ts) |
+| Chat views of a session, answer style hints | [`SessionTab.viewMode`](../src/main/sessionTab.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`withAnswerStyle`](../src/shared/format.ts) |
+| Model, thinking level or preset of a session (kept when it is opened again) | [`SessionTab.saveChoice`](../src/main/sessionTab.ts), [`SessionTab.applyChoice`](../src/main/sessionTab.ts), [`SessionTab.adoptChoice`](../src/main/sessionTab.ts), [`resolveChoice`](../src/shared/presets.ts) |
 | Token statistics panel | [`wireUsage`](../src/main/usageStats.ts), [`SessionTab.measure`](../src/main/sessionTab.ts) |
 | Panel widths, narrow windows | [`applyLayout`](../src/main/layout.ts) |
+| Text size of the window (⌘+ / ⌘− / ⌘0, in the shortcut overview too, setting) | [`FONT_SCALES`](../src/shared/textScale.ts), [`applyFontScale`](../src/main/layout.ts), [`LIST`](../src/main/shortcuts.ts) |
 | Terminal at the bottom: shell, pty, keys, colours | [`shell_command`](../src-tauri/src/terminal.rs), [`wireTerminal`](../src/main/terminal.ts) |
+| Name and colour of a terminal tab (follows its session) | [`tabMeta`](../src/main/terminal.ts), [`refreshTermTabs`](../src/main/terminal.ts), [`focusSessionTab`](../src/main/terminal.ts), [`sessionStarted`](../src/main/terminal.ts), [`openTab`](../src/main/terminal.ts) |
+| Filter views of the list (working, unread, open, a colour) | [`filterMenu`](../src/main/sessions.ts), [`passesFilter`](../src/shared/listFilter.ts), [`hostRows`](../src/main/sessions.ts) |
+| Search in the list and in the messages of all hosts | [`searchAll`](../src/main/search.ts), [`searchHitsBlock`](../src/main/sessions.ts), [`search`](../src-tauri/src/sessions.rs) |
 | Session context menu, groups, colours | [`sessionMenu`](../src/main/sessionGroups.ts), [`COLORS`](../src/main/menu.ts) |
+| Order of the blocks in the left column (hosts, projects), drag by the grip | [`blockGrip`](../src/main/blockDrag.ts), [`moveHost`](../src/main/sessions.ts), [`moveProject`](../src/main/projects.ts) |
+| Projects in the left column (named folders, sessions grouped by folder, fixed preset of a project) | [`projects`](../src/main/projects.ts), [`presetForNewSession`](../src/shared/presets.ts), [`Project`](../src-tauri/src/config.rs) |
 | Another speech or LLM provider | [`voice.rs`](../src-tauri/src/voice.rs), [`voiceEditor`](../src/main/voiceSettings.ts) |
+| "Go back" to a message also restores files | [`planRewind`](../src/main/rewindFiles.ts), [`snapshot::take`](../src-tauri/src/snapshot.rs) (recording in [`SessionTab.send`](../src/main/sessionTab.ts)), [`touches`](../src-tauri/src/sessions.rs) |
 | New Pi RPC command in the UI | method in [`SessionTab`](../src/main/sessionTab.ts) via [`api`](../src/shared/api.ts) (`api.pi`) |
 | New Rust command | function in [`lib.rs`](../src-tauri/src/lib.rs) + register in [`run`](../src-tauri/src/lib.rs) + [`api`](../src/shared/api.ts) |
 | Chat colours (profile editor, roles) | [`colorSettings.ts`](../src/main/colorSettings.ts), [`shared/colors.ts`](../src/shared/colors.ts), [`styles.css`](../src/main/styles.css) |
@@ -494,6 +692,11 @@ A new command needs both.
   purpose: an image URL from model output could leak data.
 - Double tap, area screenshot and OCR with Apple Vision are macOS only.
 - The terminal needs a pty: it is built for macOS and Linux (`portable-pty`); Windows is untested.
+- "Go back" restores only files Pi changed with `edit`/`write`, and only in Git repositories: a file changed by a
+  `bash` command (`rm`, `mv`, a generator) keeps its state, and the states themselves go away after 14 days (they live
+  as unreachable objects until Git cleans them up).
+- The search matches literal text (case-insensitive, `grep -F`), not a regular expression. Per host it reports at most
+  40 session files and one hit per file (the first matching line), so a session with several matches appears once.
 - Reminders are only checked while PiBar is running (missed ones show as due on the next start).
 - Runs in the background take one message at a time: no images, no steering, no dialogs of Pi extensions, and the
   model is fixed at the start. Their pid file (below `~/.pibar` on the host) removes the follower when the run ends;

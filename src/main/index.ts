@@ -15,8 +15,9 @@ import { wireTerminal } from "./terminal";
 import { wireSessionSelect } from "./sessionSelect";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
+import { wireSearch } from "./search";
 import { loadAllSessions, renderHosts } from "./sessions";
-import { wireActivity } from "./activity";
+import { updateBadge, wireActivity } from "./activity";
 import { state } from "./state";
 
 async function init() {
@@ -33,6 +34,7 @@ async function init() {
   await api.termCloseAll().catch(() => {});
 
   wireLayout();
+  wireSearch();
   wireSessionSelect();
   wireChatView();
   applyUiPrefs();
@@ -62,6 +64,8 @@ async function init() {
     .then((e) => e && toast(e, "err", 30000))
     .catch(() => {});
   await loadAllSessions();
+  // unread marks kept in the session meta are there again: show them on the Dock icon too
+  updateBadge();
 }
 
 /** The quick bar cannot open if its shortcut is taken or the double tap lacks the macOS permission: say so */

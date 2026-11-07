@@ -154,6 +154,238 @@ pub fn outlines(host: &HostCfg, paths: &[String]) -> Result<Vec<SessionOutline>,
     hostexec::run_shell(host, &outline_script(paths), None).map(|out| parse_outlines(&out))
 }
 
+// ---------- Search in the messages of all sessions ----------
+
+/// A session file with a message that contains the search text, see [`search`]. Title and folder come from the file
+/// itself, so a hit also works for a session that is no longer in the list of the newest ones.
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub path: String,
+    pub cwd: String,
+    /// Name from Pi (session_info) or the first own message; empty if the file has neither
+    pub title: String,
+    /// Role of that message: "user", "assistant" or a tool result
+    pub role: String,
+    /// Text around the match (JSON escapes removed, leading and trailing "…" where it was cut)
+    pub snippet: String,
+}
+
+/// Session files one host reports per search: the newest matches are enough to pick one
+const SEARCH_MAX_FILES: usize = 40;
+/// Characters of a matching line that cross the wire (a tool result can be megabytes)
+const SEARCH_LINE_CHARS: usize = 4000;
+/// Characters of the message kept around the match
+const SNIPPET_CHARS: usize = 160;
+
+/// Shell script: one `grep` over all session files of the host, first matching line per file, plus the header line and
+/// the first own message of each hit (path, header, first message, matching line - separated by tabs)
+fn search_script(query: &str) -> String {
+    format!(
+        r#"dir="${{PI_CODING_AGENT_DIR:-$HOME/.pi/agent}}/sessions"
+[ -d "$dir" ] || exit 0
+grep -i -H -m1 -F -- {} "$dir"/*/*.jsonl 2>/dev/null | head -n {} | while IFS= read -r hit; do
+  f="${{hit%%:*}}"
+  printf '%s\t%s\t%s\t%s\n' "$f" \
+    "$(head -n 1 "$f" | cut -c1-2000 | tr -d '\t')" \
+    "$(grep -m1 -F '"role":"user"' "$f" | cut -c1-2000 | tr -d '\t')" \
+    "$(printf '%s' "${{hit#*:}}" | cut -c1-{})"
+done || true
+"#,
+        sq(query),
+        SEARCH_MAX_FILES,
+        SEARCH_LINE_CHARS
+    )
+}
+
+/// Every string inside a JSON value in reading order (message text, tool arguments …)
+fn texts_of(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::String(s) => out.push(s.clone()),
+        Value::Array(a) => a.iter().for_each(|x| texts_of(x, out)),
+        Value::Object(o) => o.values().for_each(|x| texts_of(x, out)),
+        _ => {}
+    }
+}
+
+/// Text around the (case insensitive) match, whitespace collapsed; None if the text does not contain it
+fn window(text: &str, q_lower: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    let at = lower.find(q_lower)?;
+    let cut = SNIPPET_CHARS / 2;
+    let chars: Vec<char> = text.chars().collect();
+    // the lowercase copy can have other char counts (İ, ß …): stay near the match, that is enough for a snippet
+    let hit = lower[..at].chars().count().min(chars.len().saturating_sub(1));
+    let start = hit.saturating_sub(cut);
+    let end = (start + SNIPPET_CHARS).min(chars.len());
+    let body = chars[start..end].iter().collect::<String>();
+    let body = body.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(format!(
+        "{}{}{}",
+        if start > 0 { "…" } else { "" },
+        body.trim_matches(|c: char| matches!(c, '"' | ':' | ',' | '{' | '}' | '[' | ']')),
+        if end < chars.len() { "…" } else { "" }
+    ))
+}
+
+/// JSON escapes of a raw line as readable text (for a line the shell cut short, which no longer parses)
+fn unescape_json(raw: &str) -> String {
+    let mut out = String::new();
+    let mut chars = raw.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') | Some('t') | Some('r') => out.push(' '),
+            Some('u') => {
+                for _ in 0..4 {
+                    chars.next();
+                }
+                out.push(' ');
+            }
+            Some('"') => out.push('"'),
+            Some(other) => out.push(other),
+            None => break,
+        }
+    }
+    out
+}
+
+/// Role from the raw line, for a line the shell cut short (it no longer parses as JSON)
+fn raw_role(raw: &str) -> String {
+    let key = "\"role\":\"";
+    let Some(start) = raw.find(key) else { return String::new() };
+    let rest = &raw[start + key.len()..];
+    rest[..rest.find('"').unwrap_or(0)].to_string()
+}
+
+/// Role of the matching message and the text around the match. The line is parsed as JSON when it is whole (a tool
+/// result can be cut by the shell); then the snippet is clean text instead of the raw JSON around the match.
+fn snippet_for(raw: &str, q_lower: &str) -> (String, String) {
+    let entry: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
+    let role = entry
+        .get("message")
+        .and_then(|m| m.get("role"))
+        .and_then(Value::as_str)
+        .map(String::from)
+        .unwrap_or_else(|| raw_role(raw));
+    let mut found = Vec::new();
+    if let Some(message) = entry.get("message") {
+        texts_of(message.get("content").unwrap_or(message), &mut found);
+    }
+    for text in &found {
+        if let Some(snippet) = window(text, q_lower) {
+            return (role, snippet);
+        }
+    }
+    let raw_text = unescape_json(raw);
+    (role, window(&raw_text, q_lower).unwrap_or_default())
+}
+
+/// Lines of [`search_script`]: path, header, first message and the matching line, separated by tabs
+pub fn parse_hits(out: &str, query: &str) -> Vec<SearchHit> {
+    let q_lower = query.to_lowercase();
+    let mut hits: Vec<SearchHit> = Vec::new();
+    for line in out.lines() {
+        let parts: Vec<&str> = line.splitn(4, '\t').collect();
+        if parts.len() < 4 {
+            continue; // shell chatter before the first hit (a greeting, a prompt)
+        }
+        let (path, raw) = (parts[0], parts[3]);
+        if !is_session_file(path) || hits.iter().any(|h| h.path == path) {
+            continue; // the same file twice
+        }
+        let header: Value = serde_json::from_str(parts[1]).unwrap_or(Value::Null);
+        let cwd = header.get("cwd").and_then(Value::as_str).unwrap_or_default().to_string();
+        let (role, snippet) = snippet_for(raw, &q_lower);
+        // a line cut by the shell can hide the match behind the cut: the session still counts as a hit, shown with
+        // the beginning of the message instead of the text around the match
+        let snippet = match snippet.is_empty() {
+            true => window(&unescape_json(raw), "").unwrap_or_default(),
+            false => snippet,
+        };
+        if snippet.is_empty() {
+            continue;
+        }
+        hits.push(SearchHit { path: path.to_string(), cwd, title: first_text(parts[2]), role, snippet });
+    }
+    hits
+}
+
+/// Sessions of a host whose messages contain `query` (one file per hit, newest first is up to the UI: it knows the
+/// session list). Runs one `grep` over all session files, locally or over SSH.
+pub fn search(host: &HostCfg, query: &str) -> Result<Vec<SearchHit>, String> {
+    let q: String = query.split_whitespace().collect::<Vec<_>>().join(" ");
+    let q: String = q.chars().take(200).collect();
+    if q.chars().count() < 2 {
+        return Ok(vec![]); // one letter matches everything and would ask the host on every keystroke
+    }
+    hostexec::run_shell(host, &search_script(&q), None).map(|out| parse_hits(&out, &q))
+}
+
+/// Tools that change files: the `path` (or `file_path`) of their call is the file Pi wrote
+const FILE_TOOLS: &[&str] = &["edit", "write", "multi_edit", "create"];
+
+/// The files Pi changed after one own message: its entry id (stable across branches and compaction) and the paths as
+/// Pi named them (absolute, "~/…" or relative to the working folder)
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageTouches {
+    pub id: String,
+    pub paths: Vec<String>,
+}
+
+/// Files per own message of a session file, in file order like [`parse_outlines`]: the tool calls of an assistant
+/// message belong to the user message before them.
+pub fn touched_by_message(text: &str) -> Vec<MessageTouches> {
+    let mut result: Vec<MessageTouches> = Vec::new();
+    for line in text.lines() {
+        let Ok(entry) = serde_json::from_str::<Value>(line) else { continue };
+        let Some(message) = entry.get("message") else { continue };
+        match message.get("role").and_then(Value::as_str) {
+            Some("user") => {
+                let id = entry.get("id").and_then(Value::as_str).unwrap_or_default();
+                result.push(MessageTouches { id: id.to_string(), paths: Vec::new() });
+            }
+            Some("assistant") => {
+                let parts = message.get("content").and_then(Value::as_array).map(Vec::as_slice).unwrap_or(&[]);
+                for part in parts {
+                    let file_tool = part
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .map(|name| FILE_TOOLS.contains(&name))
+                        .unwrap_or(false);
+                    if part.get("type").and_then(Value::as_str) != Some("toolCall") || !file_tool {
+                        continue;
+                    }
+                    let path = part
+                        .get("arguments")
+                        .and_then(|a| a.get("path").or_else(|| a.get("file_path")))
+                        .and_then(Value::as_str);
+                    if let (Some(path), Some(bucket)) = (path, result.last_mut()) {
+                        if !bucket.paths.iter().any(|p| p == path) {
+                            bucket.paths.push(path.to_string());
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
+/// Files Pi changed per own message of the session file `path` (see [`touched_by_message`])
+pub fn touches(host: &HostCfg, path: &str) -> Result<Vec<MessageTouches>, String> {
+    if !is_session_file(path) {
+        return Err(tr(format!("Not a Pi session file: {path}"), format!("Keine Pi-Session-Datei: {path}")));
+    }
+    let script = format!("grep -F -e '\"role\":\"user\"' -e '\"type\":\"toolCall\"' -- {} || true", sq(path));
+    hostexec::run_shell(host, &script, None).map(|out| touched_by_message(&out))
+}
+
 /// Only Pi session files may be deleted: "…/sessions/…/<name>.jsonl", absolute, without "..".
 pub fn is_session_file(path: &str) -> bool {
     path.starts_with('/')
@@ -209,9 +441,126 @@ __PIBAR_OUTLINE__\t/s/b.jsonl\t\n";
     }
 
     #[test]
+    fn files_per_own_message() {
+        let out = "\
+{\"type\":\"message\",\"id\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Mach was\"}]}}\n\
+{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[\
+{\"type\":\"toolCall\",\"id\":\"c1\",\"name\":\"edit\",\"arguments\":{\"path\":\"/work/a.ts\"}},\
+\
+{\"type\":\"toolCall\",\"id\":\"c2\",\"name\":\"write\",\"arguments\":{\"file_path\":\"b.ts\"}},\
+\
+{\"type\":\"toolCall\",\"id\":\"c3\",\"name\":\"bash\",\"arguments\":{\"command\":\"rm x\"}},\
+\
+{\"type\":\"toolCall\",\"id\":\"c4\",\"name\":\"edit\",\"arguments\":{\"path\":\"/work/a.ts\"}}]}}\n\
+{\"type\":\"message\",\"id\":\"u2\",\"message\":{\"role\":\"user\",\"content\":\"weiter\"}}\n\
+{\"type\":\"message\",\"id\":\"t1\",\"message\":{\"role\":\"toolResult\",\"content\":[{\"type\":\"text\",\"text\":\"sag \\\"type\\\":\\\"toolCall\\\"\"}]}}\n";
+        let per = touched_by_message(out);
+        assert_eq!(per.len(), 2);
+        assert_eq!(per[0].id, "u1");
+        assert_eq!(per[0].paths, vec!["/work/a.ts", "b.ts"]);
+        assert_eq!(per[1].id, "u2");
+        assert!(per[1].paths.is_empty());
+    }
+
+    #[test]
     fn extracts_text() {
         let raw = r#"{"type":"message","message":{"role":"user","content":[{"type":"text","text":"Hallo \"Welt\"\nzweite Zeile"}]}}"#;
         assert_eq!(first_text(raw), "Hallo \"Welt\" zweite Zeile");
+    }
+
+    #[test]
+    fn finds_the_text_around_the_match() {
+        let raw = "{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Bitte die Suche über alle Sessions bauen\"}]}}";
+        let (role, snippet) = snippet_for(raw, "suche");
+        assert_eq!(role, "user");
+        assert_eq!(snippet, "Bitte die Suche über alle Sessions bauen");
+        // tool call arguments are searched too
+        let tool = "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"toolCall\",\"name\":\"bash\",\"arguments\":{\"command\":\"grep -r TODO src\"}}]}}";
+        let (role, snippet) = snippet_for(tool, "todo");
+        assert_eq!((role.as_str(), snippet.as_str()), ("assistant", "grep -r TODO src"));
+    }
+
+    #[test]
+    fn a_cut_off_line_still_gives_a_snippet() {
+        // the shell cuts long lines: the JSON no longer parses, the raw text around the match is shown instead
+        let raw = "{\"type\":\"message\",\"message\":{\"role\":\"toolResult\",\"content\":[{\"type\":\"text\",\"text\":\"zwei Zeilen\\nmit dem Treffer\";";
+        let (role, snippet) = snippet_for(raw, "treffer");
+        assert_eq!(role, "toolResult");
+        assert!(snippet.contains("mit dem Treffer"), "{snippet}");
+        assert!(!snippet.contains("\\n"), "{snippet}");
+    }
+
+    #[test]
+    fn long_texts_are_shortened() {
+        let text = format!("{} Treffer {}", "a ".repeat(200), "b ".repeat(200));
+        let win = window(&text, "treffer").unwrap();
+        assert!(win.len() < SNIPPET_CHARS + 40, "{}", win.len());
+        assert!(win.starts_with('…') && win.ends_with('…'));
+        assert!(window(&text, "nichts").is_none());
+    }
+
+    #[test]
+    fn parses_one_hit_per_file() {
+        let line = "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"die Suche\"}]}}";
+        let header = "{\"type\":\"session\",\"id\":\"s1\",\"cwd\":\"/work/pibar\"}";
+        let first = "{\"type\":\"message\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Bau eine Suche\"}]}}";
+        let hit = |path: &str| format!("{path}\t{header}\t{first}\t{line}");
+        let out = format!(
+            "willkommen im login-shell\n{}\n{}\n{}\n",
+            hit("/s/u/.pi/agent/sessions/a/1.jsonl"),
+            hit("/s/u/.pi/agent/sessions/a/2.jsonl"),
+            hit("/s/u/.pi/agent/sessions/a/1.jsonl")
+        );
+        let hits = parse_hits(&out, "suche");
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].path, "/s/u/.pi/agent/sessions/a/1.jsonl");
+        assert_eq!(hits[0].cwd, "/work/pibar");
+        assert_eq!(hits[0].title, "Bau eine Suche");
+        assert_eq!(hits[0].snippet, "die Suche");
+        assert!(parse_hits("/etc/passwd\t\t\troot", "root").is_empty());
+    }
+
+    #[test]
+    fn a_match_behind_a_cut_is_still_a_hit() {
+        let raw = "{\"type\":\"message\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Anfang ohne den Treffer\";";
+        let out = format!("/s/u/.pi/agent/sessions/a/1.jsonl\t\t\t{raw}\n");
+        let hits = parse_hits(&out, "treffer");
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].snippet.contains("Anfang ohne"), "{}", hits[0].snippet);
+    }
+
+    #[test]
+    fn search_script_reads_the_files() {
+        let dir = std::env::temp_dir().join(format!("pibar-search-{}", std::process::id()));
+        let sessions = dir.join("sessions").join("--work--");
+        std::fs::create_dir_all(&sessions).unwrap();
+        std::fs::write(
+            sessions.join("a.jsonl"),
+            "{\"type\":\"session\",\"id\":\"s1\",\"cwd\":\"/work/pibar\"}\n\
+{\"type\":\"message\",\"id\":\"u1\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Bau eine Suche\"}]}}\n\
+{\"type\":\"message\",\"id\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Die Suche steht\"}]}}\n",
+        )
+        .unwrap();
+        std::fs::write(sessions.join("b.jsonl"), "{\"type\":\"session\",\"id\":\"s2\"}\n").unwrap();
+        let out = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(search_script("Suche"))
+            .env("PI_CODING_AGENT_DIR", &dir)
+            .output()
+            .unwrap();
+        let hits = parse_hits(&String::from_utf8_lossy(&out.stdout), "Suche");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].cwd, "/work/pibar");
+        assert_eq!(hits[0].title, "Bau eine Suche");
+        // the first matching line is the own message here, not the answer
+        assert_eq!((hits[0].role.as_str(), hits[0].snippet.as_str()), ("user", "Bau eine Suche"));
+    }
+
+    #[test]
+    fn search_script_quotes_the_query() {
+        let script = search_script("it's $(rm -rf ~)");
+        assert!(script.contains("'it'\\''s $(rm -rf ~)'"));
+        assert!(script.contains("grep -i -H -m1 -F --"));
     }
 
     #[test]

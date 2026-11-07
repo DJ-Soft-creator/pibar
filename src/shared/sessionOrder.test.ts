@@ -34,6 +34,17 @@ describe("sortRows", () => {
     expect(sortRows(rows, "name").map((r) => r.title)).toEqual(["neu", "Alpha", "beta"]);
     expect(sortRows(rows, "folder").map((r) => r.title)).toEqual(["neu", "Alpha", "beta"]);
   });
+
+  it("puts the sessions arranged by hand in their own order, the rest above them", () => {
+    const own = [
+      { ...row("c", "/c", 0, at(1, 10)), order: 30 },
+      { ...row("a", "/a", 0, at(2, 10)), order: 10 },
+      { ...row("b", "/b", 0, at(3, 10)) },
+      { ...row("d", "/d", 0, at(4, 10)), order: 20 },
+    ];
+    // "b" has no place yet: new sessions stay visible above the arranged ones
+    expect(sortRows(own, "own").map((r) => r.title)).toEqual(["b", "a", "d", "c"]);
+  });
 });
 
 describe("sectionRows", () => {

@@ -11,6 +11,7 @@ mod models;
 mod pi;
 mod quick;
 mod sessions;
+mod snapshot;
 mod terminal;
 mod voice;
 
@@ -86,6 +87,13 @@ async fn session_outlines(
 ) -> Result<Vec<sessions::SessionOutline>, String> {
     let host = config::find_host(&app, &host_id)?;
     tauri::async_runtime::spawn_blocking(move || sessions::outlines(&host, &paths)).await.map_err(|e| e.to_string())?
+}
+
+/// Sessions of a host whose messages contain `query` (one grep over all session files, src/main/search.ts)
+#[tauri::command]
+async fn search_sessions(app: AppHandle, host_id: String, query: String) -> Result<Vec<sessions::SearchHit>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || sessions::search(&host, &query)).await.map_err(|e| e.to_string())?
 }
 
 // ---------- Pi processes ----------
@@ -348,6 +356,76 @@ async fn git_commit(
     tauri::async_runtime::spawn_blocking(move || gitlog::commit(&host, &dir, &hash)).await.map_err(|e| e.to_string())?
 }
 
+// ---------- File states for "go back" (src-tauri/src/snapshot.rs) ----------
+
+#[tauri::command]
+async fn snapshot_take(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    session_id: String,
+    tag: String,
+) -> Result<Option<snapshot::Taken>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || snapshot::take(&host, &dir, &session_id, &tag))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn rewind_preview(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    session_ids: Vec<String>,
+    tag: String,
+    paths: Vec<String>,
+) -> Result<snapshot::Preview, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || snapshot::preview(&host, &dir, &session_ids, &tag, &paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn rewind_restore(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    session_ids: Vec<String>,
+    tag: String,
+    paths: Vec<String>,
+) -> Result<Option<snapshot::Restored>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || snapshot::restore(&host, &dir, &session_ids, &tag, &paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn rewind_undo(
+    app: AppHandle,
+    host_id: String,
+    dir: String,
+    commit: String,
+    paths: Vec<String>,
+) -> Result<snapshot::Restored, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || snapshot::restore_commit(&host, &dir, &commit, &paths))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn session_touches(
+    app: AppHandle,
+    host_id: String,
+    path: String,
+) -> Result<Vec<sessions::MessageTouches>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || sessions::touches(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn git_diff(
     app: AppHandle,
@@ -516,6 +594,7 @@ pub fn run() {
             list_sessions,
             delete_sessions,
             session_outlines,
+            search_sessions,
             list_models,
             pi_open,
             pi_send,
@@ -540,6 +619,11 @@ pub fn run() {
             git_log,
             git_commit,
             git_diff,
+            snapshot_take,
+            rewind_preview,
+            rewind_restore,
+            rewind_undo,
+            session_touches,
             write_file,
             create_file,
             create_dir,

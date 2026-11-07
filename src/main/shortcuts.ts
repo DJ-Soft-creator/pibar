@@ -2,11 +2,13 @@
 // the input in chatView.ts; the dialogs (new session, folder picker) handle their own keys.
 import { h, openModal } from "../shared/dom";
 import { t, type Msg } from "../shared/i18n";
-import { togglePanel } from "./layout";
+import { setFontScale, stepFontScale, togglePanel } from "./layout";
 import { isEditorOpen, reloadFiles, saveEditor } from "./files";
 import { activate, closeSession, defaultHostId, newSessionDialog, openSession } from "./sessions";
+import { setMeta } from "./sessionGroups";
 import { state } from "./state";
 import { jumpToEnd } from "./autoScroll";
+import { focusSearch } from "./search";
 import { toggleTerminal } from "./terminal";
 
 export interface ShortcutActions {
@@ -21,19 +23,24 @@ const LIST: [string, Msg][] = [
   ["⌘ Enter", "Send (also from a multi-line text)"],
   ["⇧ Enter", "New line"],
   ["⇧ ⌘ Enter", "Send in the background (runs on without PiBar)"],
+  ["Right click", "Right-click on the send button: menu for the background"],
   ["Esc · ⌘ .", "Stop Pi"],
   ["⌘ ↑", "Empty input: take back your last message"],
   ["⌘ L", "Into the input"],
   ["⌘ J", "Jump to the end of the chat"],
   ["⌘ ⌥ J", "Terminal at the bottom (⌘⌥J)"],
+  ["⌘ F", "Search (⌘F)"],
   ["⌘ N", "New session (dialog)"],
   ["⌘ ⇧ N", "New session right away – same host and folder"],
   ["⌘ [ · ⌘ ]", "Previous / next open session"],
   ["⌘ 1 … 9", "Open session 1 … 9"],
   ["⌘ W", "Close session"],
+  ["⇧ ⌘ U", "Mark the session on screen as unread"],
   ["⌘ B · ⌘ ⌥ B", "Left / right panel"],
   ["⌘ ⇧ R", "Reload files and Git status"],
   ["⌘ S", "Save file"],
+  ["⌘ + · ⌘ −", "Text size bigger / smaller"],
+  ["⌘ 0", "Text size back to 100 %"],
   ["⌘ /", "This overview"],
 ];
 
@@ -90,6 +97,8 @@ export function wireShortcuts(a: ShortcutActions) {
     else if (e.shiftKey && e.code === "KeyN") run(newHere);
     else if (key === "n") run(() => newSessionDialog(defaultHostId()));
     else if (key === "w" && tab) run(() => closeSession(tab));
+    else if (e.shiftKey && e.code === "KeyU" && tab) run(() => setMeta(tab.key, { unread: true }));
+    else if (key === "f") run(focusSearch);
     else if (key === "l") run(() => a.input.focus());
     else if (key === "j") run(e.altKey ? toggleTerminal : jumpToEnd);
     else if (key === "." && tab?.streaming) run(() => tab.abort());
@@ -97,11 +106,16 @@ export function wireShortcuts(a: ShortcutActions) {
     else if (e.key === "ArrowUp" && document.activeElement === a.input && !a.input.value.trim() && tab) {
       const last = tab.lastUserText();
       if (last) run(() => a.fillInput(last));
-    } else if (e.code === "BracketLeft" || e.code === "BracketRight") {
+    } else if (key === "+" || key === "=" || e.code === "NumpadAdd") run(() => stepFontScale(1));
+    else if (key === "-" || e.code === "NumpadSubtract") run(() => stepFontScale(-1));
+    else if (key === "0") run(() => setFontScale(1));
+    // the character decides which session comes next, not the key position: on a German layout "+" sits on
+    // the key of "]", and "[" / "]" themselves are ⌥8 and ⌥9
+    else if (e.key === "[" || e.key === "]") {
       const list = openTabs();
       if (list.length < 2) return;
       const i = tab ? list.indexOf(tab) : -1;
-      const next = list[(i + (e.code === "BracketRight" ? 1 : -1) + list.length) % list.length];
+      const next = list[(i + (e.key === "]" ? 1 : -1) + list.length) % list.length];
       run(() => activate(next));
     } else if (/^Digit[1-9]$/.test(e.code)) {
       const target = openTabs()[Number(e.code.slice(5)) - 1];

@@ -1,5 +1,5 @@
 // Shared state of the main window. All modules read and write through `state`.
-import { api, AppConfig, SessionInfo } from "../shared/api";
+import { api, AppConfig, SearchHit, SessionInfo } from "../shared/api";
 import { errMsg, toast } from "../shared/dom";
 import { t } from "../shared/i18n";
 import type { SessionTab } from "./sessionTab";
@@ -21,6 +21,18 @@ export const state = {
   tabsByHandle: new Map<number, SessionTab>(),
   /** Session shown in the chat area */
   active: null as SessionTab | null,
+  /**
+   * Search in the left column (src/main/search.ts): the query filters the list, the hits are sessions whose messages
+   * contain it. `pending` counts the hosts still answering.
+   */
+  search: {
+    query: "",
+    hits: new Map<string, SearchHit[]>(),
+    pending: 0,
+    /** The shown hosts have answered for this query (no answer pending) */
+    done: true,
+    error: "",
+  },
 };
 
 export async function saveConfig() {

@@ -101,6 +101,8 @@ export function openModal(
   actions: HTMLElement[],
   /** Called once when the dialog closes, however (button, Escape, click outside) */
   onClose?: () => void,
+  /** Extra class on the dialog, e.g. for a wider one (settings) */
+  cls?: string,
 ): () => void {
   const root = $("modal-root");
   let closed = false;
@@ -118,7 +120,13 @@ export function openModal(
   const backdrop = h(
     "div",
     { class: "modal-backdrop", onmousedown: (e: MouseEvent) => e.target === backdrop && close() },
-    h("div", { class: "modal" }, h("h3", {}, title), body, h("div", { class: "actions" }, ...actions)),
+    h(
+      "div",
+      { class: cls ? `modal ${cls}` : "modal" },
+      h("h3", {}, title),
+      body,
+      h("div", { class: "actions" }, ...actions),
+    ),
   );
   root.append(backdrop);
   document.addEventListener("keydown", onKey);

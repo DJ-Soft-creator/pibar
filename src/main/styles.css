@@ -15,6 +15,8 @@
   --warn: #b7791f;
   --code-bg: #f4f3f0;
   --radius: 8px;
+  /* Text size of the window (factor, set by src/main/layout.ts): every font size below is scaled with it */
+  --fs: 1;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light;
 }
@@ -70,13 +72,9 @@ body {
   height: 100%;
 }
 body {
-  font:
-    14px/1.5 -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Inter",
-    "Helvetica Neue",
-    sans-serif;
+  font-size: calc(14px * var(--fs));
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
@@ -183,7 +181,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
 }
 .tb-field {
@@ -196,14 +194,14 @@ button {
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .toggle {
   padding: 4px 10px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--bg);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
 }
 .toggle.on {
@@ -212,7 +210,7 @@ button {
   color: var(--text);
 }
 .usage {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -223,7 +221,7 @@ button {
   height: 28px;
   border-radius: 6px;
   color: var(--muted);
-  font-size: 16px;
+  font-size: calc(16px * var(--fs));
   line-height: 1;
 }
 .icon-btn:hover:not(:disabled) {
@@ -233,6 +231,10 @@ button {
 .icon-btn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+/* a button that is on (a filter, a mode) keeps the accent colour */
+.icon-btn.on {
+  color: var(--accent);
 }
 
 button.primary {
@@ -249,7 +251,7 @@ button.primary:disabled {
 }
 button.primary.small {
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 button.danger {
   background: transparent;
@@ -287,7 +289,7 @@ button.ghost:hover {
   align-items: center;
   justify-content: space-between;
   padding: 10px 10px 6px 14px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -312,7 +314,7 @@ button.ghost:hover {
   background: transparent;
   border-radius: 6px;
   padding: 4px 6px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--muted);
 }
 .host-tab:hover {
@@ -344,7 +346,7 @@ button.ghost:hover {
   justify-content: flex-start;
   gap: 7px;
   padding: 6px 10px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .host-tabs.stacked .host-tab-name {
   flex: 1;
@@ -354,7 +356,7 @@ button.ghost:hover {
   margin-left: auto;
 }
 .count {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
   background: var(--bg-hover);
   border-radius: 8px;
@@ -363,7 +365,7 @@ button.ghost:hover {
 }
 .host-list {
   overflow-y: auto;
-  padding: 0 6px 12px;
+  padding: 2px 8px 12px;
   flex: 1;
 }
 .chev {
@@ -372,44 +374,121 @@ button.ghost:hover {
   color: var(--muted);
   width: 16px;
   padding: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   transition: transform 0.12s;
-}
-.host.collapsed .chev {
-  transform: rotate(-90deg);
 }
 .host-where {
   display: block;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-weight: 400;
   color: var(--muted);
 }
-.host-name {
-  cursor: default;
-}
-.host.collapsed {
-  opacity: 0.85;
-}
-.host {
-  margin-top: 8px;
-}
-.host-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 4px 4px 4px;
-  position: sticky;
-  top: 0;
-  background: var(--bg-side);
-  z-index: 1;
+/* fixed inference preset of a project, next to its name */
+.host-preset {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: calc(10px * var(--fs));
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+  vertical-align: 1px;
 }
 .host-name {
   font-weight: 600;
   flex: 1;
   min-width: 0;
+  cursor: default;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* One card per host and per project: clear separation, collapsible, movable by dragging the grip */
+.block {
+  position: relative;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.block-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  background: var(--bg-elev);
+  border-radius: 10px;
+}
+.block:not(.collapsed) > .block-head {
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+}
+.block-body {
+  padding: 3px 3px 6px;
+}
+.block.collapsed {
+  opacity: 0.92;
+}
+.block.collapsed .chev {
+  transform: rotate(-90deg);
+}
+.block.dragging {
+  opacity: 0.4;
+}
+/* insertion line while a block is dragged onto another one */
+.block.drop-before::before,
+.block.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.block.drop-before::before {
+  top: -5px;
+}
+.block.drop-after::after {
+  bottom: -5px;
+}
+/* a block whose sessions are working (host, project): tinted heading, so it reads also with the block closed */
+.block.working {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+.block.working > .block-head {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elev));
+}
+.block.working > .block-head .host-name {
+  color: var(--accent);
+}
+
+/* grip in a block header: drag the whole block up or down */
+.grip {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+  opacity: 0.45;
+  cursor: grab;
+}
+.block-head:hover .grip,
+.grip:focus-visible {
+  opacity: 1;
+}
+.grip:active {
+  cursor: grabbing;
+}
+.block-body .sess {
+  padding-left: 12px;
+}
+.block-body .sec-head {
+  margin-left: 4px;
+}
+.block-body .hint-line {
+  padding-left: 12px;
 }
 .dot {
   width: 8px;
@@ -428,15 +507,211 @@ button.ghost:hover {
   background: var(--warn);
 }
 .hint-line {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
   padding: 0 8px 4px 22px;
 }
 .host-err {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--danger);
   padding: 0 8px 4px 22px;
   word-break: break-word;
+}
+/*
+ * Views of the session list (funnel in its header, src/main/sessions.ts): a chip names what is shown while a view is
+ * set, and an empty view explains itself.
+ */
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 6px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: calc(12px * var(--fs));
+  color: var(--text);
+}
+.filter-chip-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-chip-what {
+  color: var(--muted);
+  margin-right: 4px;
+}
+.filter-chip-clear {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: calc(14px * var(--fs));
+  line-height: 1;
+  padding: 0 2px;
+}
+.filter-chip-clear:hover {
+  color: var(--text);
+}
+.filter-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+}
+.filter-empty button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.filter-empty button:hover {
+  text-decoration: underline;
+}
+
+/*
+ * Search above the session list (src/main/search.ts, hits drawn in src/main/sessions.ts): the field filters the list,
+ * the hits are sessions whose messages contain the text.
+ */
+.sess-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 8px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--muted);
+}
+.sess-search:focus-within {
+  outline: 1px solid var(--accent);
+  color: var(--accent);
+}
+.sess-search svg {
+  flex: none;
+}
+.sess-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: calc(12.5px * var(--fs));
+  padding: 2px 0;
+  outline: none;
+}
+.sess-search input::placeholder {
+  color: var(--muted);
+}
+.sess-search .icon-btn {
+  flex: none;
+  padding: 0 2px;
+}
+.search-block {
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.sec-head.search-head .search-state {
+  margin-left: auto;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.hit {
+  display: block;
+  padding: 5px 8px 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.hit:hover,
+.hit:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
+}
+.hit-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: calc(12.5px * var(--fs));
+}
+.hit-role {
+  flex: none;
+  font-size: calc(10px * var(--fs));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 3px;
+}
+.hit-host {
+  flex: none;
+  color: var(--muted);
+}
+.hit-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--text);
+}
+.hit-snip {
+  margin-top: 2px;
+  font-size: calc(12px * var(--fs));
+  color: var(--muted);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+.hit-snip mark {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+.hit-err {
+  font-size: calc(12px * var(--fs));
+  color: var(--danger);
+  padding: 0 8px 4px 12px;
+  word-break: break-word;
+}
+
+/* Projects rubric under the hosts (src/main/projects.ts): named folders whose sessions appear under the project */
+.proj-rubric {
+  margin-top: 12px;
+  padding-bottom: 6px;
+}
+.sec-head.proj-head {
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 8px;
+}
+.new-proj {
+  display: block;
+  width: calc(100% - 12px);
+  margin: 4px 6px 0;
+  padding: 5px 8px;
+  text-align: left;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: calc(12.5px * var(--fs));
+}
+.new-proj:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--bg-hover);
 }
 .sess {
   display: block;
@@ -444,7 +719,7 @@ button.ghost:hover {
   text-align: left;
   border: none;
   background: transparent;
-  padding: 6px 8px 6px 22px;
+  padding: 6px 8px 6px 10px;
   border-radius: 6px;
   position: relative;
 }
@@ -462,24 +737,11 @@ button.ghost:hover {
 }
 .sess-meta {
   display: block;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.sess .live {
-  position: absolute;
-  left: 9px;
-  top: 13px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--ok);
-}
-.sess .live.busy {
-  background: var(--warn);
-  animation: pulse 1.2s infinite;
 }
 @keyframes pulse {
   50% {
@@ -517,7 +779,7 @@ button.ghost:hover {
   font-weight: 600;
 }
 .empty-logo {
-  font-size: 44px;
+  font-size: calc(44px * var(--fs));
   color: var(--accent);
 }
 
@@ -548,7 +810,7 @@ button.ghost:hover {
   border-radius: var(--answer-radius, 0);
 }
 .msg.note {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--muted);
   text-align: center;
 }
@@ -557,19 +819,24 @@ button.ghost:hover {
   color: var(--danger);
   border-radius: var(--radius);
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   white-space: pre-wrap;
   word-break: break-word;
 }
 .msg .error button {
   margin-top: 6px;
 }
+.msg .error .error-hint {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: calc(12.5px * var(--fs));
+}
 
 details.card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elev);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 /* colour profile: thinking and tool cards get their own background and text colour; --card-fg carries it inwards */
 .part.thinking > details.card {
@@ -597,7 +864,7 @@ details.card > summary::-webkit-details-marker {
 }
 details.card > summary::before {
   content: "▸";
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   transition: transform 0.12s;
 }
 details.card[open] > summary::before {
@@ -614,10 +881,10 @@ details.card[open] > summary::before {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .card .status {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
 }
 .card .status.run {
   color: var(--warn);
@@ -636,14 +903,16 @@ details.card[open] > summary::before {
   padding: 8px 10px;
   background: var(--code-bg);
   border-radius: 6px;
-  font: 12px/1.45 var(--mono);
+  font-size: calc(12px * var(--fs));
+  line-height: 1.45;
+  font-family: var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 360px;
   overflow: auto;
 }
 .card .sub {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--card-fg, var(--muted));
@@ -652,7 +921,7 @@ details.card[open] > summary::before {
 }
 .thinking-body {
   color: var(--card-fg, var(--muted));
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 
 /* Chat views: natural hides thinking and tools; technical and debug show them as cards */
@@ -728,7 +997,7 @@ details.card[open] > summary::before {
 .md pre code {
   background: none;
   padding: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.5;
 }
 .md blockquote {
@@ -897,7 +1166,7 @@ details.card[open] > summary::before {
   max-width: 220px;
   padding: 3px 6px 3px 10px;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
   cursor: pointer;
 }
@@ -919,10 +1188,27 @@ details.card[open] > summary::before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* colour of the session in the session list: the same dot, plus a bar on the left while it is active */
+.term-tab .term-tab-dot {
+  margin-right: 0;
+}
+.term-tab.active {
+  position: relative;
+}
+.term-tab.active.colored::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--cc);
+}
 .term-tab-close {
   width: 18px;
   height: 18px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   line-height: 1;
   opacity: 0;
 }
@@ -985,7 +1271,7 @@ body.resizing-v .term-split::after {
   gap: 4px;
   padding: 4px 4px 4px 8px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .folder-head .fname {
   flex: 1;
@@ -995,7 +1281,7 @@ body.resizing-v .term-split::after {
   white-space: nowrap;
 }
 .folder-root {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
   padding: 0 8px 2px;
   overflow: hidden;
@@ -1010,7 +1296,7 @@ body.resizing-v .term-split::after {
   background: transparent;
   padding: 3px 8px 3px 20px;
   border-radius: 5px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1040,7 +1326,7 @@ body.resizing-v .term-split::after {
   flex: 1 1 100%;
   min-width: 0;
   order: -1;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1056,7 +1342,7 @@ body.resizing-v .term-split::after {
   border: none;
   background: transparent;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
 }
 .seg-btn.active {
@@ -1070,7 +1356,9 @@ body.resizing-v .term-split::after {
   resize: none;
   padding: 12px;
   background: var(--bg);
-  font: 12.5px/1.55 var(--mono);
+  font-size: calc(12.5px * var(--fs));
+  line-height: 1.55;
+  font-family: var(--mono);
 }
 .ed-render {
   flex: 1;
@@ -1108,7 +1396,7 @@ body.resizing-v .term-split::after {
   margin-bottom: 8px;
 }
 .modal label {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--muted);
 }
 .modal input,
@@ -1120,7 +1408,7 @@ body.resizing-v .term-split::after {
   background: var(--bg-elev);
 }
 .modal .hint {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
   margin: 2px 0 10px;
 }
@@ -1141,6 +1429,34 @@ body.resizing-v .term-split::after {
   display: flex;
   gap: 6px;
 }
+/* Text size of the window (settings) */
+.size-ctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.size-val {
+  min-width: 46px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Quick start presets at the top of the new-session dialog */
+.quick-start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 14px;
+}
+.qs-chip {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev);
+}
+.qs-chip.empty {
+  color: var(--muted);
+  border-style: dashed;
+}
 .host-card {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1157,7 +1473,7 @@ body.resizing-v .term-split::after {
   flex: 1;
 }
 .test-result {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   margin: 0 0 8px;
 }
 .test-result.ok {
@@ -1184,7 +1500,7 @@ body.resizing-v .term-split::after {
   border-radius: 8px;
   padding: 8px 12px;
   max-width: 420px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
   white-space: pre-wrap;
   word-break: break-word;
@@ -1215,7 +1531,7 @@ body.resizing-v .term-split::after {
   gap: 8px;
   align-items: center;
   margin: 8px 0 2px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 .color-table {
   display: grid;
@@ -1230,13 +1546,13 @@ body.resizing-v .term-split::after {
   align-items: center;
 }
 .color-row.head {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
 }
 .color-role {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 .color-field {
   display: flex;
@@ -1247,7 +1563,7 @@ body.resizing-v .term-split::after {
 .color-field .hex {
   width: 88px;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .color-field .hex.bad {
   border-color: var(--danger);
@@ -1267,16 +1583,73 @@ body.resizing-v .term-split::after {
 }
 .set-sub {
   margin: 12px 0 4px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
   color: var(--muted);
 }
-.set-head {
-  margin: 14px 0 8px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+/* Settings dialog (settings.ts): section list on the left, only the chosen section scrolls on the right */
+.modal.settings-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, calc(100vw - 32px));
+  /* definite height: the section in the middle scrolls, title and buttons stay put */
+  height: min(720px, calc(100vh - 64px));
+  overflow: hidden;
+}
+.settings-modal .set-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+}
+.set-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 12px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.set-nav-btn {
+  padding: 6px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
   color: var(--muted);
+  font-size: calc(13px * var(--fs));
+  text-align: left;
+  white-space: nowrap;
+}
+.set-nav-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.set-nav-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.settings-modal .set-body {
+  min-height: 0;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+/* narrow window: the section list goes on top and scrolls sideways */
+@media (max-width: 640px) {
+  .settings-modal .set-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+  .set-nav {
+    flex-direction: row;
+    padding: 0 0 8px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 }
 .ocr-card {
   margin-top: 8px;
@@ -1326,7 +1699,7 @@ body.resizing-v .term-split::after {
   border-radius: 5px;
   width: 22px;
   height: 22px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   line-height: 1;
   cursor: pointer;
 }
@@ -1347,7 +1720,7 @@ body.resizing-v .term-split::after {
   border-bottom: 1px solid var(--border);
 }
 .rem-head {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1398,7 +1771,7 @@ body.resizing-v .term-split::after {
 }
 .rem-meta {
   display: block;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -1435,7 +1808,7 @@ body.resizing-v .term-split::after {
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   white-space: nowrap;
 }
 .dd-btn:hover,
@@ -1447,7 +1820,7 @@ body.resizing-v .term-split::after {
   text-overflow: ellipsis;
 }
 .dd-chev {
-  font-size: 10px;
+  font-size: calc(10px * var(--fs));
   color: var(--muted);
 }
 .dd-btn.set {
@@ -1487,7 +1860,7 @@ body.resizing-v .term-split::after {
   flex: none;
   width: 16px;
   text-align: center;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   line-height: 18px;
   color: var(--accent);
 }
@@ -1497,13 +1870,13 @@ body.resizing-v .term-split::after {
   min-width: 0;
 }
 .mi-label {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .menu-item.sel .mi-label {
   font-weight: 600;
 }
 .mi-desc {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   line-height: 1.35;
   color: var(--muted);
 }
@@ -1519,7 +1892,9 @@ body.resizing-v .term-split::after {
   min-height: 18px;
   margin: 0 auto;
   padding: 0 24px 10px 66px;
-  font: 11.5px/1.4 var(--mono);
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.4;
+  font-family: var(--mono);
   color: var(--muted);
   cursor: default;
 }
@@ -1547,13 +1922,8 @@ body.resizing-v .term-split::after {
   position: absolute;
   bottom: calc(100% + 6px);
   left: 60px;
-  font:
-    12.5px/1.45 -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Inter",
-    "Helvetica Neue",
-    sans-serif;
+  line-height: 1.45;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
   z-index: 40;
   width: 280px;
   padding: 10px 12px;
@@ -1561,7 +1931,7 @@ body.resizing-v .term-split::after {
   border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 .status-line .usage:hover ~ .usage-pop:not(:empty),
 .usage-pop:hover {
@@ -1573,7 +1943,7 @@ body.resizing-v .term-split::after {
 }
 .us-sub {
   margin: 8px 0 2px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
@@ -1596,7 +1966,7 @@ body.resizing-v .term-split::after {
   cursor: pointer;
   gap: 8px;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
 }
 .us-id .us-val {
   overflow: hidden;
@@ -1619,7 +1989,7 @@ body.resizing-v .term-split::after {
 }
 .us-foot {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
 }
 
@@ -1629,7 +1999,7 @@ body.resizing-v .term-split::after {
   width: 100%;
   margin: 0 auto;
   padding: 0 24px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--muted);
 }
 .activity::before {
@@ -1664,7 +2034,7 @@ body.resizing-v .term-split::after {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 }
 .slash-group {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
@@ -1686,7 +2056,7 @@ body.resizing-v .term-split::after {
 }
 .slash-name {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   font-weight: 600;
   flex: none;
 }
@@ -1694,20 +2064,20 @@ body.resizing-v .term-split::after {
   flex: 1;
   min-width: 0;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .slash-loc {
   flex: none;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
 }
 .slash-empty {
   padding: 8px;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 
 /* ---------- File tree ---------- */
@@ -1734,7 +2104,7 @@ body.resizing-v .term-split::after {
 .folder-acts .icon-btn {
   width: 24px;
   height: 24px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 .trow {
   display: flex;
@@ -1746,7 +2116,7 @@ body.resizing-v .term-split::after {
   background: transparent;
   border-radius: 5px;
   padding: 3px 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   color: var(--text);
   white-space: nowrap;
 }
@@ -1782,7 +2152,7 @@ body.resizing-v .term-split::after {
   width: 12px;
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   transition: transform 0.12s;
 }
 .tchev.open {
@@ -1791,7 +2161,7 @@ body.resizing-v .term-split::after {
 .tcount,
 .tbadge {
   flex: none;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-weight: 400;
   color: var(--muted);
 }
@@ -1808,13 +2178,14 @@ body.resizing-v .term-split::after {
   padding: 8px 10px;
   border: 1px dashed var(--border);
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--muted);
 }
 .folder-missing code {
   display: block;
   margin: 4px 0 6px;
-  font: 11.5px var(--mono);
+  font-size: calc(11.5px * var(--fs));
+  font-family: var(--mono);
   color: var(--text);
   word-break: break-all;
 }
@@ -1825,7 +2196,7 @@ body.resizing-v .term-split::after {
 }
 button.ghost.small {
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .file-tree .hint-line,
 .file-tree .host-err {
@@ -1985,7 +2356,7 @@ body.resizing-v {
   bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-variant-numeric: tabular-nums;
   color: var(--danger);
   white-space: nowrap;
@@ -2031,7 +2402,7 @@ body.resizing-v {
 /* ---------- Settings: voice ---------- */
 .sub-head {
   margin: 14px 0 6px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 600;
 }
 .modal .row.top {
@@ -2043,7 +2414,7 @@ body.resizing-v {
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-elev);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   resize: vertical;
 }
 .checks {
@@ -2143,7 +2514,7 @@ body.resizing-v {
   align-items: center;
   gap: 5px;
   margin: 6px 4px 2px 8px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2167,11 +2538,15 @@ body.resizing-v {
   padding: 3px 6px 3px 4px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   font-weight: 600;
 }
 .group-head:hover {
   background: var(--bg-hover);
+}
+/* a session of the group is working (the name keeps the group's colour) */
+.group.working > .group-head {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .group-head .chev {
   width: 14px;
@@ -2200,7 +2575,7 @@ body.resizing-v {
 /* menu additions: headings, separators, colour swatches */
 .menu-head {
   padding: 6px 10px 2px 26px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2265,6 +2640,10 @@ body.dragging-sess .empty-group {
   outline-offset: -2px;
   border-radius: 6px;
 }
+/* "Own order": the row shows where the dragged sessions land */
+.sess.drop-over {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
 .sess-drop {
   display: flex;
   gap: 6px;
@@ -2278,7 +2657,7 @@ body.dragging-sess .empty-group {
   border: 1.5px dashed var(--border);
   border-radius: 8px;
   text-align: center;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -2302,12 +2681,12 @@ body.dragging-sess .empty-group {
 }
 .sel-count {
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .sel-hint {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -2326,7 +2705,7 @@ body.dragging-sess .empty-group {
   border-radius: 12px;
   background: var(--accent);
   color: #fff;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   font-weight: 600;
 }
 
@@ -2350,7 +2729,7 @@ button.ghost.danger-text {
   padding-left: 20px;
   max-height: 220px;
   overflow-y: auto;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .confirm-list li {
   margin: 2px 0;
@@ -2362,7 +2741,7 @@ button.ghost.danger-text {
   align-items: center;
   gap: 6px;
   margin: -2px 0 2px 30px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
@@ -2395,7 +2774,9 @@ button.ghost.danger-text {
   flex: none;
   width: 14px;
   text-align: center;
-  font: 600 10.5px var(--mono);
+  font-size: calc(10.5px * var(--fs));
+  font-weight: 600;
+  font-family: var(--mono);
 }
 .gmark.mod {
   color: var(--warn);
@@ -2420,7 +2801,7 @@ button.ghost.danger-text {
   align-items: center;
   gap: 4px;
   max-width: 55%;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   font-weight: 400;
   color: var(--muted);
   overflow: hidden;
@@ -2434,7 +2815,7 @@ button.ghost.danger-text {
 }
 .app-version {
   margin: 18px 0 0;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   text-align: right;
 }
@@ -2478,7 +2859,7 @@ button.ghost.danger-text {
   border-color: var(--accent);
 }
 .branch-q {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   padding: 2px 2px 6px;
 }
 .branch-bar {
@@ -2490,7 +2871,7 @@ button.ghost.danger-text {
 .branch-hint {
   flex: 1;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
 }
 
@@ -2501,7 +2882,7 @@ button.ghost.danger-text {
 .diag-hints ul {
   margin: 0 0 8px;
   padding-left: 20px;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .diag-hints li {
   margin: 3px 0;
@@ -2513,7 +2894,9 @@ button.ghost.danger-text {
   user-select: text;
   background: var(--code-bg);
   border-radius: 6px;
-  font: 11.5px/1.45 var(--mono);
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.45;
+  font-family: var(--mono);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2528,7 +2911,7 @@ button.ghost.danger-text {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-elev);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: var(--muted);
 }
 .undo-bar span {
@@ -2628,7 +3011,7 @@ button.ghost.danger-text {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elev);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .chip-thumb {
   width: 22px;
@@ -2678,6 +3061,7 @@ button.ghost.danger-text {
 
 /* ---------- Send button: send · stop · steer ---------- */
 .send-btn {
+  position: relative;
   flex: none;
   align-self: center;
   display: inline-grid;
@@ -2703,12 +3087,53 @@ button.ghost.danger-text {
   opacity: 0.35;
   cursor: default;
 }
+/* the button opens a menu on the right mouse button: the corner mark says so (tooltip: "Right-click: background menu") */
+.send-btn::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.send-btn:disabled::after {
+  opacity: 0.35;
+}
 .send-btn.stop {
   background: var(--bg-hover);
   color: var(--text);
 }
 .send-btn.steer {
   background: var(--warn);
+}
+/* background mode of the session (chatView.ts): dashed ring around the button, pill next to it */
+.send-btn.background {
+  outline: 2px dashed var(--accent);
+  outline-offset: 3px;
+}
+.bg-pill {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.82em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.bg-pill:hover {
+  filter: brightness(1.06);
+}
+.bg-pill svg {
+  flex: none;
 }
 .composer-actions {
   align-items: center;
@@ -2749,7 +3174,7 @@ button.ghost.danger-text {
   flex: 1;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .fp-list {
   height: min(340px, 50vh);
@@ -2770,7 +3195,7 @@ button.ghost.danger-text {
   background: none;
   color: var(--text);
   text-align: left;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   cursor: pointer;
 }
 .fp-item .ic {
@@ -2794,7 +3219,7 @@ button.ghost.danger-text {
   min-height: 20px;
 }
 .fp-status {
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2819,17 +3244,18 @@ button.ghost.danger-text {
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .diff-base {
   padding: 2px 6px;
   border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-elev);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 .diff-stat {
-  font: 12px var(--mono);
+  font-size: calc(12px * var(--fs));
+  font-family: var(--mono);
 }
 .diff-stat.add {
   color: var(--ok);
@@ -2846,12 +3272,14 @@ button.ghost.danger-text {
 .diff-empty {
   padding: 16px 12px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .diff-body {
   flex: 1;
   overflow: auto;
-  font: 12px/1.55 var(--mono);
+  font-size: calc(12px * var(--fs));
+  line-height: 1.55;
+  font-family: var(--mono);
   padding: 4px 0;
 }
 .dl {
@@ -2894,7 +3322,7 @@ button.ghost.danger-text {
   color: var(--muted);
   background: var(--bg-elev);
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
 }
 
 /* Folders and files in the context (chips in the input and in sent messages) */
@@ -2915,7 +3343,8 @@ button.ghost.danger-text {
 .msg-model {
   align-self: center;
   margin-left: 4px;
-  font: 11px var(--mono);
+  font-size: calc(11px * var(--fs));
+  font-family: var(--mono);
   color: var(--muted);
 }
 
@@ -2923,7 +3352,7 @@ button.ghost.danger-text {
 .msg-time {
   display: none;
   margin-top: 3px;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
   opacity: 0.75;
   font-variant-numeric: tabular-nums;
@@ -2946,21 +3375,16 @@ button.ghost.danger-text {
 
 /* ---------- Session activity: working / done / error (activity.ts) ---------- */
 .sess-state {
-  position: absolute;
-  left: 7px;
-  top: 11px;
+  display: inline-block;
   width: 9px;
   height: 9px;
   border-radius: 50%;
   box-sizing: border-box;
+  vertical-align: -1px;
 }
-.sess-state.open {
-  left: 9px;
-  top: 13px;
-  width: 6px;
-  height: 6px;
-  background: var(--ok);
-  opacity: 0.7;
+/* in a row the spinner stands in front of the name */
+.sess-title .sess-state {
+  margin-right: 5px;
 }
 .sess-state.busy {
   border: 1.6px solid var(--accent);
@@ -2986,8 +3410,17 @@ button.ghost.danger-text {
 .sess.working.active {
   background: var(--bg-active);
 }
-.sess.unseen .sess-title {
+/* unread (a finished run nobody looked at, or "Mark as unread"): tint, accent bar, accent title and a pill with the word */
+.sess.unread {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.sess.unread .sess-title {
   font-weight: 650;
+  color: var(--accent);
+}
+.sess.unread .sess-meta {
+  color: color-mix(in srgb, var(--accent) 55%, var(--muted));
 }
 .sess-meta.working {
   color: var(--accent);
@@ -2998,7 +3431,7 @@ button.ghost.danger-text {
   top: 7px;
   padding: 0 6px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   line-height: 16px;
   font-weight: 600;
 }
@@ -3014,6 +3447,11 @@ button.ghost.danger-text {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 13%, transparent);
 }
+.sess-pill.unread {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
 /* the row's buttons replace the pill on hover */
 .sess:hover .sess-pill,
 .sess:focus-within .sess-pill {
@@ -3022,16 +3460,21 @@ button.ghost.danger-text {
 .sess:has(.sess-pill) .sess-title {
   padding-right: 58px;
 }
+.sess:has(.sess-pill.unread) .sess-title {
+  padding-right: 76px;
+}
 .act-count {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 11px;
+  gap: 3px;
+  font-size: calc(11px * var(--fs));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.act-count .sess-state {
-  position: static;
+/* done / failed in a header: a glyph instead of a coloured dot */
+.act-mark {
+  font-weight: 700;
+  line-height: 1;
 }
 .act-count.busy {
   color: var(--accent);
@@ -3054,7 +3497,7 @@ button.ghost.danger-text {
 .msg-time-inline {
   align-self: center;
   margin: 0 4px;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -3078,6 +3521,41 @@ button.ghost.danger-text {
   margin: 10px 0 4px;
   font-weight: 600;
 }
+
+/* Files that "go back" restores (src/main/rewindFiles.ts) */
+.rewind-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 6px 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elev);
+  font-family: var(--mono, monospace);
+  font-size: calc(12px * var(--fs));
+}
+.rewind-list li {
+  display: flex;
+  gap: 8px;
+  padding: 1px 0;
+}
+.rewind-status {
+  flex: none;
+  width: 1.2em;
+  font-weight: 700;
+}
+.rewind-status.s-A {
+  color: var(--ok);
+}
+.rewind-status.s-D {
+  color: var(--danger);
+}
+.rewind-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .group.archive .group-name {
   color: var(--muted);
 }
@@ -3088,13 +3566,13 @@ button.ghost.danger-text {
   align-items: center;
   gap: 2px;
   margin-top: 3px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   color: var(--muted);
 }
 .branch-nav .msg-act {
   width: 20px;
   height: 20px;
-  font-size: 15px;
+  font-size: calc(15px * var(--fs));
   line-height: 1;
 }
 .branch-nav .msg-act:disabled {
@@ -3199,11 +3677,11 @@ button.ghost.danger-text {
   align-items: center;
   gap: 8px;
   padding: 2px 4px 2px 6px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 .queue-when {
   flex: none;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   padding: 1px 7px;
   border-radius: 8px;
   background: var(--bg-hover);
@@ -3222,13 +3700,13 @@ button.ghost.danger-text {
 .queue-item .msg-act {
   width: 22px;
   height: 22px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
 }
 
 /* File tree: changed by Pi in this session; filter button on = only documents */
 .tedited {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   color: var(--accent);
 }
 .tedited + .gmark {
@@ -3277,7 +3755,7 @@ button.ghost.danger-text {
   background: var(--user-bg);
 }
 .gh-subject {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3288,7 +3766,7 @@ button.ghost.danger-text {
   margin-right: 5px;
 }
 .gh-meta {
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--muted);
   margin-top: 2px;
   overflow: hidden;
@@ -3323,12 +3801,12 @@ button.ghost.danger-text {
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
 }
 .gh-file-dir {
   margin-left: auto;
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3336,7 +3814,8 @@ button.ghost.danger-text {
 .gh-diff {
   margin: 0;
   padding: 6px 0;
-  font: 12px var(--mono);
+  font-size: calc(12px * var(--fs));
+  font-family: var(--mono);
   overflow-x: auto;
 }
 .gh-line {
@@ -3358,7 +3837,7 @@ button.ghost.danger-text {
 .gh-empty {
   padding: 16px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .gh-empty.err {
   color: var(--danger);
@@ -3373,14 +3852,16 @@ button.ghost.danger-text {
 /* Keyboard shortcuts overview (shortcuts.ts) */
 .keys {
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
 }
 .keys td {
   padding: 4px 10px 4px 0;
   vertical-align: top;
 }
-.keys kbd {
-  font: 12px var(--mono);
+.keys kbd,
+kbd.kbd {
+  font-size: calc(12px * var(--fs));
+  font-family: var(--mono);
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-bottom-width: 2px;
@@ -3413,7 +3894,7 @@ button.ghost.danger-text {
   background: transparent;
   padding: 0;
   width: 12px;
-  font-size: 10px;
+  font-size: calc(10px * var(--fs));
   transition: transform 0.12s;
 }
 .sec-head.date-head.collapsed .chev {
