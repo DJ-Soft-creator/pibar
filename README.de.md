@@ -86,7 +86,7 @@ MIT-Lizenz
   Solange der Modus an ist, steht neben dem Eingabefeld die Plakette „Im Hintergrund" (Klick schaltet ihn aus) und
   der Senden-Knopf hat einen gestrichelten Ring – so siehst du vor dem Senden, was die Nachricht tut
 - **Einstellungen** (Zahnrad): links eine Abschnittsliste – Allgemein, Chat, Modelle & Presets, Schnellstart,
-  Terminal, Quick-Launcher, Sprache & Audio, Chat-Farben, Hosts; der Dialog öffnet sich wieder im zuletzt
+  Terminal, Quick-Launcher, Sprache & Audio, Chat-Farben, Session-Farben, Hosts; der Dialog öffnet sich wieder im zuletzt
   gewählten Abschnitt
 - **Git-Verlauf**: Klick auf die Git-Zeile unter einem Ordner zeigt die Commits des Repositories (geänderte Dateien
   und Diff pro Commit, nicht gepushte mit ↑); Rechtsklick auf eine Datei → Verlauf zeigt die Commits dieser Datei
@@ -158,6 +158,8 @@ MIT-Lizenz
   Status-Punkt, sie sagen „arbeitet" in Worten
 - **Ordnen** per Rechtsklick oder `⋯`: umbenennen (auch F2), oben anpinnen, farbig markieren, in farbige, zuklappbare
   Gruppen verschieben
+- **Session-Farben** (Einstellungen): eine kurze Beschreibung je Farbe (1–3 Worte, z. B. „Dringend“); sie erscheint als
+  Tooltip an Farbe, Session, Gruppe und Terminal-Tab und als Legende im Farbmenü – leer bleibt der Farbname
 - **Drag & Drop**: Sessions auf eine Gruppe ziehen oder auf die Felder unter der Liste (anpinnen, ohne Gruppe, neue
   Gruppe)
 - **Mehrfachauswahl** mit ⌘-Klick und ⇧-Klick: mehrere Sessions auf einmal verschieben, färben, anpinnen, schließen

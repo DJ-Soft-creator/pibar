@@ -9,6 +9,7 @@ import { $, h, errMsg, toast } from "../shared/dom";
 import { baseName } from "../shared/format";
 import { t } from "../shared/i18n";
 import { normalizeScale } from "../shared/textScale";
+import { colorLabel } from "../shared/sessionColors";
 import { isDark } from "./colors";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
@@ -186,7 +187,12 @@ function renderTabs() {
         "div",
         {
           class: `term-tab ${x.id === active ? "active" : ""} ${x.exited ? "dead" : ""} ${meta.color ? `c-${meta.color}` : ""}`,
-          title: `${hostName(x.hostId)} · ${x.cwd}`,
+          title: [
+            `${hostName(x.hostId)} · ${x.cwd}`,
+            meta.color ? colorLabel(meta.color, state.config.ui.sessionColorLabels) : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
           onclick: () => activate(x.id),
         },
         meta.color ? h("span", { class: "cdot term-tab-dot" }) : null,

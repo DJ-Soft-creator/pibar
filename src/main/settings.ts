@@ -16,7 +16,9 @@ import { scrollMode, type ScrollMode } from "./autoScroll";
 import { defaultViewMode } from "./sessionTab";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
+import { refreshTermTabs } from "./terminal";
 import { colorEditor } from "./colorSettings";
+import { sessionColorEditor } from "./sessionColorSettings";
 import { quickActionsEditor, renderQuickActions } from "./quickActions";
 import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
@@ -142,6 +144,7 @@ export function settingsDialog() {
   const list = h("div", {});
   // profiles are edited here and picked per host below, so a change re-renders the host cards
   const colors = colorEditor(() => render());
+  const sessColors = sessionColorEditor();
 
   const field = (label: string, input: HTMLElement) => h("div", { class: "row" }, h("label", {}, label), input);
   /** Colour profile of a host; "Theme colours" = the profile from the colour section (or none) */
@@ -466,6 +469,9 @@ export function settingsDialog() {
   const save = async () => {
     state.config.hosts = draft;
     state.config.colorProfiles = colors.get();
+    const colorLabels = sessColors.get();
+    if (Object.keys(colorLabels).length) state.config.ui.sessionColorLabels = colorLabels;
+    else delete state.config.ui.sessionColorLabels;
     state.config.ui.colorProfile = colors.getDefault();
     state.config.presets = presets.get();
     state.config.voice = voice.get();
@@ -512,6 +518,7 @@ export function settingsDialog() {
     }
     if (gitChanged) renderFiles();
     renderHosts();
+    refreshTermTabs();
     renderQuickActions();
     applyChatColors();
     applyUiPrefs();
@@ -684,6 +691,7 @@ export function settingsDialog() {
 
   section("Voice", voice.el);
   section("Chat colours", colors.el);
+  section("Session colours", sessColors.el);
 
   section(
     "Hosts",

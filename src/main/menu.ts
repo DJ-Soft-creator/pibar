@@ -3,6 +3,7 @@
 // Escape or after a choice.
 import { h } from "../shared/dom";
 import { icon } from "../shared/icons";
+import { COLORS } from "../shared/sessionColors";
 
 export interface MenuItem {
   label: string;
@@ -19,15 +20,18 @@ export interface MenuItem {
   onSelect: () => void;
 }
 
-/** Colour names for sessions and groups; CSS: --c-<name> in styles.css */
-export const COLORS = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink"] as const;
-
 export type MenuEntry =
   | MenuItem
   | { heading: string }
   | { separator: true }
-  /** Row of colour swatches; "" = no colour */
-  | { colors: true; current: string; onPick: (color: string) => void; title: (color: string) => string }
+  /** Row of colour swatches; "" = no colour; `legend`: own descriptions under the swatches (session colours) */
+  | {
+      colors: true;
+      current: string;
+      onPick: (color: string) => void;
+      title: (color: string) => string;
+      legend?: { color: string; label: string }[];
+    }
   /** Slider row (temperature): label and explanation follow the drag, `onChange` commits the value */
   | {
       slider: true;
@@ -90,8 +94,8 @@ function entry(it: MenuEntry): HTMLElement {
   if ("heading" in it) return h("div", { class: "menu-head" }, it.heading);
   if ("separator" in it) return h("div", { class: "menu-sep" });
   if ("slider" in it) return slider(it);
-  if ("colors" in it)
-    return h(
+  if ("colors" in it) {
+    const row = h(
       "div",
       { class: "menu-colors" },
       ...["", ...COLORS].map((c) =>
@@ -107,6 +111,20 @@ function entry(it: MenuEntry): HTMLElement {
         }),
       ),
     );
+    if (!it.legend?.length) return row;
+    return h(
+      "div",
+      {},
+      row,
+      h(
+        "div",
+        { class: "menu-color-legend" },
+        ...it.legend.map((x) =>
+          h("div", { class: `legend-row c-${x.color}` }, h("span", { class: "cdot" }), h("span", {}, x.label)),
+        ),
+      ),
+    );
+  }
   return item(it);
 }
 

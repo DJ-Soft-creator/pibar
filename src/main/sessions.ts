@@ -36,7 +36,8 @@ import {
   type SessionGroupBy,
   type SessionSort,
 } from "../shared/sessionOrder";
-import { COLORS, openMenu, type MenuEntry } from "./menu";
+import { openMenu, type MenuEntry } from "./menu";
+import { COLORS } from "../shared/sessionColors";
 import { getLang, t, type Msg } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
 import { closeEditor, reloadFiles, renderFiles } from "./files";
@@ -710,6 +711,11 @@ function filterEmpty(): HTMLElement {
   );
 }
 
+/** Tooltip of a group's colour dot: its description (Settings → Session colours), otherwise the general hint */
+function groupColorTitle(g: { color: string }): string {
+  return g.color ? t("Colour: {name}", { name: colorName(g.color) }) : t("Colour of the group");
+}
+
 /**
  * `sectionPrefix` keeps the collapse state of a project's date or folder sections apart from the host's; `block` is the
  * context of the list ("h:<hostId>" or "p:<projectId>"): a group opens and closes per block, so closing it in a
@@ -767,7 +773,7 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
         h(
           "div",
           { class: "group-head" },
-          h("span", { class: "cdot", title: t("Colour of the group") }),
+          h("span", { class: "cdot", title: groupColorTitle(g) }),
           h("span", { class: "group-name" }, g.name),
         ),
       );
@@ -797,7 +803,7 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
         "div",
         { class: "group-head", role: "button", tabindex: 0, onclick: () => toggleGroup(block, g) },
         h("span", { class: "chev" }, "▾"),
-        h("span", { class: "cdot", title: t("Colour of the group") }),
+        h("span", { class: "cdot", title: groupColorTitle(g) }),
         h("span", { class: "group-name" }, g.name),
         ...marks(act),
         h("span", { class: "count" }, String(inGroup.length)),
@@ -917,7 +923,9 @@ function sessionItem(row: ListRow, ts: string) {
       }`,
       role: "button",
       tabindex: 0,
-      title: `${cleanTitle(title)}\n${cwd}`,
+      title: [cleanTitle(title), cwd, m.color ? t("Colour: {name}", { name: colorName(m.color) }) : ""]
+        .filter(Boolean)
+        .join("\n"),
       draggable: "true",
       "data-key": key,
       ondragstart: (e: DragEvent) => dragStart(e, key),

@@ -183,9 +183,12 @@ pub struct UiPrefs {
     /// src/shared/listFilter.ts
     #[serde(default = "default_session_filter")]
     pub session_filter: String,
-    /// Colour filter of the session list: colour names (COLORS in src/main/menu.ts) or "none"; empty = every colour
+    /// Colour filter of the session list: colour names (COLORS in src/shared/sessionColors.ts) or "none"; empty = every colour
     #[serde(default)]
     pub session_colors: Vec<String>,
+    /// Own short descriptions of the session colours (colour name → label, e.g. "red" → "Urgent"); empty = colour name
+    #[serde(default)]
+    pub session_color_labels: HashMap<String, String>,
     /// Last session shown per host (host id → session file), so switching hosts brings it back
     #[serde(default)]
     pub session_by_host: HashMap<String, String>,
@@ -286,6 +289,7 @@ impl Default for UiPrefs {
             session_group: default_session_group(),
             session_filter: default_session_filter(),
             session_colors: vec![],
+            session_color_labels: HashMap::new(),
             session_by_host: HashMap::new(),
             color_profile: String::new(),
             session_presets: vec![],

@@ -2730,7 +2730,7 @@ body.resizing-v {
   white-space: pre-wrap;
 }
 
-/* ---------- Colours for sessions and groups (names: COLORS in menu.ts) ---------- */
+/* ---------- Colours for sessions and groups (names: COLORS in src/shared/sessionColors.ts) ---------- */
 :root {
   --c-red: #e5484d;
   --c-orange: #f0883e;
@@ -2881,6 +2881,18 @@ body.resizing-v {
   flex-wrap: wrap;
   gap: 6px;
   padding: 4px 10px 6px 26px;
+}
+/* own descriptions under the swatches (Settings → Session colours) */
+.menu-color-legend {
+  display: grid;
+  gap: 2px;
+  padding: 0 10px 6px 26px;
+  font-size: calc(11.5px * var(--fs));
+  color: var(--muted);
+}
+.menu-color-legend .legend-row {
+  display: flex;
+  align-items: center;
 }
 .swatch {
   width: 18px;

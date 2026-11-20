@@ -194,7 +194,7 @@ export interface SessionMeta {
   /** Sections the mode-guard extension leaves out in public mode, saved with the session */
   contextStripped?: string[];
   pinned?: boolean;
-  /** Colour name, see COLORS in src/main/menu.ts */
+  /** Colour name, see COLORS in src/shared/sessionColors.ts */
   color?: string;
   /** SessionGroup id */
   group?: string;
@@ -350,8 +350,10 @@ export interface AppConfig {
     sessionGroup?: SessionGroupBy;
     /** View of the session list: everything, or only what I am working on (see listFilter.ts) */
     sessionFilter?: "all" | "active";
-    /** Colour filter: colour names (COLORS in src/main/menu.ts) or "none"; empty = every colour */
+    /** Colour filter: colour names (COLORS in src/shared/sessionColors.ts) or "none"; empty = every colour */
     sessionColors?: string[];
+    /** Own short descriptions of the session colours (colour name → label); empty = built-in colour name */
+    sessionColorLabels?: Record<string, string>;
     /** Quick start presets at the top of the new-session dialog: up to 4, each with its own folder */
     sessionPresets?: SessionPreset[];
     /** Text size of the whole window as a factor (1 = 100 %), see src/main/layout.ts */

@@ -80,7 +80,7 @@ License
   "In the background" sits next to the input (click it to switch off) and the send button has a dashed ring, so you
   see before sending what the message will do
 - **Settings** (gear icon): a section list on the left – general, chat, models & presets, quick start, terminal,
-  quick launcher, voice, chat colours, hosts; the dialog opens again in the section you used last
+  quick launcher, voice, chat colours, session colours, hosts; the dialog opens again in the section you used last
 - **Git history**: click the Git line under a folder for the commits of the repository (changed files and diff per
   commit, not pushed ones marked ↑); right click on a file → History for the commits of that file
 - **Auto scroll** with three modes (view menu in the header or Settings → Chat): _automatic_ follows the
@@ -146,6 +146,8 @@ License
   appears when there is something to report – not reachable (red) or checking (yellow); "connected" needs no dot.
   Hover the name to see the connection state. Sessions never carry a status dot, they say "working" in words
 - **Organise** by right click or `⋯`: rename (also F2), pin to the top, colour, move into coloured, collapsible groups
+- **Session colours** (settings): a short description per colour (1–3 words, e.g. "Urgent"); it shows as a tooltip on
+  the colour, session, group and terminal tab, and as a legend in the colour menu – empty keeps the colour name
 - **Drag & drop** sessions onto a group, or onto the zones under the list (pin, no group, new group)
 - **Multi-select** with ⌘-click and ⇧-click: move, colour, pin, close or delete several sessions at once (bar at the
   bottom or right click)

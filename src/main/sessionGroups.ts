@@ -3,9 +3,10 @@
 import { api, SessionGroup, SessionMeta } from "../shared/api";
 import { copyText, h, errMsg, openModal, toast } from "../shared/dom";
 import { cleanTitle } from "../shared/format";
-import { Msg, t } from "../shared/i18n";
+import { t } from "../shared/i18n";
 import { renderToolbar } from "./chatView";
-import { COLORS, MenuEntry, openMenu } from "./menu";
+import { COLORS, colorLabel, colorLegend, colorTitle } from "../shared/sessionColors";
+import { MenuEntry, openMenu } from "./menu";
 import { reminderDialog, reminderFor } from "./reminders";
 import type { SessionTab } from "./sessionTab";
 import { selection } from "./sessionSelect";
@@ -14,20 +15,19 @@ import { subagentDialog } from "./subagents";
 import { saveConfig, state } from "./state";
 import { refreshTermTabs } from "./terminal";
 
-const COLOR_NAMES: Record<string, Msg> = {
-  "": "No colour",
-  red: "Red",
-  orange: "Orange",
-  yellow: "Yellow",
-  green: "Green",
-  teal: "Teal",
-  blue: "Blue",
-  purple: "Purple",
-  pink: "Pink",
-};
-
+/** Name shown for a colour: the user's description (Settings → Session colours), otherwise the built-in name */
 export function colorName(c: string): string {
-  return t(COLOR_NAMES[c] ?? "No colour");
+  return colorLabel(c, state.config.ui.sessionColorLabels);
+}
+
+/** Tooltip of a swatch: "Urgent (Red)" with a description, otherwise just the name */
+function swatchTitle(c: string): string {
+  return colorTitle(c, state.config.ui.sessionColorLabels);
+}
+
+/** Legend under the swatches: only colours with a description */
+function swatchLegend(): { color: string; label: string }[] {
+  return colorLegend(state.config.ui.sessionColorLabels);
 }
 
 export function metaOf(key: string): SessionMeta {
@@ -208,7 +208,8 @@ export function colorMenu(anchor: HTMLElement, keys: string[]) {
     {
       colors: true,
       current: colors.size === 1 ? [...colors][0] : "-",
-      title: colorName,
+      title: swatchTitle,
+      legend: swatchLegend(),
       onPick: (color) => setMetaMany(keys, { color }),
     },
   ]);
@@ -339,7 +340,13 @@ export function bulkMenu(keys: string[]): MenuEntry[] {
     { label: t("Mark as unread"), onSelect: () => setMetaMany(keys, { unread: true }) },
     { separator: true },
     { heading: t("Colour") },
-    { colors: true, current: "-", title: colorName, onPick: (color) => setMetaMany(keys, { color }) },
+    {
+      colors: true,
+      current: "-",
+      title: swatchTitle,
+      legend: swatchLegend(),
+      onPick: (color) => setMetaMany(keys, { color }),
+    },
     { separator: true },
     { heading: t("Move to group") },
     ...groupEntries(keys),
@@ -403,7 +410,13 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
       : []),
     { separator: true },
     { heading: t("Colour") },
-    { colors: true, current: m.color ?? "", title: colorName, onPick: (color) => setMeta(key, { color }) },
+    {
+      colors: true,
+      current: m.color ?? "",
+      title: swatchTitle,
+      legend: swatchLegend(),
+      onPick: (color) => setMeta(key, { color }),
+    },
     { separator: true },
     { heading: t("Move to group") },
     ...groupEntries([key]),
@@ -456,7 +469,8 @@ export function groupMenu(anchor: HTMLElement, g: SessionGroup, at?: { x: number
       {
         colors: true,
         current: g.color,
-        title: colorName,
+        title: swatchTitle,
+        legend: swatchLegend(),
         onPick: (color) => {
           g.color = color;
           saveConfig();

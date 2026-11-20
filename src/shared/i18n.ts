@@ -271,6 +271,10 @@ const de = {
   "Session statistics": "Session-Statistik",
   "Session ID": "Session-ID",
   "Chat colours": "Chat-Farben",
+  "Session colours": "Session-Farben",
+  'A short description per colour (1–3 words, e.g. "Urgent"). It appears as a tooltip and in the colour menu; empty keeps the colour name.':
+    "Eine kurze Beschreibung je Farbe (1–3 Worte, z. B. „Dringend“). Sie erscheint als Tooltip und im Farbmenü; leer bleibt der Farbname.",
+  "Reset all": "Alle zurücksetzen",
   "Colours for": "Farben für",
   "Name of the profile": "Name des Profils",
   "No colour profile yet – add one to colour the chat.": "Noch kein Farbprofil – lege eines an, um den Chat zu färben.",
@@ -702,6 +706,7 @@ const de = {
   Blue: "Blau",
   Colour: "Farbe",
   "Colour of the group": "Farbe der Gruppe",
+  "Colour: {name}": "Farbe: {name}",
   "Delete group": "Gruppe löschen",
   "Empty = name from Pi or the first message.": "Leer = Name von Pi oder erste Nachricht.",
   Green: "Grün",
