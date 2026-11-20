@@ -79,6 +79,8 @@ export interface AssistantMessageEvent {
 
 export interface ToolOutput {
   content?: Content;
+  /** Structured result of a tool (e.g. the runs of the subagent extension, see shared/subagents.ts) */
+  details?: unknown;
 }
 
 /** Dialog or notice from a Pi extension (RPC extension UI). Dialogs (select, confirm, input, editor) wait for an answer. */
@@ -95,6 +97,9 @@ export interface UiRequest {
   timeout?: number;
   notifyType?: "info" | "warning" | "error";
   text?: string;
+  /** setStatus: key of the footer entry (e.g. "mode-guard") and its text (missing = cleared) */
+  statusKey?: string;
+  statusText?: string;
 }
 
 export type PiEvent =
@@ -105,8 +110,15 @@ export type PiEvent =
   | { type: "message_start" | "message_end"; message?: PiMessage }
   | { type: "message_update"; assistantMessageEvent?: AssistantMessageEvent }
   | { type: "tool_execution_start"; toolCallId: string; toolName?: string; args?: ToolArgs }
-  | { type: "tool_execution_update"; toolCallId: string; partialResult?: ToolOutput }
-  | { type: "tool_execution_end"; toolCallId: string; result?: ToolOutput; isError?: boolean; durationMs?: number };
+  | { type: "tool_execution_update"; toolCallId: string; toolName?: string; partialResult?: ToolOutput }
+  | {
+      type: "tool_execution_end";
+      toolCallId: string;
+      toolName?: string;
+      result?: ToolOutput;
+      isError?: boolean;
+      durationMs?: number;
+    };
 
 /** Answer of get_state */
 export interface PiState {

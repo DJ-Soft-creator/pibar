@@ -10,6 +10,8 @@ export interface MenuItem {
   desc?: string;
   /** Show a check mark (current choice of a dropdown) */
   selected?: boolean;
+  /** Shown but not clickable (e.g. a mode whose extension is missing) */
+  disabled?: boolean;
   /** Colour dot in front of the label (groups) */
   color?: string;
   /** Destructive action (shown in red) */
@@ -25,7 +27,25 @@ export type MenuEntry =
   | { heading: string }
   | { separator: true }
   /** Row of colour swatches; "" = no colour */
-  | { colors: true; current: string; onPick: (color: string) => void; title: (color: string) => string };
+  | { colors: true; current: string; onPick: (color: string) => void; title: (color: string) => string }
+  /** Slider row (temperature): label and explanation follow the drag, `onChange` commits the value */
+  | {
+      slider: true;
+      min: number;
+      max: number;
+      step: number;
+      value: number;
+      /** Accessible name of the slider */
+      label: string;
+      /** Ends of the scale, shown under the track (low, high) */
+      ends: [string, string];
+      format: (v: number) => string;
+      hint: (v: number) => string;
+      /** While dragging (debounced by the caller); the menu stays open */
+      onInput?: (v: number) => void;
+      /** On release or keyboard change */
+      onChange: (v: number) => void;
+    };
 
 let open: { el: HTMLElement; anchor: HTMLElement } | null = null;
 
@@ -46,15 +66,20 @@ function onOutside(e: PointerEvent) {
 
 function onKey(e: KeyboardEvent) {
   if (!open) return;
-  const items = [...open.el.querySelectorAll<HTMLButtonElement>(".menu-item")];
-  const i = items.indexOf(document.activeElement as HTMLButtonElement);
   if (e.key === "Escape") {
     e.preventDefault();
     e.stopPropagation();
     const a = open.anchor;
     closeMenu();
     a.focus();
-  } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    return;
+  }
+  // a slider (or other input) in the menu keeps its own arrow keys
+  const active = document.activeElement;
+  if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+  const items = [...open.el.querySelectorAll<HTMLButtonElement>(".menu-item")];
+  const i = items.indexOf(active as HTMLButtonElement);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
     e.preventDefault();
     const n = items.length;
     items[(i + (e.key === "ArrowDown" ? 1 : n - 1) + n) % n]?.focus();
@@ -64,6 +89,7 @@ function onKey(e: KeyboardEvent) {
 function entry(it: MenuEntry): HTMLElement {
   if ("heading" in it) return h("div", { class: "menu-head" }, it.heading);
   if ("separator" in it) return h("div", { class: "menu-sep" });
+  if ("slider" in it) return slider(it);
   if ("colors" in it)
     return h(
       "div",
@@ -84,6 +110,38 @@ function entry(it: MenuEntry): HTMLElement {
   return item(it);
 }
 
+/** Slider row: value and explanation follow the drag; the menu stays open until a choice or a click outside */
+function slider(it: Extract<MenuEntry, { slider: true }>): HTMLElement {
+  const val = h("span", { class: "menu-slider-val" }, it.format(it.value));
+  const hint = h("span", { class: "menu-slider-hint" }, it.hint(it.value));
+  const input = h("input", {
+    type: "range",
+    min: it.min,
+    max: it.max,
+    step: it.step,
+    value: it.value,
+    "aria-label": it.label,
+  }) as HTMLInputElement;
+  const show = (v: number) => {
+    val.textContent = it.format(v);
+    hint.textContent = it.hint(v);
+  };
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    show(v);
+    it.onInput?.(v);
+  });
+  input.addEventListener("change", () => it.onChange(Number(input.value)));
+  return h(
+    "div",
+    { class: "menu-slider" },
+    h("div", { class: "menu-slider-top" }, val),
+    input,
+    h("div", { class: "menu-slider-ends" }, h("span", {}, it.ends[0]), h("span", {}, it.ends[1])),
+    hint,
+  );
+}
+
 function item(it: MenuItem): HTMLElement {
   return h(
     "button",
@@ -91,7 +149,9 @@ function item(it: MenuItem): HTMLElement {
       type: "button",
       role: "menuitem",
       class: `menu-item ${it.selected ? "sel" : ""} ${it.danger ? "danger" : ""}`,
+      disabled: it.disabled,
       onclick: () => {
+        if (it.disabled) return;
         closeMenu();
         it.onSelect();
       },

@@ -53,8 +53,16 @@
             <button type="button" class="dd-btn" id="sel-view" aria-haspopup="menu"></button>
           </div>
           <div class="tb-field" id="fld-answer">
-            <span data-i18n="Answers">Answers</span>
+            <span data-i18n="Content">Content</span>
             <button type="button" class="dd-btn" id="sel-answer" aria-haspopup="menu"></button>
+          </div>
+          <div class="tb-field" id="fld-temp">
+            <span data-i18n="Temp.">Temp.</span>
+            <button type="button" class="dd-btn" id="sel-temp" aria-haspopup="menu" disabled></button>
+          </div>
+          <div class="tb-field" id="fld-plan">
+            <span data-i18n="Mode">Mode</span>
+            <button type="button" class="dd-btn" id="sel-plan" aria-haspopup="menu" disabled></button>
           </div>
           <button class="icon-btn panel-btn" id="tg-right" data-i18n-title="Show/hide folders and files (⌥⌘B)">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -259,6 +267,14 @@
           </div>
           <input type="file" id="file-input" multiple hidden />
           <div class="composer-actions">
+            <!-- Context mode of the session (Pi extension mode-guard): also as a ring around the send button (chatView.ts) -->
+            <button
+              type="button"
+              id="btn-context"
+              class="ctx-pill"
+              hidden
+              data-i18n-title="Context: {mode} – click for private/public and sections"
+            ></button>
             <!-- Background mode of the session on screen: every message then runs on when PiBar quits (chatView.ts) -->
             <button
               type="button"
@@ -312,6 +328,8 @@
         <div class="status-line" id="usage-wrap">
           <span class="usage" id="usage"></span>
           <span class="usage-model" id="usage-model"></span>
+          <!-- Quick action buttons from the settings (src/main/quickActions.ts) -->
+          <div class="quick-actions" id="quick-actions" hidden></div>
           <div class="usage-pop" id="usage-pop"></div>
         </div>
         <div class="hsplit term-split" id="rs-term" hidden data-i18n-title="Drag to resize"></div>

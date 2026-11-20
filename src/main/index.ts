@@ -16,8 +16,9 @@ import { wireSessionSelect } from "./sessionSelect";
 import { broadcastActive, handleQuick } from "./quickBridge";
 import { startReminderClock } from "./reminders";
 import { wireSearch } from "./search";
-import { loadAllSessions, renderHosts } from "./sessions";
+import { loadAllSessions, renderHosts, restoreLastSession } from "./sessions";
 import { updateBadge, wireActivity } from "./activity";
+import { renderQuickActions } from "./quickActions";
 import { state } from "./state";
 
 async function init() {
@@ -38,6 +39,7 @@ async function init() {
   wireSessionSelect();
   wireChatView();
   applyUiPrefs();
+  renderQuickActions();
   renderHosts();
   wireFiles();
   wireTerminal();
@@ -66,6 +68,8 @@ async function init() {
   await loadAllSessions();
   // unread marks kept in the session meta are there again: show them on the Dock icon too
   updateBadge();
+  // the session that was open when PiBar was closed comes back with its model and context mode (session meta)
+  await restoreLastSession();
 }
 
 /** The quick bar cannot open if its shortcut is taken or the double tap lacks the macOS permission: say so */

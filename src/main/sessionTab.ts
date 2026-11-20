@@ -1,6 +1,16 @@
 // One open session: a Pi process (via the Rust core) plus the chat rendering of its events
 import { api, ChatMode, PiCommand, PiModel } from "../shared/api";
 import { isChatMode } from "../shared/chatViews";
+import {
+  CONTEXT_SECTIONS,
+  CONTEXT_SECTIONS_COMMAND,
+  contextModeCommand,
+  contextSectionCommand,
+  isContextMode,
+  parseContextStatus,
+  startContextMode,
+  type ContextMode,
+} from "../shared/contextMode";
 import { projectAt } from "../shared/projects";
 import { sessionStarted } from "./terminal";
 import type { BranchChoice } from "../shared/branches";
@@ -15,7 +25,7 @@ import type {
   ToolArgs,
   Usage,
 } from "../shared/piProtocol";
-import { h, renderMarkdown, errMsg, toast } from "../shared/dom";
+import { copyText, h, renderMarkdown, errMsg, toast } from "../shared/dom";
 import {
   baseName,
   msgTime,
@@ -29,7 +39,10 @@ import {
 } from "../shared/format";
 import { getLang, t } from "../shared/i18n";
 import { isStaleInstallError } from "../shared/piErrors";
+import { PLAN_TOOLS, stripPlanMode, withPlanMode } from "../shared/planMode";
+import { subagentFromArgs, subagentFromDetails, type SubagentCall } from "../shared/subagents";
 import { resolveChoice } from "../shared/presets";
+import { clampTemp, isTemp, parseTemperatureStatus, temperatureCommand } from "../shared/temperature";
 import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
 import type { Attachment } from "./composerTools";
@@ -151,6 +164,9 @@ function emptyStats(): TabStats {
 const ICON_SPEAK =
   '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 6h2.5l3.5-3v10L5 10H2.5z"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9"/></svg>';
 
+const ICON_COPY =
+  '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="5.5" y="5.5" width="8" height="8" rx="1.2"/><path d="M10.5 3.5A1.5 1.5 0 0 0 9 2H4a2 2 0 0 0-2 2v5a1.5 1.5 0 0 0 1.5 1.5"/></svg>';
+
 /** Button that is reading aloud right now */
 let speakingBtn: HTMLElement | null = null;
 
@@ -204,6 +220,31 @@ export class SessionTab {
   failed = false;
   /** Skills, prompt templates and extension commands (for the "/" menu) */
   commands: PiCommand[] = [];
+  /**
+   * Context mode as Pi's mode-guard extension reports it (footer status); "" = not reported yet, usually because the
+   * extension is not loaded on this host
+   */
+  contextMode: ContextMode = "";
+  /** Sections the extension leaves out in public mode (its status names them) */
+  contextStripped: string[] = [];
+  /** The saved mode has been pushed to Pi at least once in this tab (see `applyContext`) */
+  private contextApplied = false;
+  /** A saved mode waits for the extension to load (its `/mode` command was not listed yet) */
+  private contextPending = false;
+  /** Timer that retries a pending mode push (see `applyContext`) */
+  private contextTimer: number | undefined;
+  /** The extension's first status of this start arrived (it reports the default before the saved mode is pushed) */
+  private contextStatusSeen = false;
+  /** Sampling temperature of this session (Pi extension pibar-temperature); null = the model's default */
+  temperature: number | null = null;
+  /** The saved temperature has been pushed to Pi at least once in this tab (see `applyTemperature`) */
+  private tempApplied = false;
+  /** A saved temperature waits for the extension to load (its `/temperature` command was not listed yet) */
+  private tempPending = false;
+  /** Timer that retries a pending temperature push (see `applyTemperature`) */
+  private tempTimer: number | undefined;
+  /** The extension's first status of this start arrived (it reports the default before the saved value is pushed) */
+  private tempStatusSeen = false;
   /** Name of the tool that is running right now ("" = none) */
   activity = "";
   /** Read the next answer aloud (message came from the quick bar) */
@@ -216,6 +257,14 @@ export class SessionTab {
   draftAttachments: Attachment[] = [];
   /** Pi tools for this session (allowlist), null = Pi's default; applied when Pi starts */
   toolset: string[] | null = null;
+  /** Plan mode (src/shared/planMode.ts): read-only tools and a plan hint with each message; Build = off */
+  planMode = false;
+  /** The session's own tools while plan mode is on; they come back when switching to Build */
+  toolsetBeforePlan: string[] | null = null;
+  /** Agent system prompt file on the host (subagent session, src/main/subagents.ts); Pi gets it at start */
+  agentPromptFile: string | null = null;
+  /** Runs of the subagent extension, by tool call id (shown under the session in the list, src/main/subagents.ts) */
+  subagentCalls = new Map<string, SubagentCall>();
   /** Run in the background (src-tauri/src/bg.rs): Pi runs detached on the host, the tab follows its log */
   bg: BackgroundRun | null = null;
   /** Every message of this session goes to the background (toggle in the send menu, default from the settings) */
@@ -303,9 +352,17 @@ export class SessionTab {
 
   async start(onHandle?: (tab: SessionTab) => void) {
     this.note(this.sessionPath ? t("Loading session …") : t("Starting new session …"));
-    this.handle = await api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined, this.toolset);
+    this.handle = await api.piOpen(
+      this.hostId,
+      this.cwd,
+      this.sessionPath ?? undefined,
+      this.toolset,
+      this.agentPromptFile,
+    );
     this.alive = true;
     this.detached = false;
+    this.contextStatusSeen = false;
+    this.tempStatusSeen = false;
     // A terminal belongs to this session: its tab shows the session's name and colour (only if wanted and open)
     sessionStarted(this);
     onHandle?.(this);
@@ -314,6 +371,8 @@ export class SessionTab {
     this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
     await this.refreshModels();
     await this.applyChoice();
+    await this.applyContext();
+    await this.applyTemperature();
     this.cb.onStateChange(this);
   }
 
@@ -412,6 +471,7 @@ export class SessionTab {
 
   /** Stop the Pi process. The session file stays and can be reopened. */
   close() {
+    if (this.tempTimer !== undefined) window.clearTimeout(this.tempTimer);
     if (this.handle) api.piClose(this.handle).catch(() => {});
     // following a run in the background ends here; the run itself keeps going on the host
     if (this.bg) api.piClose(this.bg.handle).catch(() => {});
@@ -462,6 +522,9 @@ export class SessionTab {
     } catch {
       this.commands = []; // older Pi versions
     }
+    // the extension may register a moment after Pi started: push the saved mode as soon as its command shows up
+    if (this.contextPending && this.contextAvailable()) void this.applyContext();
+    if (this.tempPending && this.tempAvailable()) void this.applyTemperature();
   }
 
   /** Pi's statistics for the whole session (get_session_stats) */
@@ -484,7 +547,7 @@ export class SessionTab {
     // the state before this message, so "go back" can restore the files Pi is about to change
     if (!this.streaming) await this.rememberFiles();
     await this.settling.catch(() => {});
-    const message = withAnswerStyle(text, state.config.ui.answerMode);
+    const message = withPlanMode(withAnswerStyle(text, state.config.ui.answerMode), this.planMode);
     const cmd: { type: "prompt"; [key: string]: unknown } = { type: "prompt", message };
     if (images.length) cmd.images = images.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
     if (this.streaming) {
@@ -545,7 +608,7 @@ export class SessionTab {
       return true;
     }
     await this.rememberFiles();
-    const message = withAnswerStyle(text, state.config.ui.answerMode);
+    const message = withPlanMode(withAnswerStyle(text, state.config.ui.answerMode), this.planMode);
     const path = this.sessionPath;
     // before detaching: the live process knows model and thinking level of the session
     const choice = await this.runChoice();
@@ -560,6 +623,10 @@ export class SessionTab {
         choice.modelId,
         choice.thinking,
         this.toolset,
+        // public also for the detached run: the flag of the mode-guard extension
+        this.contextMode === "public" && this.contextAvailable(),
+        // temperature also for the detached run: the flag of the pibar-temperature extension
+        this.tempAvailable() ? this.temperature : null,
       );
       this.startRun(handle);
       this.cb.onBackground?.(this, true);
@@ -788,6 +855,229 @@ export class SessionTab {
     }
   }
 
+  // ---------- Plan mode (src/shared/planMode.ts) ----------
+
+  /**
+   * Toggle between Plan (read-only tools plus a plan hint with each message) and Build (the session's own tools).
+   * Pi gets its tools at start, so the session restarts; history, model and view stay. The choice is saved in
+   * SessionMeta, so it survives a restart of PiBar.
+   */
+  async setPlanMode(on: boolean): Promise<void> {
+    if (on === this.planMode) return;
+    if (this.streaming || this.bg) {
+      toast(t("Pi is still working – stop it first or wait."), "err");
+      return;
+    }
+    if (on) {
+      this.toolsetBeforePlan = this.toolset;
+      this.toolset = [...PLAN_TOOLS];
+    } else {
+      this.toolset = this.toolsetBeforePlan;
+      this.toolsetBeforePlan = null;
+    }
+    this.planMode = on;
+    const all = (state.config.sessionMeta ??= {});
+    const m = (all[this.key] ??= {});
+    if (on) m.planMode = true;
+    else delete m.planMode;
+    if (!Object.keys(m).length) delete all[this.key];
+    saveConfig();
+    try {
+      if (this.alive) await this.restart();
+      toast(on ? t("Plan mode: Pi only reads and writes a plan.") : t("Build mode: Pi may change files again."));
+    } catch (e) {
+      toast(errMsg(e), "err");
+    }
+  }
+
+  // ---------- Context mode (Pi extension mode-guard, src/shared/contextMode.ts) ----------
+
+  /** Is the extension loaded in this Pi process? It then offers the command "/mode" */
+  contextAvailable(): boolean {
+    return this.commands.some((c) => c.name === "mode");
+  }
+
+  /** Prompt text as a command; false if Pi sent it to the model instead of handling it */
+  private async extensionCommand(text: string): Promise<boolean> {
+    const r = await api.pi(this.handle, { type: "prompt", message: text });
+    return r?.disposition === "handled";
+  }
+
+  /**
+   * Keep mode and stripped sections with the session, so opening it again restores them. A session that ends up with
+   * the mode it starts with (project or settings, see `startContextMode`) drops its own choice and follows that again.
+   */
+  private saveContext() {
+    const all = (state.config.sessionMeta ??= {});
+    const key = this.key;
+    const m = (all[key] ??= {});
+    if (isContextMode(this.contextMode) && this.contextMode !== this.startContextMode())
+      m.contextMode = this.contextMode;
+    else delete m.contextMode;
+    if (this.contextStripped.length) m.contextStripped = [...this.contextStripped];
+    else delete m.contextStripped;
+    if (!Object.keys(m).length) delete all[key];
+    saveConfig();
+  }
+
+  /**
+   * Mode this session starts with when it has none of its own: that of its project, else the setting
+   * (`ui.defaultMode`); "" = the extension decides.
+   */
+  startContextMode(): ContextMode {
+    const own = projectAt(state.config.projects ?? [], this.hostId, this.cwd)?.contextMode;
+    return startContextMode(own, state.config.ui.defaultMode);
+  }
+
+  /**
+   * Apply the mode and sections saved for this session (a fresh Pi process starts with Pi's default). A session
+   * without an own mode follows its project or PiBar's default (`ui.defaultMode`, see `startContextMode`). If the
+   * extension is not loaded yet, the push is retried once its command appears (see `refreshModels`).
+   */
+  async applyContext() {
+    const saved = state.config.sessionMeta?.[this.key];
+    const mode: ContextMode = saved?.contextMode || this.startContextMode();
+    const stripped = saved?.contextStripped ?? [];
+    if (!mode && !stripped.length) return;
+    if (!this.contextAvailable()) {
+      this.contextPending = true;
+      this.scheduleContextRetry();
+      return;
+    }
+    this.contextPending = false;
+    try {
+      if (mode && (await this.extensionCommand(contextModeCommand(mode)))) this.contextMode = mode;
+      this.contextApplied = true;
+      if (stripped.length) {
+        const stripped_ = new Set(stripped);
+        // name every section: only that way a section the user brought back stays in
+        for (const name of CONTEXT_SECTIONS)
+          await this.extensionCommand(contextSectionCommand(name, !stripped_.has(name)));
+        this.contextStripped = [...stripped_];
+      }
+      this.cb.onStateChange(this);
+    } catch {
+      /* the extension may be gone; the next status tells the truth */
+    }
+  }
+
+  /** A pending mode waits for the extension to register; try again shortly, the command list may still be loading */
+  private scheduleContextRetry() {
+    if (this.contextTimer !== undefined) return;
+    this.contextTimer = window.setTimeout(() => {
+      this.contextTimer = undefined;
+      if (this.contextPending && this.alive) void this.applyContext();
+    }, 1500);
+  }
+
+  /** Switch private/public for this session (needs the mode-guard extension) */
+  async setContextMode(mode: "private" | "public") {
+    if (!this.alive || this.detached) return toast(t("The context mode needs a live session."), "err");
+    try {
+      if (!(await this.extensionCommand(contextModeCommand(mode))))
+        throw new Error(t("Pi did not handle it as a command."));
+      this.contextMode = mode;
+      this.contextApplied = true;
+      this.saveContext();
+      this.cb.onStateChange(this);
+    } catch (e) {
+      toast(`${t("Context mode")}: ${errMsg(e)}`, "err");
+    }
+  }
+
+  /** Take one section out of public mode or bring it back in */
+  async setContextSection(name: string, keep: boolean) {
+    if (!this.alive || this.detached) return toast(t("The context mode needs a live session."), "err");
+    try {
+      if (!(await this.extensionCommand(contextSectionCommand(name, keep))))
+        throw new Error(t("Pi did not handle it as a command."));
+      const stripped = new Set(this.contextStripped);
+      if (keep) stripped.delete(name);
+      else stripped.add(name);
+      this.contextStripped = [...stripped];
+      this.saveContext();
+      this.cb.onStateChange(this);
+    } catch (e) {
+      toast(`${t("Context mode")}: ${errMsg(e)}`, "err");
+    }
+  }
+
+  /** Pi lists the sections it sends right now (arrives as a notice, src/main/answerDialog.ts) */
+  showContextSections() {
+    if (!this.alive || this.detached) return toast(t("The context mode needs a live session."), "err");
+    this.extensionCommand(CONTEXT_SECTIONS_COMMAND).catch((e) => toast(`${t("Context mode")}: ${errMsg(e)}`, "err"));
+  }
+
+  // ---------- Temperature (Pi extension pibar-temperature, src/shared/temperature.ts) ----------
+
+  /** Is the extension loaded in this Pi process? It then offers the command "/temperature" */
+  tempAvailable(): boolean {
+    return this.commands.some((c) => c.name === "temperature");
+  }
+
+  /** Keep the temperature with the session, so opening it again restores it (null = the model's default) */
+  private saveTemperature() {
+    const all = (state.config.sessionMeta ??= {});
+    const m = (all[this.key] ??= {});
+    if (this.temperature !== null) m.temperature = this.temperature;
+    else delete m.temperature;
+    if (!Object.keys(m).length) delete all[this.key];
+    saveConfig();
+  }
+
+  /**
+   * Apply the temperature saved for this session (a fresh Pi process starts with the model's default). If the
+   * extension is not loaded yet, the push is retried once its command appears (see `refreshModels`).
+   */
+  async applyTemperature() {
+    const saved = state.config.sessionMeta?.[this.key]?.temperature;
+    this.temperature = isTemp(saved) ? saved : null;
+    if (this.temperature === null) return;
+    if (!this.tempAvailable()) {
+      this.tempPending = true;
+      this.scheduleTempRetry();
+      return;
+    }
+    this.tempPending = false;
+    try {
+      if (await this.extensionCommand(temperatureCommand(this.temperature))) this.tempApplied = true;
+      this.cb.onStateChange(this);
+    } catch {
+      /* the extension may be gone; the next status tells the truth */
+    }
+  }
+
+  /** A pending temperature waits for the extension to register; try again shortly */
+  private scheduleTempRetry() {
+    if (this.tempTimer !== undefined) return;
+    this.tempTimer = window.setTimeout(() => {
+      this.tempTimer = undefined;
+      if (this.tempPending && this.alive) void this.applyTemperature();
+    }, 1500);
+  }
+
+  /** Set the temperature for this session (null = the model's default); needs the pibar-temperature extension */
+  async setTemperature(v: number | null) {
+    const value = v === null ? null : clampTemp(v);
+    if (this.detached || !this.handle) {
+      // no process to ask: the value goes with the next run in the background
+      this.temperature = value;
+      this.saveTemperature();
+      this.cb.onStateChange(this);
+      return;
+    }
+    try {
+      if (!(await this.extensionCommand(temperatureCommand(value))))
+        throw new Error(t("Pi did not handle it as a command."));
+      this.temperature = value;
+      this.tempApplied = true;
+      this.saveTemperature();
+      this.cb.onStateChange(this);
+    } catch (e) {
+      toast(`${t("Temperature")}: ${errMsg(e)}`, "err");
+    }
+  }
+
   /**
    * A model or thinking level changed inside Pi itself (Pi's own /model or /thinking command, a fallback): take it
    * over as the session's choice – otherwise opening the session again would undo it. Sessions without a saved choice
@@ -900,6 +1190,10 @@ export class SessionTab {
           this.toolStart(999, ev.toolCallId, ev.toolName ?? "Tool");
           this.toolArgs(ev.toolCallId, ev.args);
         }
+        if (ev.toolName === "subagent") {
+          const call = subagentFromArgs(ev.args);
+          if (call) this.subagentCalls.set(ev.toolCallId, call);
+        }
         this.setToolStatus(ev.toolCallId, "run", t("running …"));
         this.activity = ev.toolName || "Tool";
         this.cb.onStateChange(this);
@@ -907,15 +1201,48 @@ export class SessionTab {
       case "tool_execution_update":
         // partial output of a running tool, shown live in the debug view
         if (this.debug()) this.toolResult(ev.toolCallId, ev.partialResult?.content, false, undefined, true);
+        this.trackSubagent(ev.toolCallId, ev.partialResult?.details, false, false);
         break;
       case "tool_execution_end":
         this.toolResult(ev.toolCallId, ev.result?.content, !!ev.isError, ev.durationMs);
+        this.trackSubagent(ev.toolCallId, ev.result?.details, true, !!ev.isError);
         this.activity = "";
         this.reqStart = performance.now(); // the next model call starts now
         this.firstToken = 0;
         this.cb.onStateChange(this);
         break;
       case "extension_ui_request":
+        // the temperature extension reports its value as a footer status (see shared/temperature.ts)
+        if (ev.method === "setStatus" && ev.statusKey === "pibar-temperature") {
+          const v = parseTemperatureStatus(ev.statusText);
+          if (v === undefined) break;
+          const changed = v !== this.temperature;
+          // the first status of a start reports the default before the saved value is pushed: it must not
+          // overwrite the saved choice
+          const first = !this.tempStatusSeen;
+          this.tempStatusSeen = true;
+          this.temperature = v;
+          // a value switched inside Pi (its own /temperature command) stays the session's choice
+          if (!first && this.tempApplied && changed) this.saveTemperature();
+          this.cb.onStateChange(this);
+          break;
+        }
+        // the mode-guard extension reports its context mode as a footer status (see shared/contextMode.ts)
+        if (ev.method === "setStatus" && ev.statusKey === "mode-guard") {
+          const st = parseContextStatus(ev.statusText);
+          const changed = st.mode !== this.contextMode;
+          // the first status of a start reports the extension's default (private) before the saved mode is pushed:
+          // it must not overwrite the saved choice
+          const first = !this.contextStatusSeen;
+          this.contextStatusSeen = true;
+          this.contextMode = st.mode;
+          // only the public status names the sections; private keeps the choice already known
+          if (st.mode === "public") this.contextStripped = st.stripped;
+          // a mode switched inside Pi (its own /mode command) stays the session's choice
+          if (!first && this.contextApplied && changed) this.saveContext();
+          this.cb.onStateChange(this);
+          break;
+        }
         this.cb.onUiRequest(this, ev);
         break;
       case "queue_update":
@@ -995,7 +1322,7 @@ export class SessionTab {
       }
     }
     this.cur = null;
-    text = stripAnswerStyle(text);
+    text = stripPlanMode(stripAnswerStyle(text));
     // Screen text (OCR) as a collapsible card instead of a long text
     let ocrCard: HTMLElement | null = null;
     const split = splitScreenText(text);
@@ -1135,6 +1462,41 @@ export class SessionTab {
     setTimeout(() => msg.classList.remove("flash"), 1200);
   }
 
+  /** Show the tool card of a subagent call in the chat (a click on its row in the list, src/main/subagents.ts) */
+  scrollToTool(toolCallId: string) {
+    const card = this.tools.get(toolCallId)?.card;
+    if (!card) return;
+    card.open = true;
+    card.scrollIntoView({ block: "center" });
+    card.classList.add("flash");
+    setTimeout(() => card.classList.remove("flash"), 1200);
+  }
+
+  /**
+   * Keep the runs of a subagent tool call up to date (shared/subagents.ts). The details of the extension replace
+   * the runs; without details (older version) the end marks them done. The list re-renders only when something
+   * changed, so the stream of updates does not redraw it on every token.
+   */
+  private trackSubagent(toolCallId: string, details: unknown, done: boolean, isError: boolean) {
+    const call = this.subagentCalls.get(toolCallId);
+    if (!call) return;
+    const before = JSON.stringify(call);
+    const parsed = subagentFromDetails(details);
+    if (parsed) {
+      call.mode = parsed.mode;
+      call.runs = parsed.runs;
+      call.isError = parsed.isError;
+    }
+    if (done) {
+      call.done = true;
+      call.isError = call.isError || isError;
+      for (const r of call.runs) {
+        if (r.status === "pending" || r.status === "running") r.status = isError ? "failed" : "completed";
+      }
+    }
+    if (JSON.stringify(call) !== before) this.cb.onStateChange(this);
+  }
+
   /**
    * Inline panel under an own message: edit the text (or just confirm "run again"), then branch – or cancel
    * (button or Esc) and nothing changes. The fork only happens on "send".
@@ -1270,6 +1632,7 @@ export class SessionTab {
       ? h("span", { class: "msg-model", title: `${msg.provider ?? ""}/${msg.model}` }, shortModel(msg.model))
       : null;
     let btn: HTMLElement | null = null;
+    let copy: HTMLElement | null = null;
     if (text) {
       this.lastText = text;
       const b: HTMLElement = h("button", {
@@ -1279,12 +1642,22 @@ export class SessionTab {
       });
       b.innerHTML = ICON_SPEAK;
       btn = b;
+      // copy the answer as Markdown source, not the rendered text of the bubbles
+      const c: HTMLElement = h("button", { class: "msg-act", title: t("Copy answer") });
+      c.innerHTML = ICON_COPY;
+      c.addEventListener("click", () =>
+        copyText(text).then(
+          () => toast(t("Answer copied")),
+          (e) => toast(errMsg(e), "err"),
+        ),
+      );
+      copy = c;
     }
     const ts = msg?.timestamp ?? (this.streaming ? Date.now() : undefined);
     const time = timeLabel(ts);
     if (time) cur.el.append(time);
     const hoverTime = timeLabel(ts, true);
-    if (btn || used || hoverTime) cur.el.append(h("div", { class: "msg-acts" }, hoverTime, used, btn));
+    if (btn || copy || used || hoverTime) cur.el.append(h("div", { class: "msg-acts" }, hoverTime, used, copy, btn));
     this.cur = null;
   }
 

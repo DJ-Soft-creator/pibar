@@ -713,6 +713,52 @@ button.ghost:hover {
   border-color: var(--accent);
   background: var(--bg-hover);
 }
+/*
+ * Project vs. its sessions: the project is the owner, not a sibling. Its header is a full-width band with an accent
+ * rail and a bolder name; the sessions hang indented under it on a tree rail (the same child language as .sess-kids
+ * and .group) in smaller type, so the grip/chevron indent of the name never reads as "sessions rank higher".
+ */
+.block.proj {
+  border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+.block.proj.working {
+  border-left-color: var(--accent);
+}
+.block.proj > .block-head {
+  background: color-mix(in srgb, var(--text) 5%, var(--bg-elev));
+}
+.block.proj.working > .block-head {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elev));
+}
+.block.proj .host-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.block.proj .block-body {
+  position: relative;
+  padding: 4px 4px 8px 18px;
+}
+/* the rail ties the sessions to the project above them */
+.block.proj .block-body::before {
+  content: "";
+  position: absolute;
+  left: 11px;
+  top: 4px;
+  bottom: 10px;
+  width: 2px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--accent) 25%, var(--border));
+  pointer-events: none;
+}
+.block.proj .block-body .sess {
+  padding-left: 8px;
+}
+.block.proj .sess-title {
+  font-size: calc(13px * var(--fs));
+}
+.block.proj .sess-meta {
+  font-size: calc(11px * var(--fs));
+}
 .sess {
   display: block;
   width: 100%;
@@ -1834,6 +1880,8 @@ body.resizing-v .term-split::after {
   z-index: 70;
   min-width: 200px;
   max-width: 320px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 4px;
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -1855,6 +1903,13 @@ body.resizing-v .term-split::after {
 .menu-item:hover,
 .menu-item:focus-visible {
   background: var(--bg-hover);
+}
+.menu-item:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.menu-item:disabled:hover {
+  background: transparent;
 }
 .mi-check {
   flex: none;
@@ -1879,6 +1934,120 @@ body.resizing-v .term-split::after {
   font-size: calc(11.5px * var(--fs));
   line-height: 1.35;
   color: var(--muted);
+}
+/* Slider row in a menu (temperature, menu.ts): value and explanation follow the drag */
+.menu-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 6px 26px;
+}
+.menu-slider-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.menu-slider-val {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.menu-slider input[type="range"] {
+  width: 100%;
+  margin: 2px 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.menu-slider-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(10.5px * var(--fs));
+  color: var(--muted);
+}
+.menu-slider-hint {
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.35;
+  color: var(--muted);
+  /* two lines, so the menu does not jump while the explanation changes */
+  min-height: 2.7em;
+}
+/* Subagent rows under a session (src/main/subagents.ts): child sessions and runs of the subagent extension */
+.sess-kids {
+  margin: 0 0 2px 14px;
+  border-left: 1px solid var(--border);
+  padding-left: 6px;
+}
+.sess-kids-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 2px 6px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(11px * var(--fs));
+  cursor: pointer;
+  text-align: left;
+}
+.sess-kids-head:hover {
+  color: var(--text);
+}
+.sess-kids-head .chev {
+  font-size: 9px;
+  width: 9px;
+}
+.sess-kids-head .count {
+  margin-left: auto;
+  opacity: 0.7;
+}
+.sa-spin {
+  width: 8px;
+  height: 8px;
+}
+.sess-kid .sess {
+  margin-left: 4px;
+}
+.subagent-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px 2px 10px;
+  border-radius: 6px;
+  font-size: calc(11.5px * var(--fs));
+  color: var(--muted);
+  cursor: pointer;
+  min-width: 0;
+}
+.subagent-row:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.sa-status {
+  flex: none;
+  font-size: calc(10.5px * var(--fs));
+}
+.sa-status.ok {
+  color: var(--ok);
+}
+.sa-status.err {
+  color: var(--danger);
+}
+.sa-agent {
+  flex: none;
+  font-weight: 600;
+}
+.sa-step {
+  flex: none;
+  opacity: 0.7;
+}
+.sa-task {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 /* Status line under the input, like Pi's footer */
 .status-line {
@@ -1916,6 +2085,68 @@ body.resizing-v .term-split::after {
   text-overflow: ellipsis;
   white-space: nowrap;
   opacity: 0.8;
+}
+/* Quick action buttons at the bottom right of the chat (src/main/quickActions.ts) */
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+  min-width: 0;
+}
+.qa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elev);
+  color: var(--muted);
+  font: inherit;
+  font-size: calc(11px * var(--fs));
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qa-btn:hover {
+  color: var(--text);
+  border-color: var(--accent, var(--text));
+}
+.qa-kind {
+  opacity: 0.6;
+  font-weight: 600;
+}
+/* Settings: one row per quick action button */
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.qa-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.qa-row-top {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.qa-row-top input {
+  flex: 1;
+  min-width: 0;
+}
+.qa-row textarea {
+  width: 100%;
+  resize: vertical;
+  font-family: var(--mono);
+  font-size: calc(12px * var(--fs));
 }
 .usage-pop {
   display: none;
@@ -2332,6 +2563,65 @@ body.resizing-v {
 }
 .tline .folder-acts {
   top: 0;
+}
+
+/* ---------- Upload files into a folder (dialog and drop targets) ---------- */
+.drop-upload {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+.upload-zone {
+  padding: 18px 12px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+}
+.upload-zone:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.upload-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.upload-row.done {
+  opacity: 0.55;
+}
+.upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.upload-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.upload-status {
+  width: 16px;
+  text-align: center;
+}
+.upload-status[data-state="ok"] {
+  color: var(--ok);
+}
+.upload-status[data-state="conflict"] {
+  color: var(--warn);
+}
+.upload-status[data-state="err"] {
+  color: var(--danger);
+  cursor: help;
 }
 
 /* ---------- Voice: mic, improve, read aloud ---------- */
@@ -3114,6 +3404,49 @@ button.ghost.danger-text {
 .send-btn.background {
   outline: 2px dashed var(--accent);
   outline-offset: 3px;
+}
+/* context mode of the session (mode-guard): subtle ring around the button – solid private, dotted public */
+.send-btn.ctx-private::before,
+.send-btn.ctx-public::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  opacity: 0.55;
+  pointer-events: none;
+}
+.send-btn.ctx-public::before {
+  border-color: var(--warn);
+  border-style: dotted;
+  opacity: 0.75;
+}
+/* the mode pill next to the input (chatView.ts renderContext): quiet, opens the context menu */
+.ctx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ctx-pill:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ctx-pill.public {
+  border-style: dotted;
+}
+.ctx-mark {
+  font-size: 0.95em;
+  line-height: 1;
+  opacity: 0.8;
 }
 .bg-pill {
   display: inline-flex;

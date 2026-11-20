@@ -42,6 +42,18 @@ let model = models[1];
 let thinkingLevel = "medium";
 let streaming = false;
 let aborted = false;
+// temperature extension (pibar-temperature): null = model default, "--temperature 0.7" sets the start value
+let temperature = null;
+const tempFlag = args.includes("--temperature") ? args[args.indexOf("--temperature") + 1] : "";
+if (tempFlag && Number.isFinite(Number(tempFlag))) temperature = Number(tempFlag);
+const tempStatus = () =>
+  out({
+    type: "extension_ui_request",
+    id: "temp-" + Date.now(),
+    method: "setStatus",
+    statusKey: "pibar-temperature",
+    statusText: temperature === null ? "🌡 default" : `🌡 ${temperature}`,
+  });
 
 const out = (o) => process.stdout.write(JSON.stringify(o) + "\n");
 const reply = (req, data) => out({ id: req.id, type: "response", command: req.type, success: true, data });
@@ -165,13 +177,34 @@ rl.on("line", (line) => {
       return reply(req);
     case "get_messages":
       return reply(req, { messages });
+    case "get_commands":
+      return reply(req, { commands: [{ name: "temperature", description: "Sampling temperature (fake)" }] });
     case "abort":
       aborted = true;
       return reply(req);
-    case "prompt":
+    case "prompt": {
+      const text = req.message ?? "";
+      // the temperature extension handles its command itself (disposition "handled")
+      if (text.trimStart().startsWith("/temperature")) {
+        const arg = (text.trim().split(/\s+/)[1] ?? "").toLowerCase().replace(",", ".");
+        let message;
+        if (!arg) message = temperature === null ? "Temperature: model default" : `Temperature: ${temperature}`;
+        else if (["off", "default", "auto", "reset"].includes(arg)) {
+          temperature = null;
+          message = "Temperature: back to the model's default.";
+        } else if (Number.isFinite(Number(arg)) && Number(arg) >= 0 && Number(arg) <= 2) {
+          temperature = Math.round(Number(arg) * 100) / 100;
+          message = `Temperature: ${temperature}`;
+        } else message = `Temperature: "${arg}" is not a number between 0 and 2 (or "off").`;
+        reply(req, { disposition: "handled" });
+        tempStatus();
+        out({ type: "extension_ui_request", id: "temp-notify-" + Date.now(), method: "notify", message });
+        return;
+      }
       reply(req, { disposition: streaming ? "queued" : "started" });
-      if (!streaming) run(req.message, req.images ?? []);
+      if (!streaming) run(text, req.images ?? []);
       return;
+    }
     default:
       return out({
         id: req.id,
@@ -182,3 +215,6 @@ rl.on("line", (line) => {
       });
   }
 });
+
+// the extension reports its start value once (like session_start of pibar-temperature)
+tempStatus();

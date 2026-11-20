@@ -160,6 +160,10 @@ pub struct UiPrefs {
     pub default_model: String,
     #[serde(default)]
     pub default_thinking: String,
+    /// Default context mode of new sessions (Pi extension mode-guard): "private", "public"; empty = the extension's
+    /// default. A project (Project::context_mode) and a session's own mode win over this
+    #[serde(default)]
+    pub default_mode: String,
     /// Auto scroll of the chat: "auto" (pauses when scrolling up), "always" (forced) or "off"
     #[serde(default = "default_auto_scroll")]
     pub auto_scroll: String,
@@ -274,6 +278,7 @@ impl Default for UiPrefs {
             default_preset: String::new(),
             default_model: String::new(),
             default_thinking: String::new(),
+            default_mode: String::new(),
             auto_scroll: default_auto_scroll(),
             files_docs_only: false,
             background: false,
@@ -287,6 +292,20 @@ impl Default for UiPrefs {
             font_scale: 1.0,
         }
     }
+}
+
+/// Quick action button under the input, on the right (src/main/quickActions.ts): a command/message goes to Pi,
+/// a shell script runs in a new terminal tab in the session's folder
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct QuickActionCfg {
+    pub id: String,
+    /// Label of the button
+    pub name: String,
+    /// "command" (message to Pi) or "shell" (script in the terminal)
+    pub kind: String,
+    /// The slash command/message or the script text
+    pub text: String,
 }
 
 /// Name, pin, colour and group of a session (managed by the UI, src/main/sessionGroups.ts)
@@ -315,11 +334,28 @@ pub struct SessionMeta {
     pub background_at: u64,
     /// Chat view of this session: "natural", "technical" or "debug"; empty = as in the settings or in its project
     pub chat_mode: String,
+    /// Context mode (Pi extension mode-guard): "private", "public"; empty = Pi's default for new sessions
+    pub context_mode: String,
+    /// Sections the extension leaves out in public mode; applied again when the session is opened
+    pub context_stripped: Vec<String>,
     /// Manual position in the list ("Own order"): higher = further down, 0 = not arranged yet
     pub order: f64,
     /// Unread: set in the session menu or by a run that settled unseen. The row and the ✓ counters of the list keep
     /// the mark over a restart, until the session is opened
     pub unread: bool,
+    /// Plan mode of this session (src/shared/planMode.ts): read-only tools and a plan hint with each message
+    pub plan_mode: bool,
+    /// Sampling temperature of this session (0–2, Pi extension pibar-temperature); None = the model's default
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    /// Key of the parent session ("<hostId>|<sessionPath>") when this is a subagent session started by PiBar
+    pub parent_key: String,
+    /// Agent definition this subagent session runs as (src-tauri/src/agents.rs), empty = none
+    pub agent_name: String,
+    /// Path of the agent's system prompt file on the host, applied again when the session is opened
+    pub agent_prompt: String,
+    /// The subagent rows under this session are folded away (src/main/subagents.ts)
+    pub kids_collapsed: bool,
 }
 
 /// User-defined group of sessions with a colour
@@ -352,6 +388,9 @@ pub struct Project {
     /// Chat view its sessions start with: "natural", "technical" or "debug"; empty = as in the settings. A session
     /// switched to another view in the header keeps its own (SessionMeta::chat_mode)
     pub view: String,
+    /// Context mode its sessions start with (Pi extension mode-guard): "private", "public"; empty = the default of
+    /// the settings (UiPrefs::default_mode). A session switched in the header keeps its own (SessionMeta::context_mode)
+    pub context_mode: String,
 }
 
 /// Speech to text (dictation). Used by src-tauri/src/voice.rs.
@@ -506,6 +545,9 @@ pub struct AppConfig {
     /// Colour profiles for the chat (thinking, tool calls, answers, own messages)
     #[serde(default)]
     pub color_profiles: Vec<ColorProfile>,
+    /// Quick action buttons under the input, on the right (managed in the settings)
+    #[serde(default)]
+    pub quick_actions: Vec<QuickActionCfg>,
 }
 
 impl Default for AppConfig {
@@ -532,6 +574,7 @@ impl Default for AppConfig {
             groups: vec![],
             projects: vec![],
             color_profiles: vec![],
+            quick_actions: vec![],
         }
     }
 }
@@ -672,6 +715,7 @@ mod tests {
         let m = &cfg.session_meta["local|/s.jsonl"];
         assert!(m.pinned && m.name.is_empty() && m.group.is_empty());
         assert!(m.chat_mode.is_empty()); // no own view: the setting decides
+        assert!(m.context_mode.is_empty() && m.context_stripped.is_empty());
         assert_eq!(cfg.groups[0].color, "");
     }
 

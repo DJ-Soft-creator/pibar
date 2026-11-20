@@ -10,6 +10,7 @@ per decision, numbered. A superseded decision is not deleted but set to "superse
 | [0003](0003-no-ui-framework.md) | UI without a framework | accepted |
 | [0004](0004-ocr-and-double-tap-macos.md) | OCR with Apple Vision, double tap via CGEventTap (macOS only) | accepted |
 | [0005](0005-i18n.md) | Translations without a library, English text as key | accepted |
+| [0006](0006-quick-tasks.md) | Quick tasks bar in the right pane | proposed |
 
 Template for new ADRs:
 

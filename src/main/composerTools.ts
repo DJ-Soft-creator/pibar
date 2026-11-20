@@ -121,9 +121,11 @@ function renderChips() {
 function toolsDialog() {
   const tab = state.active;
   if (!tab) return;
-  const custom = h("input", { type: "radio", name: "toolmode", checked: tab.toolset !== null }) as HTMLInputElement;
-  const def = h("input", { type: "radio", name: "toolmode", checked: tab.toolset === null }) as HTMLInputElement;
-  const current = new Set(tab.toolset ?? ["read", "bash", "edit", "write"]);
+  // in plan mode Pi runs read-only; the selection edits the tools that come back with Build
+  const base = tab.planMode ? tab.toolsetBeforePlan : tab.toolset;
+  const custom = h("input", { type: "radio", name: "toolmode", checked: base !== null }) as HTMLInputElement;
+  const def = h("input", { type: "radio", name: "toolmode", checked: base === null }) as HTMLInputElement;
+  const current = new Set(base ?? ["read", "bash", "edit", "write"]);
   const boxes = PI_TOOLS.map((name) => {
     const c = h("input", { type: "checkbox", checked: current.has(name), style: "width:auto" }) as HTMLInputElement;
     c.addEventListener("change", () => (custom.checked = true));
@@ -132,6 +134,13 @@ function toolsDialog() {
   const apply = async () => {
     const next = def.checked ? null : boxes.filter((b) => b.c.checked).map((b) => b.name);
     close();
+    if (tab.planMode) {
+      if (JSON.stringify(next) === JSON.stringify(tab.toolsetBeforePlan)) return;
+      tab.toolsetBeforePlan = next;
+      if (tab.sessionPath) setMeta(`${tab.hostId}|${tab.sessionPath}`, { tools: next ?? undefined });
+      toast(t("Saved – applies when you switch to Build mode."));
+      return;
+    }
     if (JSON.stringify(next) === JSON.stringify(tab.toolset)) return;
     if (tab.streaming) return toast(t("Pi is still working – stop it first or wait."), "err");
     tab.toolset = next;
@@ -156,7 +165,13 @@ function toolsDialog() {
       h("label", { class: "check" }, def, ` ${t("Pi's default (read, bash, edit, write)")}`),
       h("label", { class: "check" }, custom, ` ${t("Own selection")}`),
       h("div", { class: "tool-grid" }, ...boxes.map((b) => h("label", { class: "check" }, b.c, ` ${b.name}`))),
-      h("p", { class: "hint" }, t("Pi restarts in this session to apply it; the history stays.")),
+      h(
+        "p",
+        { class: "hint" },
+        tab.planMode
+          ? t("Plan mode is on: Pi stays read-only for now; the selection applies in Build mode.")
+          : t("Pi restarts in this session to apply it; the history stays."),
+      ),
     ),
     [
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),

@@ -9,6 +9,7 @@ import { buildTree, countFiles, TreeDir } from "../shared/tree";
 import { diffLines, diffStats, hunks, type DiffLine } from "../shared/diff";
 import { allChanges, gitInline, gitLine, gitMark, gitStatusFor } from "../shared/git";
 import { openMenu } from "./menu";
+import { uploadDialog, uploadDrop } from "./fileUpload";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
 import { fileHistory, repoHistory } from "./gitHistory";
@@ -98,7 +99,7 @@ function pathDrag(kind: "folder" | "file", path: string) {
   };
 }
 
-/** Right click on a folder: into the context, or create something in it */
+/** Right click on a folder: into the context, create something in it, or upload files from this computer */
 function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
   e.preventDefault();
   const anchor = e.currentTarget as HTMLElement;
@@ -107,11 +108,35 @@ function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
     [
       { label: t("Add to context"), onSelect: () => addContextPath("folder", path) },
       { label: t("New file or folder"), onSelect: () => createMenu(anchor, tab, path) },
+      { label: t("Upload files …"), onSelect: () => uploadInto(tab, path) },
       { label: t("Git history"), onSelect: () => repoHistory(tab.hostId, path) },
     ],
     "left",
     { x: e.clientX, y: e.clientY },
   );
+}
+
+/** After an upload: open the folder in the tree; the "docs only" filter would hide e.g. PDFs, so switch it off */
+function uploaded(paths: string[]) {
+  for (const p of paths) reveal(p, false);
+  const hidden = paths.some((p) => !/\.(md|markdown|html?|png|jpe?g|gif|webp)$/i.test(p));
+  if (hidden && state.config.ui.filesDocsOnly) {
+    state.config.ui.filesDocsOnly = false;
+    $("btn-files-filter").classList.remove("on");
+    saveConfig();
+    toast(t("Showing all files so the uploads are visible"));
+  }
+  void renderFiles();
+}
+
+/** Upload into a folder of the tree; afterwards open it in the tree and reload */
+function uploadInto(tab: SessionTab, folder: string, files?: File[]) {
+  uploadDialog(tab.hostId, folder, uploaded, files);
+}
+
+/** OS files dropped onto a folder row (or the tree background) upload into that folder */
+function dropUpload(el: HTMLElement, tab: SessionTab, folder: string) {
+  uploadDrop(el, () => ({ hostId: tab.hostId, folder }), uploaded);
 }
 
 function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): HTMLElement[] {
@@ -122,30 +147,32 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
     const open = openDirs.has(key);
     const n = countFiles(d);
     const full = `${root}/${d.path}`;
+    const row = h(
+      "button",
+      {
+        class: "trow tdir",
+        style: pad,
+        title: full,
+        ...pathDrag("folder", full),
+        oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, full),
+        onclick: () => {
+          if (open) openDirs.delete(key);
+          else openDirs.add(key);
+          renderTree();
+        },
+      },
+      chev(open),
+      icon(ICON_DIR),
+      h("span", { class: "tname" }, d.name),
+      ...dirGit(d.path),
+      n ? h("span", { class: "tcount" }, String(n)) : null,
+    );
+    dropUpload(row, tab, full);
     rows.push(
       h(
         "div",
         { class: "tline" },
-        h(
-          "button",
-          {
-            class: "trow tdir",
-            style: pad,
-            title: full,
-            ...pathDrag("folder", full),
-            oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, full),
-            onclick: () => {
-              if (open) openDirs.delete(key);
-              else openDirs.add(key);
-              renderTree();
-            },
-          },
-          chev(open),
-          icon(ICON_DIR),
-          h("span", { class: "tname" }, d.name),
-          ...dirGit(d.path),
-          n ? h("span", { class: "tcount" }, String(n)) : null,
-        ),
+        row,
         h(
           "span",
           { class: "folder-acts" },
@@ -214,27 +241,29 @@ function renderTree() {
       const root = l.root || l.folder;
       const open = !closedRoots.has(root);
       const removable = i > 0;
+      const rootBtn = h(
+        "button",
+        {
+          class: "trow troot",
+          title: root,
+          ...pathDrag("folder", root),
+          oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, root),
+          onclick: () => {
+            if (open) closedRoots.add(root);
+            else closedRoots.delete(root);
+            renderTree();
+          },
+        },
+        chev(open),
+        icon(ICON_DIR),
+        h("span", { class: "tname" }, baseName(root)),
+        i === 0 ? h("span", { class: "tbadge" }, t("working folder")) : null,
+      );
+      if (!l.missing && !l.error) dropUpload(rootBtn, tab, l.root);
       const head = h(
         "div",
         { class: "folder-head" },
-        h(
-          "button",
-          {
-            class: "trow troot",
-            title: root,
-            ...pathDrag("folder", root),
-            oncontextmenu: (e: MouseEvent) => folderMenu(e, tab, root),
-            onclick: () => {
-              if (open) closedRoots.add(root);
-              else closedRoots.delete(root);
-              renderTree();
-            },
-          },
-          chev(open),
-          icon(ICON_DIR),
-          h("span", { class: "tname" }, baseName(root)),
-          i === 0 ? h("span", { class: "tbadge" }, t("working folder")) : null,
-        ),
+        rootBtn,
         h(
           "span",
           { class: "folder-acts" },
@@ -391,6 +420,7 @@ function createMenu(anchor: HTMLElement, tab: SessionTab, base: string) {
     [
       { label: t("New Markdown file"), desc: where, onSelect: () => newFileDialog(tab, base) },
       { label: t("New folder"), desc: where, onSelect: () => newFolderDialog(tab, base) },
+      { label: t("Upload files …"), desc: where, onSelect: () => uploadInto(tab, base) },
     ],
     "right",
   );
@@ -407,6 +437,7 @@ function headMenu(anchor: HTMLElement) {
     [
       { label: t("New Markdown file"), desc: where, onSelect: () => newFileDialog(tab, work) },
       { label: t("New folder"), desc: where, onSelect: () => newFolderDialog(tab, work) },
+      { label: t("Upload files …"), desc: where, onSelect: () => uploadInto(tab, work) },
       {
         label: t("Add folder to session"),
         desc: t("Show another folder of the host here"),
@@ -726,6 +757,17 @@ export async function saveEditor() {
 export function wireFiles() {
   $("btn-add-folder").addEventListener("click", (e) => headMenu(e.currentTarget as HTMLElement));
   $("btn-reload-files").addEventListener("click", () => reloadFiles());
+  // OS files dropped next to the rows upload into the working folder (rows themselves take their own folder)
+  uploadDrop(
+    elFileTree,
+    () => {
+      const tab = state.active;
+      if (!tab) return null;
+      const folder = (last?.tab === tab && last.listings[0]?.root) || tab.cwd;
+      return { hostId: tab.hostId, folder };
+    },
+    uploaded,
+  );
   const filter = $("btn-files-filter");
   filter.classList.toggle("on", !!state.config.ui.filesDocsOnly);
   filter.addEventListener("click", () => {

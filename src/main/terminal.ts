@@ -267,12 +267,14 @@ export interface TabOptions {
   session?: SessionTab | null;
   /** Open once per session: a restart of Pi (reconnect, background run) shows the existing shell again */
   reuse?: boolean;
+  /** Script to run right after the shell started (quick actions, src/main/quickActions.ts) */
+  run?: string;
 }
 
 /** Start a shell and show it in a new tab */
 export async function openTab(hostId: string, cwd: string, opts: TabOptions = {}) {
   await ready.catch(() => {});
-  const { name = "", session = null, reuse = false } = opts;
+  const { name = "", session = null, reuse = false, run = "" } = opts;
   if (reuse && session) {
     const existing = tabs.find((x) => x.session === session);
     if (existing) {
@@ -330,6 +332,8 @@ export async function openTab(hostId: string, cwd: string, opts: TabOptions = {}
     if (!entry.exited) api.termResize(id, cols, rows).catch(() => {});
   });
   show(id);
+  // a quick action script: the pty buffers the keys until the shell reads them
+  if (run) api.termWrite(id, run.endsWith("\n") ? run : `${run}\n`).catch(() => {});
 }
 
 /** Open terminals follow the colour scheme of the window (called from setTheme) */

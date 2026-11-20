@@ -1,4 +1,4 @@
-// Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets and hosts.
+// Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets, quick action buttons and hosts.
 import { getVersion } from "@tauri-apps/api/app";
 import { emit } from "@tauri-apps/api/event";
 import { api, ChatMode, DoubleTapStatus, HostCfg, ModelPreset, SessionPreset, Theme } from "../shared/api";
@@ -8,6 +8,7 @@ import { LANGUAGES, t, type Msg } from "../shared/i18n";
 import { scaleLabel } from "../shared/textScale";
 import { cleanPresets } from "../shared/presets";
 import { VIEWS } from "../shared/chatViews";
+import { isContextMode, type ContextMode } from "../shared/contextMode";
 import { applyUiPrefs, defaultLabel, renderToolbar, setTheme } from "./chatView";
 import { renderFiles } from "./files";
 import { setFontScale, stepFontScale } from "./layout";
@@ -16,6 +17,7 @@ import { defaultViewMode } from "./sessionTab";
 import { loadAllSessions, renderHosts } from "./sessions";
 import { saveConfig, state } from "./state";
 import { colorEditor } from "./colorSettings";
+import { quickActionsEditor, renderQuickActions } from "./quickActions";
 import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
 import { diagnoseDialog } from "./diagnose";
@@ -354,6 +356,16 @@ export function settingsDialog() {
     ...VIEWS.map(([v, label]) => h("option", { value: v, selected: defaultViewMode() === v }, t(label))),
   ) as HTMLSelectElement;
 
+  // Default context mode (Pi extension mode-guard); a session keeps the mode switched in its header, a project can fix
+  // one of its own (see src/main/projects.ts)
+  const modeSel = h(
+    "select",
+    {},
+    h("option", { value: "", selected: !isContextMode(state.config.ui.defaultMode) }, t("Pi's default")),
+    h("option", { value: "private", selected: state.config.ui.defaultMode === "private" }, t("Private – full context")),
+    h("option", { value: "public", selected: state.config.ui.defaultMode === "public" }, t("Public – reduced context")),
+  ) as HTMLSelectElement;
+
   const autoScroll = h(
     "select",
     {},
@@ -432,6 +444,7 @@ export function settingsDialog() {
 
   const presets = presetEditor();
   const voice = voiceEditor();
+  const qa = quickActionsEditor();
 
   // Quick start: 4 presets with a fixed folder each, clicked at the top of the new-session dialog
   const qsDraft: SessionPreset[] = JSON.parse(JSON.stringify(state.config.ui.sessionPresets ?? [])).slice(0, 4);
@@ -456,6 +469,7 @@ export function settingsDialog() {
     state.config.ui.colorProfile = colors.getDefault();
     state.config.presets = presets.get();
     state.config.voice = voice.get();
+    state.config.quickActions = qa.get();
     state.config.ui.sessionPresets = qsDraft
       .map((p) => ({ name: p.name.trim(), dir: p.dir.trim() }))
       .filter((p) => p.name || p.dir);
@@ -482,6 +496,8 @@ export function settingsDialog() {
     state.config.ui.showGit = showGit.checked;
     state.config.ui.showTimes = showTimes.checked;
     state.config.ui.chatMode = viewSel.value as ChatMode;
+    const dmode = modeSel.value;
+    state.config.ui.defaultMode = isContextMode(dmode) ? (dmode as ContextMode) : "";
     state.config.ui.termFollowSession = termFollow.checked;
     state.config.ui.termAutoOpen = termOwn.checked;
     state.config.ui.autoScroll = autoScroll.value as ScrollMode;
@@ -496,6 +512,7 @@ export function settingsDialog() {
     }
     if (gitChanged) renderFiles();
     renderHosts();
+    renderQuickActions();
     applyChatColors();
     applyUiPrefs();
     renderToolbar();
@@ -540,6 +557,14 @@ export function settingsDialog() {
           { class: "hint" },
           t(
             "View that sessions start with. The header switches it for the session on screen, the other sessions keep theirs.",
+          ),
+        ),
+        h("label", { class: "check" }, `${t("Context mode")}: `, modeSel),
+        h(
+          "p",
+          { class: "hint" },
+          t(
+            "Context mode that new sessions start with (Pi extension mode-guard). A project can fix one of its own; the header switches it for the session on screen.",
           ),
         ),
       ),
@@ -602,6 +627,8 @@ export function settingsDialog() {
       ),
     ),
   );
+
+  section("Quick actions", qa.el);
 
   section(
     "Terminal",

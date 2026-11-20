@@ -1,13 +1,17 @@
-// Middle column and header: chat area, input, preset/model/thinking selection, chat view and answer style,
-// theme toggle, keyboard shortcuts.
+// Middle column and header: chat area, input, preset/model/thinking selection, chat view, answer style, plan/build
+// mode, theme toggle, keyboard shortcuts.
 import { emit } from "@tauri-apps/api/event";
+import { api } from "../shared/api";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { VIEWS } from "../shared/chatViews";
 import { $, h, errMsg, toast } from "../shared/dom";
 import { cleanTitle, shortPath, stripAnswerStyle, thinkingLabel, withContext, withFiles } from "../shared/format";
 import { hasAttachments, renderDock, swapAttachments, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
+import { CONTEXT_SECTIONS, type ContextMode } from "../shared/contextMode";
 import { matchPreset } from "../shared/presets";
+import { stripPlanMode } from "../shared/planMode";
+import { TEMP_MAX, TEMP_MIN, TEMP_NEUTRAL, TEMP_STEP, formatTemp, tempHint } from "../shared/temperature";
 import { applyTheme, nextTheme } from "../shared/theme";
 import { iconSvg } from "../shared/icons";
 import { showVoiceButtons, wireVoice } from "../shared/voice";
@@ -16,7 +20,7 @@ import { applyChatColors } from "./colors";
 import { wireShortcuts } from "./shortcuts";
 import type { QueueItem, QueueWhen } from "./sessionTab";
 import { applyFontScale, applyLayout } from "./layout";
-import { openMenu } from "./menu";
+import { openMenu, type MenuEntry } from "./menu";
 import { applyTermTheme } from "./terminal";
 import { cleanupDialog } from "./cleanup";
 import { displayTitle, setMeta } from "./sessionGroups";
@@ -32,6 +36,7 @@ const elEmpty = $("empty");
 const elInput = $("input") as HTMLTextAreaElement;
 const elSend = $("btn-send") as HTMLButtonElement;
 const elBg = $("btn-bg") as HTMLButtonElement;
+const elCtx = $("btn-context") as HTMLButtonElement;
 
 const SEND_ICON: Record<"send" | "steer" | "stop", string> = {
   send: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2"/></svg>',
@@ -57,10 +62,12 @@ function renderSendButton() {
   const typed = !!elInput.value.trim() || hasAttachments();
   const mode = tab?.bg ? "stop" : tab?.streaming ? (typed ? "steer" : "stop") : "send";
   elSend.disabled = !tab?.alive || (mode === "send" && !typed);
-  if (mode === sendMode) return;
-  sendMode = mode;
-  elSend.innerHTML = SEND_ICON[mode];
-  elSend.className = `send-btn ${mode}${tab?.background ? " background" : ""}`;
+  if (mode !== sendMode) {
+    sendMode = mode;
+    elSend.innerHTML = SEND_ICON[mode];
+    elSend.className = `send-btn ${mode}${tab?.background ? " background" : ""}`;
+  }
+  renderContext(tab);
   elSend.title =
     (mode === "stop" && tab?.bg
       ? t("Stop the run in the background")
@@ -70,13 +77,40 @@ function renderSendButton() {
           ? t("Queue: Pi gets it when done (Enter) · ⌥Enter: in between, before Pi's next step")
           : t("Send (Enter) · ⇧⌘↩ in the background")) +
     (tab?.background ? ` · ${t("This session sends in the background")}` : "") +
+    (tab?.contextMode ? ` · ${contextLabel(tab.contextMode)}` : "") +
     ` · ${t("Right-click: background menu")}`;
+}
+
+/** Mode names of the extension, not translated: they are the words the commands use */
+function contextLabel(mode: Exclude<ContextMode, "">): string {
+  return mode === "public" ? "☁ public" : "🔒 private";
+}
+
+/**
+ * Context mode of the session (Pi extension mode-guard, shared/contextMode.ts), subtly around the send button: a thin
+ * ring (dotted for public) plus a small pill next to it that opens the same menu as the answer dropdown.
+ */
+function renderContext(tab: SessionTab | null) {
+  const mode = tab?.contextMode ?? "";
+  elSend.classList.toggle("ctx-public", mode === "public");
+  elSend.classList.toggle("ctx-private", mode === "private");
+  const show = !!tab?.alive && !!mode && tab.contextAvailable();
+  elCtx.hidden = !show;
+  if (!show) return;
+  elCtx.classList.toggle("public", mode === "public");
+  elCtx.replaceChildren(
+    h("span", { class: "ctx-mark" }, mode === "public" ? "☁" : "🔒"),
+    h("span", {}, mode === "public" ? "public" : "private"),
+  );
+  elCtx.title = t("Context: {mode} – click for private/public and sections", { mode });
 }
 const elPreset = $("sel-preset") as HTMLSelectElement;
 const elModel = $("sel-model") as HTMLSelectElement;
 const elThinking = $("sel-thinking") as HTMLSelectElement;
 const elView = $("sel-view");
 const elAnswer = $("sel-answer");
+const elTemp = $("sel-temp") as HTMLButtonElement;
+const elPlan = $("sel-plan") as HTMLButtonElement;
 const elTheme = $("btn-theme");
 const elActivity = $("activity");
 const elSlash = $("btn-slash") as HTMLButtonElement;
@@ -94,6 +128,154 @@ const ANSWERS: [AnswerMode, Msg, Msg][] = [
   ["normal", "Normal", "Normal answers"],
   ["technical", "Brief & technical", "As short as possible, but with technical details"],
 ];
+
+/** Context modes of Pi's mode-guard extension (see shared/contextMode.ts) */
+const CONTEXT_MODES: ["private" | "public", Msg, Msg][] = [
+  ["private", "Private – full context", "AGENTS.md, skills and MCP servers are sent as usual"],
+  ["public", "Public – reduced context", "Project context, skills and MCP servers stay out"],
+];
+
+/** Work modes of the session (src/shared/planMode.ts): Plan = read-only plus a plan, Build = normal work */
+const PLANS: [string, Msg, Msg][] = [
+  ["build", "Build", "Pi may read and change files and run commands"],
+  ["plan", "Plan", "Pi only reads and analyses, then writes a numbered plan – nothing is changed"],
+];
+
+/** The Plan/Build dropdown shows the mode of the session on screen */
+function renderPlan() {
+  const tab = state.active;
+  ddLabel(elPlan, PLANS, tab?.planMode ? "plan" : "build");
+  elPlan.classList.toggle("set", !!tab?.planMode);
+  elPlan.disabled = !tab;
+}
+
+/** Temperature of the session on screen (Pi extension pibar-temperature); "Default" = the model decides */
+function renderTemp() {
+  const tab = state.active;
+  const v = tab?.temperature ?? null;
+  const label = v === null ? t("Default") : formatTemp(v);
+  elTemp.replaceChildren(h("span", { class: "dd-val" }, `🌡 ${label}`), h("span", { class: "dd-chev" }, "▾"));
+  elTemp.classList.toggle("set", v !== null);
+  elTemp.disabled = !tab;
+  elTemp.title = !tab
+    ? t("Temperature of this session")
+    : v === null
+      ? `${t("Temperature")}: ${t("the model's default – click to set a value")}`
+      : `${t("Temperature")}: ${formatTemp(v)} – ${t(tempHint(v))}`;
+}
+
+/** Install the temperature extension on the session's host and restart the session so Pi loads it */
+async function installTemperature(tab: SessionTab) {
+  try {
+    await api.tempInstall(tab.hostId);
+    toast(t("Temperature extension installed – restarting the session."));
+    await tab.restart();
+  } catch (e) {
+    toast(`${t("Temperature")}: ${errMsg(e)}`, "err");
+  }
+}
+
+/**
+ * Entries of the temperature dropdown: the slider with a live explanation, "Model's default" below it. Without the
+ * extension the menu offers to install it on the host (it writes ~/.pi/agent/extensions/pibar-temperature.ts).
+ */
+function tempMenuItems(tab: SessionTab): MenuEntry[] {
+  const items: MenuEntry[] = [{ heading: t("Temperature") }];
+  if (!tab.tempAvailable()) {
+    items.push({
+      label: t("The temperature extension is not loaded"),
+      desc: t("PiBar can install it on this host – the session then restarts once."),
+      disabled: true,
+      onSelect: () => {},
+    });
+    if (tab.alive && !tab.detached)
+      items.push({
+        label: t("Install extension and restart session"),
+        desc: t("Writes pibar-temperature.ts to ~/.pi/agent/extensions on the host"),
+        onSelect: () => void installTemperature(tab),
+      });
+    return items;
+  }
+  const v = tab.temperature;
+  // while dragging: commit after a short pause, so a slow drag applies without waiting for the release
+  let timer: number | undefined;
+  const commit = (x: number) => {
+    if (timer !== undefined) window.clearTimeout(timer);
+    timer = undefined;
+    void tab.setTemperature(x);
+  };
+  items.push({
+    slider: true,
+    min: TEMP_MIN,
+    max: TEMP_MAX,
+    step: TEMP_STEP,
+    value: v ?? TEMP_NEUTRAL,
+    label: t("Temperature of this session"),
+    ends: [t("precise"), t("free")],
+    format: formatTemp,
+    hint: (x) => t(tempHint(x)),
+    onInput: (x) => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(() => commit(x), 250);
+    },
+    onChange: commit,
+  });
+  items.push(
+    { separator: true },
+    {
+      label: t("Model's default"),
+      desc: t("No fixed temperature – the model decides (often around 0.7–1.0)"),
+      selected: v === null,
+      onSelect: () => void tab.setTemperature(null),
+    },
+  );
+  return items;
+}
+
+/**
+ * Entries of the context menu (answer dropdown and the mode pill next to the input): private/public and the sections
+ * that public mode leaves out. Only shown when Pi's mode-guard extension is loaded – otherwise sending "/mode" would
+ * go to the model as a normal message.
+ */
+function contextMenuItems(tab: SessionTab | null): MenuEntry[] {
+  if (!tab?.alive) return [];
+  const items: MenuEntry[] = [{ separator: true }, { heading: t("Context") }];
+  if (!tab.contextAvailable()) {
+    items.push({
+      label: t("The mode-guard extension is not loaded"),
+      desc: t("Put it in ~/.pi/agent/extensions to switch private/public here."),
+      disabled: true,
+      onSelect: () => {},
+    });
+    return items;
+  }
+  for (const [mode, label, desc] of CONTEXT_MODES)
+    items.push({
+      label: t(label),
+      desc: t(desc),
+      selected: tab.contextMode === mode,
+      onSelect: () => void tab.setContextMode(mode),
+    });
+  items.push({ separator: true }, { heading: t("Sections for public mode") });
+  for (const name of CONTEXT_SECTIONS) {
+    const out = tab.contextStripped.includes(name);
+    items.push({
+      label: name,
+      desc: t(out ? "Stays out in public mode" : "Also sent in public mode"),
+      selected: !out,
+      onSelect: () => void tab.setContextSection(name, out),
+    });
+  }
+  items.push(
+    { separator: true },
+    {
+      label: t("Show what is sent now"),
+      desc: t("Pi lists the sections in a notice"),
+      onSelect: () => tab.showContextSections(),
+    },
+  );
+  return items;
+}
 const SVG = (body: string) =>
   `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">${body}</svg>`;
 const THEME_ICON: Record<Theme, string> = {
@@ -120,19 +302,6 @@ function ddLabel(btn: HTMLElement, list: [string, Msg, Msg][], value: string) {
   const cur = list.find(([v]) => v === value) ?? list[0];
   btn.replaceChildren(h("span", { class: "dd-val" }, t(cur[1])), h("span", { class: "dd-chev" }, "▾"));
   btn.title = t(cur[2]);
-}
-
-/** Menu with name and a short description per choice */
-function ddOpen<V extends string>(btn: HTMLElement, list: [V, Msg, Msg][], value: V, choose: (v: V) => void) {
-  openMenu(
-    btn,
-    list.map(([v, label, desc]) => ({
-      label: t(label),
-      desc: t(desc),
-      selected: v === value,
-      onSelect: () => choose(v),
-    })),
-  );
 }
 
 /** Open or close all thinking/tool cards of the session on screen (debug view: open) */
@@ -200,6 +369,8 @@ export function showEmpty() {
   renderBackground(null);
   renderSendButton();
   applyViewMode();
+  renderPlan();
+  renderTemp();
   applyChatColors();
 }
 
@@ -234,6 +405,8 @@ export function renderToolbar() {
 
   // switching sessions also switches their view
   applyViewMode();
+  renderPlan();
+  renderTemp();
 
   // natural view: a small line shows that Pi is working (thinking and tools are hidden)
   elActivity.hidden = !(tab?.streaming && chatMode() === "natural");
@@ -385,7 +558,7 @@ function renderQueue(tab: SessionTab | null) {
     h("button", { type: "button", class: "msg-act", title, "aria-label": title, onclick: fn }, label);
   bar.replaceChildren(
     ...items.map((it) => {
-      const shown = stripAnswerStyle(it.text);
+      const shown = stripPlanMode(stripAnswerStyle(it.text));
       const other: QueueWhen = it.when === "steer" ? "followUp" : "steer";
       return h(
         "div",
@@ -579,14 +752,51 @@ export function wireChatView() {
       ...scrollModeItems(),
     ]);
   });
+  // answer style and, below it, the context mode of the session (Pi extension mode-guard)
   elAnswer.addEventListener("click", () =>
-    ddOpen(elAnswer, ANSWERS, answerMode(), (v) => {
-      state.config.ui.answerMode = v;
-      applyUiPrefs();
-      saveConfig();
-      elInput.focus();
-    }),
+    openMenu(elAnswer, [
+      ...ANSWERS.map(([v, label, desc]) => ({
+        label: t(label),
+        desc: t(desc),
+        selected: v === answerMode(),
+        onSelect: () => {
+          state.config.ui.answerMode = v;
+          applyUiPrefs();
+          saveConfig();
+          elInput.focus();
+        },
+      })),
+      ...contextMenuItems(state.active),
+    ]),
   );
+  elCtx.addEventListener("click", () => {
+    const tab = state.active;
+    if (tab) openMenu(elCtx, contextMenuItems(tab), "right");
+  });
+  // temperature of the session: slider with a short explanation (Pi extension pibar-temperature)
+  elTemp.addEventListener("click", () => {
+    const tab = state.active;
+    if (tab) openMenu(elTemp, tempMenuItems(tab));
+  });
+  // Plan/Build of the session: Plan restricts Pi to read-only tools and asks for a plan (shared/planMode.ts)
+  elPlan.addEventListener("click", () => {
+    const tab = state.active;
+    if (!tab) return;
+    openMenu(
+      elPlan,
+      PLANS.map(([v, label, desc]) => ({
+        label: t(label),
+        desc: t(desc),
+        selected: v === (tab.planMode ? "plan" : "build"),
+        onSelect: () => {
+          void tab.setPlanMode(v === "plan").then(() => {
+            renderToolbar();
+            elInput.focus();
+          });
+        },
+      })),
+    );
+  });
   elTheme.addEventListener("click", () => setTheme(nextTheme(state.config.ui.theme)));
   elDefault.innerHTML = iconSvg("star", 15);
   $("btn-undo").addEventListener("click", () => state.active && undoBranch(state.active));

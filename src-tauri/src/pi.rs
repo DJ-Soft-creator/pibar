@@ -105,6 +105,7 @@ impl PiManager {
         cwd: &str,
         session_path: Option<String>,
         tools: Option<Vec<String>>,
+        append_prompt: Option<String>,
     ) -> Result<u32, String> {
         let mut args = Vec::new();
         if let Some(p) = session_path {
@@ -112,6 +113,11 @@ impl PiManager {
             args.push(p);
         }
         args.extend(tool_args(tools.as_deref()));
+        // agent definition of a subagent session (src-tauri/src/agents.rs): its body as an extra system prompt
+        if let Some(p) = append_prompt {
+            args.push("--append-system-prompt".to_string());
+            args.push(p);
+        }
         let child = hostexec::spawn_pi(host, cwd, &args)?;
         self.register(app, child)
     }

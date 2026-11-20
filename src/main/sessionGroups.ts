@@ -10,6 +10,7 @@ import { reminderDialog, reminderFor } from "./reminders";
 import type { SessionTab } from "./sessionTab";
 import { selection } from "./sessionSelect";
 import { closeSession, loadSessions, renderHosts } from "./sessions";
+import { subagentDialog } from "./subagents";
 import { saveConfig, state } from "./state";
 import { refreshTermTabs } from "./terminal";
 
@@ -393,6 +394,13 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
           },
         }
       : { label: t("Mark as unread"), onSelect: () => setMeta(key, { unread: true }) },
+    // a subagent of its own: an agent of the host works in a child session under this one (src/main/subagents.ts)
+    ...(s.tab?.alive
+      ? ([
+          { separator: true },
+          { label: t("New subagent …"), onSelect: () => s.tab && subagentDialog(s.tab) },
+        ] as MenuEntry[])
+      : []),
     { separator: true },
     { heading: t("Colour") },
     { colors: true, current: m.color ?? "", title: colorName, onPick: (color) => setMeta(key, { color }) },

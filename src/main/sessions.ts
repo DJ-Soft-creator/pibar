@@ -24,6 +24,7 @@ import {
 import { $, h, copyText, errMsg, openModal, toast } from "../shared/dom";
 import { icon, IconName } from "../shared/icons";
 import { cleanTitle, relTime, shortPath, splitScreenText, stripAnswerStyle } from "../shared/format";
+import { PLAN_TOOLS, stripPlanMode } from "../shared/planMode";
 import { presetForNewSession, splitModelKey } from "../shared/presets";
 import { filterSet, passesFilter, type SessionFilterMode } from "../shared/listFilter";
 import { highlight, isSearching, matchesQuery, roleLabel } from "../shared/search";
@@ -65,6 +66,7 @@ import {
   groupCollapsed,
   toggleGroup,
 } from "./sessionGroups";
+import { sessionKids } from "./subagents";
 import {
   blockKeysOf,
   dragStart,
@@ -166,6 +168,16 @@ async function restoreHostSession(hostId: string) {
   const info = state.sessionsByHost.get(hostId)?.find((s) => s.path === path);
   if (!info) return; // deleted or not loaded: the chat stays as it is
   await openSession(hostId, path, info.cwd, info.name || info.title);
+}
+
+/**
+ * After PiBar started: bring back the session that was open when it was closed, so the chat comes back with the model
+ * and context mode saved for it (see SessionTab.applyChoice/applyContext). The host tab remembers one session per host.
+ */
+export function restoreLastSession() {
+  const sel = selectedHost();
+  if (sel === "all") return Promise.resolve();
+  return restoreHostSession(sel);
 }
 
 function toggleCollapsed(id: string) {
@@ -706,19 +718,37 @@ function filterEmpty(): HTMLElement {
 export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sectionPrefix): HTMLElement[] {
   const meta = (r: SessionRef) => metaOf(refKey(r));
   startBlock(block);
+  // subagent sessions appear indented under their parent, not as rows of their own; while searching everything
+  // stays flat so a hit is visible even when its parent is not in the list (src/main/subagents.ts)
+  const nest = !isSearching(state.search.query);
+  const present = new Set(rows.map((r) => refKey(r.ref)));
+  const mains = nest
+    ? rows.filter((r) => {
+        const parent = meta(r.ref).parentKey;
+        return !parent || !present.has(parent);
+      })
+    : rows;
+  const item = (r: ListRow): HTMLElement[] => {
+    const out: HTMLElement[] = [sessionItem(r, rowTs(r))];
+    if (nest) {
+      const kids = sessionKids(r, rows, (k) => sessionItem(k, rowTs(k)));
+      if (kids) out.push(kids);
+    }
+    return out;
+  };
   // "Own order" is one list to drag in: date or folder sections would break it up
   const by: SessionGroupBy = sortMode() === "own" ? "none" : groupMode();
   const pinned = sortRows(
-    rows.filter((r) => meta(r.ref).pinned),
+    mains.filter((r) => meta(r.ref).pinned),
     sortMode(),
   );
-  const rest = rows.filter((r) => !meta(r.ref).pinned);
+  const rest = mains.filter((r) => !meta(r.ref).pinned);
   const out: HTMLElement[] = [];
   if (pinned.length) {
     const head = h("div", { class: "sec-head" }, h("span", { class: "sec-icon" }), t("Pinned"));
     head.querySelector(".sec-icon")!.innerHTML = ICON_PIN;
     dropTarget(head, (keys) => setMetaMany(keys, { pinned: true }));
-    out.push(head, ...pinned.map((r) => sessionItem(r, rowTs(r))));
+    out.push(head, ...pinned.flatMap((r) => item(r)));
   }
   const ids = new Set(groups().map((g) => g.id));
   // the archive always comes last
@@ -773,7 +803,7 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
         h("span", { class: "count" }, String(inGroup.length)),
         h("button", { class: "sess-act group-more", title: t("More …"), onclick: menu }, icon("more", 13)),
       ),
-      ...(closed ? [] : inGroup.map((r) => sessionItem(r, rowTs(r)))),
+      ...(closed ? [] : inGroup.flatMap((r) => item(r))),
     );
     dropTarget(box, (keys) => setMetaMany(keys, { group: g.id, pinned: false }));
     out.push(box);
@@ -782,7 +812,7 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
   const loose = rest.filter((r) => !ids.has(meta(r.ref).group ?? ""));
   for (const sec of sectionRows(loose, sortMode(), by)) {
     if (!sec.key) {
-      out.push(...sec.rows.map((r) => sessionItem(r, rowTs(r))));
+      out.push(...sec.rows.flatMap((r) => item(r)));
       continue;
     }
     // sections can be collapsed (per host, per kind of sections); the choice is saved
@@ -803,7 +833,7 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
         h("span", { class: "count" }, String(sec.rows.length)),
       ),
     );
-    if (!closed) out.push(...sec.rows.map((r) => sessionItem(r, rowTs(r))));
+    if (!closed) out.push(...sec.rows.flatMap((r) => item(r)));
   }
   return out;
 }
@@ -940,7 +970,10 @@ function sessionItem(row: ListRow, ts: string) {
 
 // ---------- Earlier own messages: edit, run again, reuse, copy ----------
 
-const norm = (s: string) => stripAnswerStyle(splitScreenText(s).text).replace(/\s+/g, " ").trim();
+const norm = (s: string) =>
+  stripPlanMode(stripAnswerStyle(splitScreenText(s).text))
+    .replace(/\s+/g, " ")
+    .trim();
 
 /**
  * A session got a new key (forked or saved for the first time): move it in the maps and carry its settings over.
@@ -1014,7 +1047,7 @@ async function onUserAction(tab: SessionTab, index: number, action: UserAction, 
       return;
     }
     // "edit": the text from the inline editor; "rerun": the original message
-    await tab.send(action === "edit" && edited ? edited : stripAnswerStyle(text) || shown);
+    await tab.send(action === "edit" && edited ? edited : stripPlanMode(stripAnswerStyle(text)) || shown);
   } catch (e) {
     toast(`${t("Branch")}: ${errMsg(e)}`, "err");
   }
@@ -1135,7 +1168,7 @@ async function applyDefaults(tab: SessionTab, projectPreset?: string) {
 
 // ---------- Opening and closing ----------
 
-const tabCallbacks: TabCallbacks = {
+export const tabCallbacks: TabCallbacks = {
   onUserAction: (tab, index, action, text, edited) => void onUserAction(tab, index, action, text, edited),
   onAnswerStart: (x) => x === state.active && answerStarted(),
   onUiRequest: (x, req) => {
@@ -1199,6 +1232,14 @@ export async function openSession(
   const tab = new SessionTab(hostId, cwd, path, title, tabCallbacks);
   const meta = path ? state.config.sessionMeta?.[`${hostId}|${path}`] : undefined;
   if (path) tab.toolset = meta?.tools ?? null;
+  // a subagent session keeps its agent prompt when it is opened again (src/main/subagents.ts)
+  tab.agentPromptFile = meta?.agentPrompt || null;
+  // plan mode survives a restart: read-only tools now, the session's own tools come back with Build
+  if (meta?.planMode) {
+    tab.planMode = true;
+    tab.toolsetBeforePlan = tab.toolset;
+    tab.toolset = [...PLAN_TOOLS];
+  }
   // B/C: every message of this session (or of all sessions) can run in the background
   tab.background = meta?.background === "on" || (meta?.background !== "off" && !!state.config.ui.background);
   activate(tab);

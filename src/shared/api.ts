@@ -138,6 +138,16 @@ export interface ModelPreset {
   thinking: string;
 }
 
+/** Quick action button under the input, on the right (Rust: QuickActionCfg in config.rs) */
+export interface QuickAction {
+  id: string;
+  /** Label of the button */
+  name: string;
+  /** "command": message/slash command to Pi · "shell": script in a new terminal tab */
+  kind: "command" | "shell";
+  text: string;
+}
+
 export type Theme = "auto" | "light" | "dark";
 /** natural: text only · technical: collapsed thinking/tool cards · debug: cards open, live */
 export type ChatMode = "natural" | "technical" | "debug";
@@ -179,6 +189,10 @@ export interface VoiceCfg {
 /** Name, pin, colour and group of a session */
 export interface SessionMeta {
   name?: string;
+  /** Context mode chosen for this session (see shared/contextMode.ts): "private", "public" or empty = Pi's default */
+  contextMode?: "private" | "public";
+  /** Sections the mode-guard extension leaves out in public mode, saved with the session */
+  contextStripped?: string[];
   pinned?: boolean;
   /** Colour name, see COLORS in src/main/menu.ts */
   color?: string;
@@ -198,6 +212,8 @@ export interface SessionMeta {
   backgroundAt?: number;
   /** Chat view of this session (see ChatMode); empty = as in the settings */
   chatMode?: ChatMode;
+  /** Sampling temperature of this session (0–2, see shared/temperature.ts); absent = the model's default */
+  temperature?: number;
   /**
    * Unread: set in the session menu or by a run that settled while nobody looked; it survives a restart and goes
    * away when the session is opened
@@ -205,6 +221,16 @@ export interface SessionMeta {
   unread?: boolean;
   /** Manual position in the list ("Own order", see sortRows in shared/sessionOrder.ts): higher = further down, 0 = not arranged yet */
   order?: number;
+  /** Plan mode of this session (see shared/planMode.ts): read-only tools and a plan hint with each message */
+  planMode?: boolean;
+  /** Key of the parent session ("<hostId>|<sessionPath>") when this is a subagent session started by PiBar */
+  parentKey?: string;
+  /** Agent definition this subagent session runs as (src-tauri/src/agents.rs) */
+  agentName?: string;
+  /** Path of the agent's system prompt file on the host, applied again when the session is opened */
+  agentPrompt?: string;
+  /** The subagent rows under this session are folded away (src/main/subagents.ts) */
+  kidsCollapsed?: boolean;
 }
 
 export interface SessionGroup {
@@ -234,6 +260,11 @@ export interface Project {
    * was switched to another view in the header keeps its own.
    */
   view?: string;
+  /**
+   * Context mode its sessions start with (see shared/contextMode.ts): "private" or "public"; empty = as in the
+   * settings. A session switched in the header keeps its own.
+   */
+  contextMode?: "private" | "public";
 }
 
 /** Quick start preset of the new-session dialog: name and fixed working folder */
@@ -255,6 +286,8 @@ export interface AppConfig {
   projects?: Project[];
   /** Colour profiles of the chat (thinking, tool calls, answers, own messages) */
   colorProfiles?: ColorProfile[];
+  /** Quick action buttons under the input, on the right (src/main/quickActions.ts) */
+  quickActions?: QuickAction[];
   ui: {
     /** "auto", "de" or "en" */
     language?: string;
@@ -297,6 +330,11 @@ export interface AppConfig {
     defaultPreset?: string;
     defaultModel?: string;
     defaultThinking?: string;
+    /**
+     * Default context mode of new sessions (Pi extension mode-guard): "private" or "public"; empty = the extension's
+     * default. A project's mode and a session's own mode in its SessionMeta win over this.
+     */
+    defaultMode?: "private" | "public" | "";
     /** Auto scroll: "auto" (default, pauses when scrolling up), "always" (forced) or "off"; "on" = auto (older) */
     autoScroll?: "auto" | "always" | "off" | "on";
     /** File tree: only Markdown, HTML and images (default: all files) */
@@ -381,6 +419,20 @@ export interface PiModel {
   contextWindow?: number;
 }
 
+/** An agent definition for subagent sessions (Rust: AgentInfo in agents.rs) */
+export interface AgentInfo {
+  name: string;
+  description: string;
+  /** Tool allowlist, null = Pi's default */
+  tools: string[] | null;
+  /** "provider/id" or a bare model id, "" = the session's model */
+  model: string;
+  /** "user" (~/.pi/agent/agents) or "project" (.pi/agents) */
+  source: string;
+  /** Path of the definition on the host */
+  path: string;
+}
+
 /** Slash command from Pi's get_commands: skill, prompt template or extension command */
 export interface PiCommand {
   name: string;
@@ -445,6 +497,10 @@ export const api = {
   setLanguage: (lang: string) => invoke<void>("set_language", { lang }),
   quickResetPos: () => invoke<void>("quick_reset_pos"),
   listModels: (hostId: string) => invoke<ModelInfo[]>("list_models", { hostId }),
+  /** Agent definitions of a host: ~/.pi/agent/agents plus the nearest .pi/agents above cwd (src-tauri/src/agents.rs) */
+  listAgents: (hostId: string, cwd: string) => invoke<AgentInfo[]>("list_agents", { hostId, cwd }),
+  /** Write an agent's system prompt to ~/.pibar/agent-prompts on the host; returns the absolute path */
+  agentPromptFile: (hostId: string, path: string) => invoke<string>("agent_prompt_file", { hostId, path }),
   getConfig: () => invoke<AppConfig>("get_config"),
   saveConfig: (cfg: AppConfig) => invoke<void>("save_config", { cfg }),
   /** Problem with the settings file at start (damaged file reset, backup path), null = all fine */
@@ -454,8 +510,14 @@ export const api = {
   /** Delete session files (only paths inside Pi's sessions folder) */
   deleteSessions: (hostId: string, paths: string[]) => invoke<number>("delete_sessions", { hostId, paths }),
   /** tools: null = Pi's default, [] = no tools, otherwise an allowlist */
-  piOpen: (hostId: string, cwd: string, sessionPath?: string, tools?: string[] | null) =>
-    invoke<number>("pi_open", { hostId, cwd, sessionPath: sessionPath ?? null, tools: tools ?? null }),
+  piOpen: (hostId: string, cwd: string, sessionPath?: string, tools?: string[] | null, appendPrompt?: string | null) =>
+    invoke<number>("pi_open", {
+      hostId,
+      cwd,
+      sessionPath: sessionPath ?? null,
+      tools: tools ?? null,
+      appendPrompt: appendPrompt ?? null,
+    }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),
   /** What a Pi process wrote to stderr (tail) */
   piStderr: (handle: number) => invoke<string>("pi_stderr", { handle }),
@@ -473,6 +535,8 @@ export const api = {
     modelId?: string,
     thinking?: string,
     tools?: string[] | null,
+    publicMode = false,
+    temperature?: number | null,
   ) =>
     invoke<number>("bg_start", {
       hostId,
@@ -483,7 +547,11 @@ export const api = {
       modelId: modelId ?? null,
       thinking: thinking ?? null,
       tools: tools ?? null,
+      publicMode,
+      temperature: temperature ?? null,
     }),
+  /** Install the temperature extension on a host (src-tauri/src/temp.rs); Pi loads it on the next session start */
+  tempInstall: (hostId: string) => invoke<void>("temp_install", { hostId }),
   /** Follow a run in the background that was started earlier (e.g. before PiBar was restarted) */
   bgFollow: (hostId: string, session: string) => invoke<number>("bg_follow", { hostId, session }),
   /** Is the session's run in the background still going? */
@@ -531,6 +599,10 @@ export const api = {
   /** File content in Git HEAD, for the diff view */
   readFileHead: (hostId: string, path: string) => invoke<HeadVersion>("read_file_head", { hostId, path }),
   writeFile: (hostId: string, path: string, content: string) => invoke<void>("write_file", { hostId, path, content }),
+  /** Upload a file of any type (e.g. PDF) into a folder on the host; data is base64 (src/main/fileUpload.ts).
+   * false = the file exists and was kept; ask the user, then call again with overwrite. */
+  uploadFile: (hostId: string, path: string, data: string, overwrite = false) =>
+    invoke<boolean>("upload_file", { hostId, path, data, overwrite }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
   /** Subfolders of a folder on the host, for the folder picker (src/main/folderPicker.ts) */

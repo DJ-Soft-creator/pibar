@@ -45,6 +45,7 @@ flowchart LR
 | `src/shared/` | Shared: Rust interface, DOM helpers, translations, pure formatters (with tests) |
 | `src-tauri/src/` | Rust core, one module per responsibility |
 | `src-tauri/capabilities/` | Tauri permissions of the windows |
+| `src-tauri/extensions/` | Pi extensions PiBar installs on a host (`pibar-temperature.ts`, see [`temp.rs`](../src-tauri/src/temp.rs)) |
 | `dev/` | Development helpers, e.g. a fake Pi without an API key |
 | `scripts/` | Check scripts for CI |
 | `docs/` | This codemap and architecture decisions ([`adr/`](adr/)) |
@@ -60,14 +61,16 @@ flowchart LR
 | [`lib.rs`](../src-tauri/src/lib.rs) | All Tauri commands, tray, window events, startup | [`run`](../src-tauri/src/lib.rs), [`setup_tray`](../src-tauri/src/lib.rs), [`tray_menu`](../src-tauri/src/lib.rs), [`set_language`](../src-tauri/src/lib.rs), [`pi_close_all`](../src-tauri/src/lib.rs) |
 | [`i18n.rs`](../src-tauri/src/i18n.rs) | Language of messages from Rust (errors, tray menu) | [`tr`](../src-tauri/src/i18n.rs), [`i18n::set`](../src-tauri/src/i18n.rs) |
 | [`snapshot.rs`](../src-tauri/src/snapshot.rs) | File states for "go back": before each own message the working tree of the session folder becomes a Git commit below `refs/pibar/<session id>/<entry id>` (own objects and refs only, the index and history of the user stay untouched); going back puts the files Pi changed back to that state, with the state before as undo | [`snapshot::take`](../src-tauri/src/snapshot.rs), [`snapshot::preview`](../src-tauri/src/snapshot.rs), [`repo_path`](../src-tauri/src/snapshot.rs), [`parse_probe`](../src-tauri/src/snapshot.rs), [`snapshot::parse_preview`](../src-tauri/src/snapshot.rs), [`snapshot::restore`](../src-tauri/src/snapshot.rs), [`snapshot::restore_commit`](../src-tauri/src/snapshot.rs) |
-| [`config.rs`](../src-tauri/src/config.rs) | Settings as JSON in the app config folder; kept in memory, saved atomically, a damaged file is backed up ([`read_from`](../src-tauri/src/config.rs), [`write_atomic`](../src-tauri/src/config.rs), [`take_load_error`](../src-tauri/src/config.rs)) | [`AppConfig`](../src-tauri/src/config.rs), [`HostCfg`](../src-tauri/src/config.rs), [`UiPrefs`](../src-tauri/src/config.rs), [`VoiceCfg`](../src-tauri/src/config.rs), [`SessionMeta`](../src-tauri/src/config.rs), [`SessionGroup`](../src-tauri/src/config.rs), [`Reminder`](../src-tauri/src/config.rs), [`ModelPreset`](../src-tauri/src/config.rs), [`load`](../src-tauri/src/config.rs), [`find_host`](../src-tauri/src/config.rs) |
+| [`config.rs`](../src-tauri/src/config.rs) | Settings as JSON in the app config folder; kept in memory, saved atomically, a damaged file is backed up ([`read_from`](../src-tauri/src/config.rs), [`write_atomic`](../src-tauri/src/config.rs), [`take_load_error`](../src-tauri/src/config.rs)) | [`AppConfig`](../src-tauri/src/config.rs), [`HostCfg`](../src-tauri/src/config.rs), [`UiPrefs`](../src-tauri/src/config.rs), [`VoiceCfg`](../src-tauri/src/config.rs), [`SessionMeta`](../src-tauri/src/config.rs), [`SessionGroup`](../src-tauri/src/config.rs), [`Reminder`](../src-tauri/src/config.rs), [`ModelPreset`](../src-tauri/src/config.rs), [`QuickActionCfg`](../src-tauri/src/config.rs), [`load`](../src-tauri/src/config.rs), [`find_host`](../src-tauri/src/config.rs) |
 | [`hostexec.rs`](../src-tauri/src/hostexec.rs) | Shell commands locally or over SSH; quoting | [`run_shell`](../src-tauri/src/hostexec.rs), [`spawn_pi`](../src-tauri/src/hostexec.rs), [`user_env`](../src-tauri/src/hostexec.rs), [`shell_command`](../src-tauri/src/hostexec.rs), [`ssh_args`](../src-tauri/src/hostexec.rs), [`sq`](../src-tauri/src/hostexec.rs), [`shell_path`](../src-tauri/src/hostexec.rs) |
 | [`pi.rs`](../src-tauri/src/pi.rs) | One Pi process per open session, match RPC responses, forward events; also follows the log of a run in the background (same events); waiting calls fail at once when Pi ends, ended processes are reaped | [`PiManager`](../src-tauri/src/pi.rs), [`pump`](../src-tauri/src/pi.rs), [`PiManager::open`](../src-tauri/src/pi.rs), [`PiManager::open_follow`](../src-tauri/src/pi.rs), [`PiManager::send`](../src-tauri/src/pi.rs), [`PiManager::close`](../src-tauri/src/pi.rs) |
 | [`terminal.rs`](../src-tauri/src/terminal.rs) | Interactive terminal: one shell per tab in a pty (local login shell or `ssh -tt`), output as base64 `term-output` events, keys and size from the UI | [`TermManager`](../src-tauri/src/terminal.rs), [`TermManager::open`](../src-tauri/src/terminal.rs), [`TermManager::write`](../src-tauri/src/terminal.rs), [`TermManager::resize`](../src-tauri/src/terminal.rs), [`shell_command`](../src-tauri/src/terminal.rs), [`expand`](../src-tauri/src/terminal.rs) |
 | [`bg.rs`](../src-tauri/src/bg.rs) | Runs in the background: Pi started detached (`setsid`/`nohup`) on the host with `pi --mode json`, its log and pid file below `~/.pibar`; ask whether it still runs and stop it | [`bg::start`](../src-tauri/src/bg.rs), [`bg::running`](../src-tauri/src/bg.rs), [`bg::stop`](../src-tauri/src/bg.rs), [`follow_script`](../src-tauri/src/bg.rs), [`paths`](../src-tauri/src/bg.rs), [`hash`](../src-tauri/src/bg.rs) |
 | [`sessions.rs`](../src-tauri/src/sessions.rs) | Read the session list from `~/.pi/agent/sessions` (incl. `parent` of a branch); search the messages of all session files (one `grep` per host); user messages per file for the versions of a message; files Pi changed per own message (from the tool calls); delete session files (only there) | [`list`](../src-tauri/src/sessions.rs), [`SessionInfo`](../src-tauri/src/sessions.rs), [`outlines`](../src-tauri/src/sessions.rs), [`parse_outlines`](../src-tauri/src/sessions.rs), [`SessionOutline`](../src-tauri/src/sessions.rs), [`search`](../src-tauri/src/sessions.rs), [`parse_hits`](../src-tauri/src/sessions.rs), [`SearchHit`](../src-tauri/src/sessions.rs), [`snippet_for`](../src-tauri/src/sessions.rs), [`touches`](../src-tauri/src/sessions.rs), [`touched_by_message`](../src-tauri/src/sessions.rs), [`first_text`](../src-tauri/src/sessions.rs), [`sessions::delete`](../src-tauri/src/sessions.rs), [`is_session_file`](../src-tauri/src/sessions.rs) |
 | [`models.rs`](../src-tauri/src/models.rs) | Model list via `pi --list-models` (no session needed) | [`models::list`](../src-tauri/src/models.rs), [`models::parse`](../src-tauri/src/models.rs) |
-| [`files.rs`](../src-tauri/src/files.rs) | List all files of the session folders (or only documents and images, `DOCS_FILTER`); read and write text files (binary and >2 MB refused, paths checked by [`check_path_shape`](../src-tauri/src/files.rs)); images read only ([`read_image`](../src-tauri/src/files.rs)); flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
+| [`agents.rs`](../src-tauri/src/agents.rs) | Agent definitions for subagent sessions: reads `~/.pi/agent/agents/*.md` and the nearest `.pi/agents/*.md` above the working folder on the host (project agents override user agents), parses the frontmatter (name, description, tools, model); writes an agent's body as a system prompt file below `~/.pibar/agent-prompts` for `--append-system-prompt` | [`agents::list`](../src-tauri/src/agents.rs), [`parse_listing`](../src-tauri/src/agents.rs), [`parse_agent`](../src-tauri/src/agents.rs), [`split_frontmatter`](../src-tauri/src/agents.rs), [`prompt_file`](../src-tauri/src/agents.rs), [`AgentInfo`](../src-tauri/src/agents.rs) |
+| [`temp.rs`](../src-tauri/src/temp.rs) | Temperature extension for Pi: bundled source ([`EXTENSION`](../src-tauri/src/temp.rs), `src-tauri/extensions/pibar-temperature.ts`) and its installation on a host – written to `~/.pi/agent/extensions/pibar-temperature.ts`, Pi loads it on the next session start and offers `/temperature` | [`temp::install`](../src-tauri/src/temp.rs), [`install_script`](../src-tauri/src/temp.rs) |
+| [`files.rs`](../src-tauri/src/files.rs) | List all files of the session folders (or only documents and images, `DOCS_FILTER`); read and write text files (binary and >2 MB refused, paths checked by [`check_path_shape`](../src-tauri/src/files.rs)); images read only ([`read_image`](../src-tauri/src/files.rs)); upload any file type as base64 ([`files::upload`](../src-tauri/src/files.rs), [`upload_script`](../src-tauri/src/files.rs)); flag and create missing folders; optional Git status | [`files::list`](../src-tauri/src/files.rs), [`parse_listing`](../src-tauri/src/files.rs), [`parse_git`](../src-tauri/src/files.rs), [`GitInfo`](../src-tauri/src/files.rs), [`files::write`](../src-tauri/src/files.rs), [`create_dir`](../src-tauri/src/files.rs), [`FolderListing`](../src-tauri/src/files.rs), [`list_dirs`](../src-tauri/src/files.rs), [`read_head`](../src-tauri/src/files.rs) |
 | [`quick.rs`](../src-tauri/src/quick.rs) | Quick bar: show/hide window, size, position, hotkey, screenshot, OCR | [`toggle_quick`](../src-tauri/src/quick.rs), [`hide_quick`](../src-tauri/src/quick.rs), [`resize_quick`](../src-tauri/src/quick.rs), [`register_hotkey`](../src-tauri/src/quick.rs), [`hotkey_status`](../src-tauri/src/quick.rs), [`capture`](../src-tauri/src/quick.rs), [`ocr`](../src-tauri/src/quick.rs), [`mac_ocr_helper`](../src-tauri/src/quick.rs) |
 | [`disclaim.rs`](../src-tauri/src/disclaim.rs) | macOS: child processes (shell, SSH, curl) run as their own responsible process, so the "Local Network" block of the self-built app does not hit Pi | [`disclaim::command`](../src-tauri/src/disclaim.rs), [`run_if_requested`](../src-tauri/src/disclaim.rs) |
 | [`diag.rs`](../src-tauri/src/diag.rs) | Diagnosis report for chat errors: Pi/Node, environment (secrets hidden), Pi's model config, reachability of model servers | [`diag::run`](../src-tauri/src/diag.rs) |
@@ -85,16 +88,16 @@ flowchart LR
 | [`projects.ts`](../src/main/projects.ts) | "Projects" rubric under the hosts: named folders whose sessions are grouped under the project, plus the fixed preset of a project; dialogs, context menu, dragging a project to another position and the session a project starts | [`projects`](../src/main/projects.ts), [`projectOf`](../src/main/projects.ts), [`projectDialog`](../src/main/projects.ts), [`projectMenu`](../src/main/projects.ts), [`renderProjects`](../src/main/projects.ts), [`newSessionInProject`](../src/main/projects.ts), [`presetName`](../src/main/projects.ts), [`moveProject`](../src/main/projects.ts) |
 | [`blockDrag.ts`](../src/main/blockDrag.ts) | Drag a whole block in the left column (a host or a project) by the grip in its header to move it; the drop target calls the block's own reorder function | [`blockGrip`](../src/main/blockDrag.ts), [`blockDrop`](../src/main/blockDrag.ts) |
 | [`reminders.ts`](../src/main/reminders.ts) | Reminders on sessions: dialog, list at the top left, notifications | [`reminderDialog`](../src/main/reminders.ts), [`presetTimes`](../src/main/reminders.ts), [`renderReminders`](../src/main/reminders.ts), [`openReminder`](../src/main/reminders.ts), [`startReminderClock`](../src/main/reminders.ts) |
-| [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands, send a message as a detached run and follow it; keeps the model and the chat view chosen for the session | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.setPreset`](../src/main/sessionTab.ts), [`SessionTab.saveChoice`](../src/main/sessionTab.ts), [`SessionTab.viewMode`](../src/main/sessionTab.ts), [`SessionTab.setViewMode`](../src/main/sessionTab.ts), [`defaultViewMode`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
+| [`sessionTab.ts`](../src/main/sessionTab.ts) | One session: send Pi commands, render Pi events as chat, count tokens and speed, load skills/commands, send a message as a detached run and follow it; keeps the model, the chat view, the context mode, the temperature and the plan/build mode chosen for the session | [`SessionTab`](../src/main/sessionTab.ts), [`SessionTab.start`](../src/main/sessionTab.ts), [`SessionTab.send`](../src/main/sessionTab.ts), [`SessionTab.onEvent`](../src/main/sessionTab.ts), [`SessionTab.loadHistory`](../src/main/sessionTab.ts), [`SessionTab.refreshModels`](../src/main/sessionTab.ts), [`SessionTab.setPreset`](../src/main/sessionTab.ts), [`SessionTab.saveChoice`](../src/main/sessionTab.ts), [`SessionTab.viewMode`](../src/main/sessionTab.ts), [`SessionTab.setViewMode`](../src/main/sessionTab.ts), [`SessionTab.setContextMode`](../src/main/sessionTab.ts), [`SessionTab.setContextSection`](../src/main/sessionTab.ts), [`SessionTab.applyContext`](../src/main/sessionTab.ts), [`SessionTab.setPlanMode`](../src/main/sessionTab.ts), [`SessionTab.setTemperature`](../src/main/sessionTab.ts), [`SessionTab.scrollToTool`](../src/main/sessionTab.ts), [`defaultViewMode`](../src/main/sessionTab.ts), [`SessionTab.measure`](../src/main/sessionTab.ts), [`TabStats`](../src/main/sessionTab.ts), [`SessionTab.close`](../src/main/sessionTab.ts) |
 | [`rewindFiles.ts`](../src/main/rewindFiles.ts) | "Go back" also restores files: which files Pi changed since then (from the session file), the confirmation with the list, the restore and its undo | [`planRewind`](../src/main/rewindFiles.ts), [`applyRewind`](../src/main/rewindFiles.ts), [`undoFiles`](../src/main/rewindFiles.ts), [`RewindPlan`](../src/main/rewindFiles.ts) |
 | [`branchNav.ts`](../src/main/branchNav.ts) | Versions of a message: "‹ 2/3 ›" under own messages that exist in other branches | [`refreshBranches`](../src/main/branchNav.ts), [`SessionTab.showBranches`](../src/main/sessionTab.ts), [`SessionTab.scrollToUser`](../src/main/sessionTab.ts), [`switchBranch`](../src/main/sessions.ts) |
 | [`answerDialog.ts`](../src/main/answerDialog.ts) | Questions to the user: choice questions at the end of an answer (tick options, own answer) and Pi's own dialogs (extension UI) | [`questionDialog`](../src/main/answerDialog.ts), [`uiRequest`](../src/main/answerDialog.ts), [`openQuestions`](../src/main/sessions.ts) |
 | [`gitHistory.ts`](../src/main/gitHistory.ts) | Git history dialog: commits of a repository (Git line in the tree) or of a file (right click), changed files, diff | [`repoHistory`](../src/main/gitHistory.ts), [`fileHistory`](../src/main/gitHistory.ts) |
 | [`autoScroll.ts`](../src/main/autoScroll.ts) | Auto scroll of the chat, modes automatic (pauses on scrolling up), always (forced) and off; entries for the view menu and the setting; keeps the chat still while the input changes height | [`wireAutoScroll`](../src/main/autoScroll.ts), [`answerStarted`](../src/main/autoScroll.ts), [`setScrollMode`](../src/main/autoScroll.ts), [`jumpToEnd`](../src/main/autoScroll.ts), [`keepScroll`](../src/main/autoScroll.ts) |
 | [`shortcuts.ts`](../src/main/shortcuts.ts) | Keyboard shortcuts of the main window and their overview (⌘/) | [`wireShortcuts`](../src/main/shortcuts.ts), [`shortcutsDialog`](../src/main/shortcuts.ts) |
-| [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, theme), chat area, input, send menu (also runs in the background; the mode shows as a pill next to the input and a ring around the send button), shortcuts; shows the view of the session on screen (the views come from [`VIEWS`](../src/shared/chatViews.ts)), the right mouse button on the send button opens the background menu | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts), [`setBackground`](../src/main/chatView.ts) |
+| [`chatView.ts`](../src/main/chatView.ts) | Header (preset, model, thinking, chat view, answer style, temperature, plan/build mode, theme), chat area, input, send menu (also runs in the background; the mode shows as a pill next to the input and a ring around the send button), shortcuts; shows the view of the session on screen (the views come from [`VIEWS`](../src/shared/chatViews.ts)), the context menu in the answer dropdown and its pill (private/public and the sections, [`parseContextStatus`](../src/shared/contextMode.ts)), the right mouse button on the send button opens the background menu | [`renderToolbar`](../src/main/chatView.ts), [`wireChatView`](../src/main/chatView.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`contextMenuItems`](../src/main/chatView.ts), [`renderContext`](../src/main/chatView.ts), [`renderPlan`](../src/main/chatView.ts), [`renderTemp`](../src/main/chatView.ts), [`setTheme`](../src/main/chatView.ts), [`showEmpty`](../src/main/chatView.ts), [`setBackground`](../src/main/chatView.ts) |
 | [`layout.ts`](../src/main/layout.ts) | Side panels: show/hide, drag width, divider between file tree and editor, float over the chat in narrow windows; text size of the window (`--fs` on `<html>`, ⌘+ / ⌘− / ⌘0) | [`applyLayout`](../src/main/layout.ts), [`togglePanel`](../src/main/layout.ts), [`applySplit`](../src/main/layout.ts), [`wireLayout`](../src/main/layout.ts), [`applyFontScale`](../src/main/layout.ts), [`stepFontScale`](../src/main/layout.ts) |
-| [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
+| [`menu.ts`](../src/main/menu.ts) | Popup menus: header dropdowns with descriptions, "+" menus, context menus (headings, colour swatches, slider row for the temperature) | [`openMenu`](../src/main/menu.ts), [`closeMenu`](../src/main/menu.ts), [`MenuEntry`](../src/main/menu.ts), [`COLORS`](../src/main/menu.ts) |
 | [`sessionGroups.ts`](../src/main/sessionGroups.ts) | Own session names, pins, colours, unread marks, coloured groups (also for a session without a file yet); a group opens and closes per block of the list (host, project); context menus of sessions and groups | [`sessionMenu`](../src/main/sessionGroups.ts), [`groupMenu`](../src/main/sessionGroups.ts), [`renameDialog`](../src/main/sessionGroups.ts), [`setMeta`](../src/main/sessionGroups.ts), [`refKey`](../src/main/sessionGroups.ts), [`displayTitle`](../src/main/sessionGroups.ts), [`clearUnread`](../src/main/sessionGroups.ts), [`groupCollapsed`](../src/main/sessionGroups.ts), [`toggleGroup`](../src/main/sessionGroups.ts) |
 | [`sessionSelect.ts`](../src/main/sessionSelect.ts) | Multi-selection (⌘/⇧-click), drag & drop onto groups and drop zones, selection bar | [`selectClick`](../src/main/sessionSelect.ts), [`dragStart`](../src/main/sessionSelect.ts), [`dropTarget`](../src/main/sessionSelect.ts), [`renderSelectionBar`](../src/main/sessionSelect.ts), [`wireSessionSelect`](../src/main/sessionSelect.ts) |
 | [`diagnose.ts`](../src/main/diagnose.ts) | Diagnosis dialog: error, Pi's stderr, hints for typical causes, report; tested in `diagnose.test.ts` | [`diagnoseDialog`](../src/main/diagnose.ts), [`diagnoseHints`](../src/main/diagnose.ts) |
@@ -106,8 +109,11 @@ flowchart LR
 | [`cleanup.ts`](../src/main/cleanup.ts) | "Tidy up": move many sessions into the collapsed "Archive" group, with undo | [`cleanupDialog`](../src/main/cleanup.ts), [`cleanupCandidates`](../src/main/cleanup.ts), [`archive`](../src/main/cleanup.ts) |
 | [`folderPicker.ts`](../src/main/folderPicker.ts) | Folder picker for local and SSH hosts (new session, add folder) | [`pickFolder`](../src/main/folderPicker.ts), [`folderField`](../src/main/folderPicker.ts), [`tildePath`](../src/main/folderPicker.ts) |
 | [`files.ts`](../src/main/files.ts) | Right column: session folders as a tree, missing folders, Markdown editor | [`renderFiles`](../src/main/files.ts), [`renderTree`](../src/main/files.ts), [`treeRows`](../src/main/files.ts), [`saveEditor`](../src/main/files.ts), [`renderDiff`](../src/main/files.ts), [`folderMenu`](../src/main/files.ts), [`wireFiles`](../src/main/files.ts) |
-| [`terminal.ts`](../src/main/terminal.ts) | Terminal at the bottom of the chat column (xterm.js): tabs named and coloured like their session, open/close/hide, drag height, keys and size to the Rust pty | [`wireTerminal`](../src/main/terminal.ts), [`toggleTerminal`](../src/main/terminal.ts), [`openTab`](../src/main/terminal.ts), [`closeTab`](../src/main/terminal.ts), [`tabMeta`](../src/main/terminal.ts), [`refreshTermTabs`](../src/main/terminal.ts), [`focusSessionTab`](../src/main/terminal.ts) |
-| [`settings.ts`](../src/main/settings.ts) | Settings dialog with a section list on the left (general, chat, models & presets, quick start, terminal, quick launcher, voice, chat colours, hosts); the last section is kept; language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
+| [`fileUpload.ts`](../src/main/fileUpload.ts) | Upload files of any type (e.g. PDF) from this computer into a folder of the tree: dialog with picker and drop zone, per-file status, overwrite confirmation; folder rows and the tree background as drop targets | [`uploadDialog`](../src/main/fileUpload.ts), [`uploadDrop`](../src/main/fileUpload.ts), [`droppedFiles`](../src/main/fileUpload.ts) |
+| [`terminal.ts`](../src/main/terminal.ts) | Terminal at the bottom of the chat column (xterm.js): tabs named and coloured like their session, open/close/hide, drag height, keys and size to the Rust pty; a new tab can run a script right away (quick actions) | [`wireTerminal`](../src/main/terminal.ts), [`toggleTerminal`](../src/main/terminal.ts), [`openTab`](../src/main/terminal.ts), [`closeTab`](../src/main/terminal.ts), [`tabMeta`](../src/main/terminal.ts), [`refreshTermTabs`](../src/main/terminal.ts), [`focusSessionTab`](../src/main/terminal.ts) |
+| [`settings.ts`](../src/main/settings.ts) | Settings dialog with a section list on the left (general, chat, models & presets, quick start, quick actions, terminal, quick launcher, voice, chat colours, hosts); the last section is kept; language, hotkeys, bar position, model presets, hosts | [`settingsDialog`](../src/main/settings.ts), [`presetEditor`](../src/main/settings.ts) |
+| [`quickActions.ts`](../src/main/quickActions.ts) | Quick action buttons at the bottom right of the chat (status line): a command/message goes to the active session, a shell script runs in a new terminal tab in the session's folder; the settings section manages them (add, edit, remove, move) | [`renderQuickActions`](../src/main/quickActions.ts), [`runQuickAction`](../src/main/quickActions.ts), [`quickActionsEditor`](../src/main/quickActions.ts) |
+| [`subagents.ts`](../src/main/subagents.ts) | Subagents under a session in the left column, indented and collapsible: runs of Pi's subagent extension (a click shows the tool card) and child sessions PiBar starts with an agent definition ("New subagent …" in the session menu) | [`sessionKids`](../src/main/subagents.ts), [`openAgentSession`](../src/main/subagents.ts), [`subagentDialog`](../src/main/subagents.ts) |
 | [`colorSettings.ts`](../src/main/colorSettings.ts) | Settings section "Chat colours": profiles with hex values for thinking, tool calls, answers and own messages, one set per theme | [`colorEditor`](../src/main/colorSettings.ts) |
 | [`colors.ts`](../src/main/colors.ts) | Applies the chat colours of the active session's host to `<html>` as CSS variables; follows the system theme | [`applyChatColors`](../src/main/colors.ts), [`isDark`](../src/main/colors.ts), [`wireChatColors`](../src/main/colors.ts) |
 | [`quickBridge.ts`](../src/main/quickBridge.ts) | Accept messages from the quick bar | [`handleQuick`](../src/main/quickBridge.ts), [`broadcastActive`](../src/main/quickBridge.ts) |
@@ -124,6 +130,11 @@ flowchart LR
 | [`shared/listFilter.ts`](../src/shared/listFilter.ts) | Views of the session list: is a filter set, and does a row belong to it – only what I am working on (running, unread or open) and/or only one colour ("none" counts as its own); tested in `listFilter.test.ts` | [`passesFilter`](../src/shared/listFilter.ts), [`filterSet`](../src/shared/listFilter.ts), [`SessionFilterMode`](../src/shared/listFilter.ts) |
 | [`shared/search.ts`](../src/shared/search.ts) | Search in the left column: the cleaned query, whether a row matches it, the parts of a snippet to highlight and the role label of a hit, tested in `search.test.ts` | [`cleanQuery`](../src/shared/search.ts), [`isSearching`](../src/shared/search.ts), [`matchesQuery`](../src/shared/search.ts), [`highlight`](../src/shared/search.ts), [`roleLabel`](../src/shared/search.ts) |
 | [`shared/questions.ts`](../src/shared/questions.ts) | Find choice questions with options at the end of an answer, compose the answer message (tested) | [`findQuestions`](../src/shared/questions.ts), [`composeAnswer`](../src/shared/questions.ts) |
+| [`shared/contextMode.ts`](../src/shared/contextMode.ts) | Context mode of Pi's `mode-guard` extension: read its status line (private/public and the sections public leaves out), build the `/mode`, `/strip`, `/keep` and `/sections` commands, pick the mode a session starts with (project, then settings); tested in `contextMode.test.ts` | [`parseContextStatus`](../src/shared/contextMode.ts), [`contextModeCommand`](../src/shared/contextMode.ts), [`contextSectionCommand`](../src/shared/contextMode.ts), [`CONTEXT_SECTIONS`](../src/shared/contextMode.ts), [`startContextMode`](../src/shared/contextMode.ts) |
+| [`shared/planMode.ts`](../src/shared/planMode.ts) | Plan/build mode of a session: the read-only tools of plan mode and the plan hint appended to each message (slash commands stay unchanged); tested in `planMode.test.ts` | [`PLAN_TOOLS`](../src/shared/planMode.ts), [`withPlanMode`](../src/shared/planMode.ts), [`stripPlanMode`](../src/shared/planMode.ts) |
+| [`shared/subagents.ts`](../src/shared/subagents.ts) | Runs of Pi's subagent extension, pure parsing: from the arguments of a "subagent" tool call (single/parallel/chain) and from the details of its partial/final results; tested in `subagents.test.ts` | [`subagentFromArgs`](../src/shared/subagents.ts), [`subagentFromDetails`](../src/shared/subagents.ts), [`subagentWorking`](../src/shared/subagents.ts), [`SubagentCall`](../src/shared/subagents.ts), [`SubagentRun`](../src/shared/subagents.ts) |
+| [`shared/temperature.ts`](../src/shared/temperature.ts) | Sampling temperature of a session (Pi extension `pibar-temperature`): slider steps, labels and short explanations, the `/temperature` command and the extension's status line; tested in `temperature.test.ts` | [`TEMP_STEP`](../src/shared/temperature.ts), [`clampTemp`](../src/shared/temperature.ts), [`formatTemp`](../src/shared/temperature.ts), [`tempHint`](../src/shared/temperature.ts), [`temperatureCommand`](../src/shared/temperature.ts), [`parseTemperatureStatus`](../src/shared/temperature.ts) |
+| [`shared/quickActions.ts`](../src/shared/quickActions.ts) | Pure cleaning of the quick action list: trimmed names and texts, empty rows dropped, a valid kind and an id for every button; tested in `quickActions.test.ts` | [`cleanQuickActions`](../src/shared/quickActions.ts) |
 | [`shared/sessionOrder.ts`](../src/shared/sessionOrder.ts) | Order and sections of the session list: by last activity, creation, name, folder or the order the user dragged ("own"); sections by date or folder (tested) | [`sortRows`](../src/shared/sessionOrder.ts), [`sectionRows`](../src/shared/sessionOrder.ts), [`dateBucket`](../src/shared/sessionOrder.ts) |
 | [`shared/attach.ts`](../src/shared/attach.ts) | Read attached files (main window and quick bar): images as images, text files as text | [`readAttachment`](../src/shared/attach.ts) |
 | [`shared/piErrors.ts`](../src/shared/piErrors.ts) | Errors that Pi's install changed under a running Pi ("Cannot find module …/dist/bundle/chunks/…" after `pi update` on the host), tested in `piErrors.test.ts` | [`isStaleInstallError`](../src/shared/piErrors.ts) |
@@ -146,7 +157,7 @@ flowchart LR
 
 | File | Purpose |
 | --- | --- |
-| [`dev/fake-pi.mjs`](../dev/fake-pi.mjs) | Fake Pi: simulates streaming, thinking, a tool call, `--list-models` |
+| [`dev/fake-pi.mjs`](../dev/fake-pi.mjs) | Fake Pi: simulates streaming, thinking, a tool call, `--list-models`, the `/temperature` command with its status line |
 | [`scripts/check-codemap.mjs`](../scripts/check-codemap.mjs) | Checks all code references in the docs |
 | [`scripts/check-version.mjs`](../scripts/check-version.mjs) | Same version in package files, Tauri, Cargo and both READMEs |
 | [`scripts/install-mac.sh`](../scripts/install-mac.sh) | `npm run app:install`: build the release app and install it to `/Applications` |
@@ -302,6 +313,14 @@ per changed file ([`gitMark`](../src/shared/git.ts)). Ahead/behind are as of the
 [`run_shell`](../src-tauri/src/hostexec.rs), locally and over SSH; [`files::write`](../src-tauri/src/files.rs) writes to a
 temp file first and then renames.
 
+Files of any type (e.g. PDF) can be uploaded from this computer into a folder of the tree: "+" or right click →
+"Upload files …", or OS files dropped onto a folder row (the tree background takes the working folder).
+[`uploadDialog`](../src/main/fileUpload.ts) reads the files as base64 ([`toBase64`](../src/shared/attach.ts)) and
+[`files::upload`](../src-tauri/src/files.rs) writes them through the same shell (max. 50 MB per file, temp file then
+rename). Existing files are kept unless the user confirms overwriting; dropped folders are refused
+([`droppedFiles`](../src/main/fileUpload.ts)). Afterwards [`uploaded`](../src/main/files.ts) opens the folder in the
+tree and turns the "docs only" filter off when an upload would be hidden by it.
+
 ### Terminal at the bottom
 
 The button in the file panel's header or ⌘⌥J calls [`toggleTerminal`](../src/main/terminal.ts), which shows the dock at
@@ -338,6 +357,64 @@ with no session on screen the header dropdown changes that default. The answer s
 into the card. The answer style is a short hint that [`SessionTab.send`](../src/main/sessionTab.ts) appends with
 [`withAnswerStyle`](../src/shared/format.ts) (not for `/` commands); [`stripAnswerStyle`](../src/shared/format.ts) and
 [`cleanTitle`](../src/shared/format.ts) remove it again for display.
+
+### Plan and build mode
+
+The header dropdown "Mode" ([`renderPlan`](../src/main/chatView.ts)) switches the session between Build (normal work)
+and Plan ([`SessionTab.setPlanMode`](../src/main/sessionTab.ts)). Plan restricts Pi to the read-only tools
+[`PLAN_TOOLS`](../src/shared/planMode.ts) (read, grep, find, ls – no bash, edit or write) and appends a plan hint to
+each message ([`withPlanMode`](../src/shared/planMode.ts), not for `/` commands). Pi gets its tools at start, so the
+toggle restarts the session like a tool change; history, model and view stay. The session's own tools are kept in
+`toolsetBeforePlan` and come back with Build; the tools dialog edits them while plan mode is on. The choice is saved
+in `SessionMeta.planMode` and applied again when the session is opened ([`openSession`](../src/main/sessions.ts)).
+Detached runs in the background inherit the restricted toolset and the hint.
+
+### Temperature of a session
+
+The header dropdown "Temp." ([`renderTemp`](../src/main/chatView.ts)) opens a slider (0–1 in steps of 0.1, a `slider`
+entry of [`MenuEntry`](../src/main/menu.ts)) with a short explanation that follows the drag
+([`tempHint`](../src/shared/temperature.ts)); "Model's default" clears the value. Pi itself has no RPC command for
+temperature, so PiBar ships a small extension (`src-tauri/extensions/pibar-temperature.ts`, installed by
+[`temp::install`](../src-tauri/src/temp.rs) → `temp_install`): it registers `/temperature`, reports its value as a
+footer status (`pibar-temperature`) and overrides `temperature` in the provider payload
+(`before_provider_request`). Models that reject the field keep their default: `supportsTemperature === false`,
+Anthropic with extended thinking, OpenAI-style reasoning models on the responses API.
+
+Without the extension the menu offers "Install extension and restart session" – the file goes to
+`~/.pi/agent/extensions` on the host (local or SSH) and the session restarts once so Pi loads it. The value is kept
+per session in `SessionMeta.temperature` ([`SessionTab.setTemperature`](../src/main/sessionTab.ts));
+[`SessionTab.applyTemperature`](../src/main/sessionTab.ts) pushes it again on every start (with the same retry as the
+context mode while the extension registers), and a status changed inside Pi itself is adopted. Detached runs get the
+value as `--temperature` ([`bg_start`](../src-tauri/src/lib.rs)); the slider steps and commands are pure logic in
+[`shared/temperature.ts`](../src/shared/temperature.ts).
+
+### Quick action buttons
+
+Small buttons at the bottom right of the chat (status line, [`renderQuickActions`](../src/main/quickActions.ts)),
+managed in Settings → Quick actions ([`quickActionsEditor`](../src/main/quickActions.ts)): name, kind and text per
+button, add/remove/move; saving re-renders the row at once. A "command" button sends its text to the active session
+([`runQuickAction`](../src/main/quickActions.ts) → [`SessionTab.send`](../src/main/sessionTab.ts), slash commands
+work); a "shell" button opens a new terminal tab in the session's folder and runs the script there
+([`openTab`](../src/main/terminal.ts) with `run`). The list lives in `AppConfig.quickActions`
+([`QuickActionCfg`](../src-tauri/src/config.rs)), cleaned by [`cleanQuickActions`](../src/shared/quickActions.ts).
+
+### Subagents
+
+Two kinds share one place: the rows under a session in the left column, indented with a small "Subagents" heading
+that folds them away (`SessionMeta.kidsCollapsed`, [`sessionKids`](../src/main/subagents.ts)).
+
+1. **Runs of Pi's subagent extension**: [`SessionTab.onEvent`](../src/main/sessionTab.ts) follows the "subagent" tool
+   calls – arguments give the tasks ([`subagentFromArgs`](../src/shared/subagents.ts)), the `details` of
+   `tool_execution_update`/`_end` give the status of each run ([`subagentFromDetails`](../src/shared/subagents.ts)).
+   A click on a run row opens the session and scrolls to its tool card ([`SessionTab.scrollToTool`](../src/main/sessionTab.ts)).
+2. **Child sessions of PiBar**: "New subagent …" in the session menu ([`subagentDialog`](../src/main/subagents.ts))
+   lists the agent definitions of the host ([`agents::list`](../src-tauri/src/agents.rs): `~/.pi/agent/agents/*.md`
+   plus the nearest `.pi/agents` above the working folder). [`openAgentSession`](../src/main/subagents.ts) starts a
+   session of its own in the parent's folder: the agent's tools as the allowlist, its model, and its body as an extra
+   system prompt ([`prompt_file`](../src-tauri/src/agents.rs) writes it below `~/.pibar/agent-prompts`, Pi gets it via
+   `--append-system-prompt`). The link lives in `SessionMeta` (`parentKey`, `agentName`, `agentPrompt`), so the child
+   appears indented under its parent ([`sessionSections`](../src/main/sessions.ts)) and keeps its prompt when opened
+   again; while searching, the list stays flat. The task goes to the child as its first message.
 
 ### Chat colours
 
@@ -590,6 +667,13 @@ The header dropdown still sets the view of the session on screen ([`SessionTab.s
 choosing the view the session starts with drops that own choice again. The view options themselves are
 [`VIEWS`](../src/shared/chatViews.ts).
 
+The same holds for the **context mode** (Pi extension `mode-guard`): a project can fix private or public for its
+sessions (`Project.contextMode`, "Context mode" in the project dialog and in its menu).
+[`SessionTab.startContextMode`](../src/main/sessionTab.ts) reads it through [`projectAt`](../src/shared/projects.ts) and
+falls back to `ui.defaultMode` (the setting "Context mode" in the settings dialog, empty = Pi's default), see
+[`startContextMode`](../src/shared/contextMode.ts). [`SessionTab.applyContext`](../src/main/sessionTab.ts) pushes that
+mode to Pi; [`SessionTab.saveContext`](../src/main/sessionTab.ts) keeps only a mode the session switched in its header.
+
 ### Voice: dictation, read aloud, text improvement
 
 Settings in `AppConfig.voice` ([`VoiceCfg`](../src-tauri/src/config.rs), edited in [`voiceEditor`](../src/main/voiceSettings.ts)).
@@ -627,6 +711,7 @@ A new command needs both.
 | `snapshot_take`, `rewind_preview`, `rewind_restore`, `rewind_undo` | File states for "go back": record before a message, show what changes, restore the files Pi changed, undo that |
 | `pi_open`, `pi_send`, `pi_close`, `pi_close_all` | Pi process per session |
 | `bg_start`, `bg_follow`, `bg_running`, `bg_stop` | Run a message in the background: start detached, follow the log, ask whether it still runs, stop it |
+| `temp_install` | Install the temperature extension on a host (`~/.pi/agent/extensions/pibar-temperature.ts`); Pi loads it on the next session start |
 | `pi_reply` | Answer to a dialog of a Pi extension (`extension_ui_response`, Pi sends no response) |
 | `list_files`, `read_file`, `write_file`, `create_file`, `create_dir` | Files and folders of the tree (all files, or only Markdown/HTML/images) |
 | `read_image` | An image of the file panel as base64 (read only) |
@@ -660,6 +745,11 @@ A new command needs both.
 | Render a new Pi event | [`SessionTab.onEvent`](../src/main/sessionTab.ts) |
 | Runs in the background (detached Pi, log, pid) | [`bg.rs`](../src-tauri/src/bg.rs), [`SessionTab.sendToBackground`](../src/main/sessionTab.ts) |
 | Chat views of a session, answer style hints | [`SessionTab.viewMode`](../src/main/sessionTab.ts), [`applyUiPrefs`](../src/main/chatView.ts), [`withAnswerStyle`](../src/shared/format.ts) |
+| Plan/build mode of a session (read-only tools, plan hint) | [`SessionTab.setPlanMode`](../src/main/sessionTab.ts), [`shared/planMode.ts`](../src/shared/planMode.ts), [`renderPlan`](../src/main/chatView.ts) |
+| Temperature of a session (slider, extension, `/temperature`) | [`SessionTab.setTemperature`](../src/main/sessionTab.ts), [`shared/temperature.ts`](../src/shared/temperature.ts), [`temp.rs`](../src-tauri/src/temp.rs), [`renderTemp`](../src/main/chatView.ts) |
+| Quick action buttons (bottom right, settings section) | [`quickActions.ts`](../src/main/quickActions.ts), [`cleanQuickActions`](../src/shared/quickActions.ts), [`QuickActionCfg`](../src-tauri/src/config.rs) |
+| Subagent rows under a session (extension runs, child sessions, folding) | [`sessionKids`](../src/main/subagents.ts), [`shared/subagents.ts`](../src/shared/subagents.ts), [`sessionSections`](../src/main/sessions.ts) |
+| Subagent sessions of PiBar (agent definitions, "New subagent …") | [`subagentDialog`](../src/main/subagents.ts), [`openAgentSession`](../src/main/subagents.ts), [`agents.rs`](../src-tauri/src/agents.rs) |
 | Model, thinking level or preset of a session (kept when it is opened again) | [`SessionTab.saveChoice`](../src/main/sessionTab.ts), [`SessionTab.applyChoice`](../src/main/sessionTab.ts), [`SessionTab.adoptChoice`](../src/main/sessionTab.ts), [`resolveChoice`](../src/shared/presets.ts) |
 | Token statistics panel | [`wireUsage`](../src/main/usageStats.ts), [`SessionTab.measure`](../src/main/sessionTab.ts) |
 | Panel widths, narrow windows | [`applyLayout`](../src/main/layout.ts) |
@@ -675,6 +765,7 @@ A new command needs both.
 | "Go back" to a message also restores files | [`planRewind`](../src/main/rewindFiles.ts), [`snapshot::take`](../src-tauri/src/snapshot.rs) (recording in [`SessionTab.send`](../src/main/sessionTab.ts)), [`touches`](../src-tauri/src/sessions.rs) |
 | New Pi RPC command in the UI | method in [`SessionTab`](../src/main/sessionTab.ts) via [`api`](../src/shared/api.ts) (`api.pi`) |
 | New Rust command | function in [`lib.rs`](../src-tauri/src/lib.rs) + register in [`run`](../src-tauri/src/lib.rs) + [`api`](../src/shared/api.ts) |
+| Upload files into a folder of the tree (any type, e.g. PDF) | [`uploadDialog`](../src/main/fileUpload.ts), [`uploadDrop`](../src/main/fileUpload.ts), [`files::upload`](../src-tauri/src/files.rs) |
 | Chat colours (profile editor, roles) | [`colorSettings.ts`](../src/main/colorSettings.ts), [`shared/colors.ts`](../src/shared/colors.ts), [`styles.css`](../src/main/styles.css) |
 | New setting | [`UiPrefs`](../src-tauri/src/config.rs) (with `serde(default)`) + [`AppConfig`](../src/shared/api.ts) + [`settingsDialog`](../src/main/settings.ts) |
 | New or changed UI text | [`t`](../src/shared/i18n.ts) + German entry in the dictionary in the same file; Rust: [`tr`](../src-tauri/src/i18n.rs) |
@@ -697,6 +788,8 @@ A new command needs both.
   as unreachable objects until Git cleans them up).
 - The search matches literal text (case-insensitive, `grep -F`), not a regular expression. Per host it reports at most
   40 session files and one hit per file (the first matching line), so a session with several matches appears once.
+- The temperature slider needs the `pibar-temperature` extension on the host (its menu installs it in one click).
+  Models that reject temperature – extended thinking, some reasoning models – keep their default.
 - Reminders are only checked while PiBar is running (missed ones show as due on the next start).
 - Runs in the background take one message at a time: no images, no steering, no dialogs of Pi extensions, and the
   model is fixed at the start. Their pid file (below `~/.pibar` on the host) removes the follower when the run ends;

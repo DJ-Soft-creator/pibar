@@ -4,7 +4,7 @@ Desktop-Oberfläche für den [Pi Coding Agent](https://pi.dev): Sessions links, 
 rechts, dazu eine Quick-Leiste, die man von überall per Doppeltipp öffnet.
 Gebaut mit Tauri 2 (Rust-Kern + Web-Oberfläche), läuft auf macOS, Linux und Windows.
 
-**Version 1.5.0** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
+**Version 1.6.0** · [English](README.md) · [Mitarbeiten (englisch)](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) ·
 MIT-Lizenz
 
 > Stand: Prototyp. Hauptziel ist macOS; Linux und Windows bauen, Doppeltipp, Bereichs-Screenshot und OCR gibt es bisher
@@ -36,6 +36,19 @@ MIT-Lizenz
   einer anderen Session kommt deren Ansicht zurück, und Einstellungen → Chat legt fest, mit welcher neue Sessions
   starten
 - **Antwortstil** (Kopfzeile): kurz, normal oder möglichst kurz mit technischen Details
+- **Temperatur** (Kopfzeile): ein Schieberegler von 0 bis 1 mit kurzer Erklärung – niedrige Werte halten Pi präzise und
+  nah an den Regeln, hohe machen es freier und kreativer. Der Wert gehört zur Session und übersteht einen Neustart;
+  PiBar installiert dafür eine kleine Extension auf dem Host (ein Klick im Menü). Modelle, die Temperatur ablehnen
+  (extended Thinking, manche Reasoning-Modelle), behalten ihren Standard
+- **Plan / Build** (Kopfzeile): Der Planmodus beschränkt Pi auf nur lesende Tools (read, grep, find, ls) und bittet um
+  einen nummerierten Plan statt Änderungen; Build gibt die eigenen Tools der Session zurück. Die Wahl gehört zur
+  Session und übersteht einen Neustart; beim Wechsel startet Pi in derselben Session neu, der Verlauf bleibt
+- **Schnellwahl**: kleine Buttons unten rechts im Chat – ein Befehl/eine Nachricht geht an die Session (Slash-Befehle
+  gehen auch), ein Shell-Skript läuft in einem neuen Terminal-Tab im Ordner der Session. Verwaltet unter Einstellungen
+  → Schnellwahl (hinzufügen, bearbeiten, entfernen, verschieben); die Buttons ändern sich sofort
+- **Subagents**: unter einer Session in der linken Spalte, eingerückt und einklappbar – die Runs der Pi-Subagent-
+  Extension live (Klick zeigt die Tool-Karte), und „Neuer Subagent …“ im Session-Menü startet eine eigene Kind-Session
+  mit einer Agenten-Definition des Hosts (`~/.pi/agent/agents/*.md` oder `.pi/agents`: Tools, Modell, System-Prompt)
 - **Werkzeugleiste** an der Eingabe: ein dezentes `+`; kommt die Maus in die Nähe, blenden weitere Knöpfe ein –
   **Dateien anhängen** (Textdateien und Bilder, auch per Drag & Drop oder Einfügen; als Chips über der Eingabe),
   **Screenshot**, **Skills** und **Tools**
@@ -167,6 +180,10 @@ MIT-Lizenz
   anzeigen
 - **Kontext**: Ordner oder Datei aus dem Baum in die Eingabe ziehen oder Rechtsklick → Zum Kontext hinzufügen; Pi
   bekommt den Pfad und liest mit seinen Werkzeugen, was es braucht
+- **Upload**: Dateien beliebigen Typs (z. B. PDF) vom eigenen Rechner in einen Ordner des Baums – „+“ oder
+  Rechtsklick → „Dateien hochladen …“, oder auf einen Ordner ziehen (auch über SSH, max. 50 MB pro Datei);
+  vorhandene Dateien werden erst nach Rückfrage überschrieben, und der „Nur Markdown“-Filter schaltet sich ab,
+  damit die Uploads sichtbar sind
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
 - Optional **Git-Status** (Einstellungen → Chat): für den Session-Ordner und für Repositories in seinen

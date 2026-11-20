@@ -237,6 +237,7 @@ const de = {
   "View that sessions start with. The header switches it for the session on screen, the other sessions keep theirs.":
     "Ansicht, mit der Sessions starten. In der Kopfzeile wechselst du sie für die Session auf dem Schirm, die anderen behalten ihre.",
   Answers: "Antworten",
+  Content: "Inhalt",
   "Answer style for new messages": "Antwortstil für neue Nachrichten",
   Short: "Kurz",
   Normal: "Normal",
@@ -299,6 +300,56 @@ const de = {
   "The run ended without an answer – its log is on the host in ~/.pibar.":
     "Der Lauf endete ohne Antwort – sein Log liegt auf dem Host in ~/.pibar.",
   "Start sessions in the background by default": "Sessions standardmäßig im Hintergrund starten",
+  // context mode (Pi extension mode-guard, shared/contextMode.ts)
+  "Private – full context": "Privat – voller Kontext",
+  "Public – reduced context": "Öffentlich – reduzierter Kontext",
+  "AGENTS.md, skills and MCP servers are sent as usual": "AGENTS.md, Skills und MCP-Server gehen wie gewohnt mit",
+  "Project context, skills and MCP servers stay out": "Projektkontext, Skills und MCP-Server bleiben draußen",
+  "Sections for public mode": "Sektionen im öffentlichen Modus",
+  "Stays out in public mode": "Bleibt im öffentlichen Modus draußen",
+  "Also sent in public mode": "Geht auch im öffentlichen Modus mit",
+  "Show what is sent now": "Zeigen, was gerade gesendet wird",
+  "Pi lists the sections in a notice": "Pi listet die Sektionen in einer Meldung",
+  "The mode-guard extension is not loaded": "Die Extension mode-guard ist nicht geladen",
+  "Put it in ~/.pi/agent/extensions to switch private/public here.":
+    "Lege sie in ~/.pi/agent/extensions ab, um hier privat/öffentlich zu wechseln.",
+  "Context mode": "Kontext-Modus",
+  Private: "Privat",
+  Public: "Öffentlich",
+  "Context mode its sessions start with": "Kontext-Modus, mit dem seine Sessions starten",
+  "Context mode that new sessions start with (Pi extension mode-guard). A project can fix one of its own; the header switches it for the session on screen.":
+    "Kontext-Modus, mit dem neue Sessions starten (Pi-Extension mode-guard). Ein Projekt kann einen eigenen festlegen; im Kopf schaltest du ihn für die Session auf dem Bildschirm.",
+  "The context mode applies to new sessions in the project (needs the mode-guard extension) – a session keeps the mode you switch in the header.":
+    "Der Kontext-Modus gilt für neue Sessions im Projekt (braucht die Extension mode-guard) – eine Session behält den Modus, den du im Kopf umschaltest.",
+  "The context mode needs a live session.": "Der Kontext-Modus braucht eine laufende Session.",
+  "Pi did not handle it as a command.": "Pi hat es nicht als Befehl behandelt.",
+  "Context: {mode} – click for private/public and sections":
+    "Kontext: {mode} – Klick für privat/öffentlich und Sektionen",
+  // temperature (Pi extension pibar-temperature, shared/temperature.ts)
+  "Temp.": "Temp.",
+  Temperature: "Temperatur",
+  Default: "Standard",
+  "Temperature of this session": "Temperatur dieser Session",
+  "the model's default – click to set a value": "Standard des Modells – Klick setzt einen Wert",
+  "Model's default": "Standard des Modells",
+  "No fixed temperature – the model decides (often around 0.7–1.0)":
+    "Keine feste Temperatur – das Modell entscheidet (oft etwa 0,7–1,0)",
+  precise: "präzise",
+  free: "frei",
+  "Very focused: precise, factual and close to the rules": "Sehr fokussiert: präzise, sachlich und nah an den Regeln",
+  "Rather precise: reliable answers with little variation": "Eher präzise: verlässliche Antworten mit wenig Streuung",
+  "Balanced: a middle ground between precise and free": "Ausgewogen: Mittelweg zwischen präzise und frei",
+  "Rather free: more varied wording and ideas": "Eher frei: abwechslungsreichere Formulierungen und Ideen",
+  "Very free: creative and surprising, but less predictable":
+    "Sehr frei: kreativ und überraschend, aber weniger berechenbar",
+  "The temperature extension is not loaded": "Die Temperatur-Extension ist nicht geladen",
+  "PiBar can install it on this host – the session then restarts once.":
+    "PiBar kann sie auf diesem Host installieren – die Session startet danach einmal neu.",
+  "Install extension and restart session": "Extension installieren und Session neu starten",
+  "Writes pibar-temperature.ts to ~/.pi/agent/extensions on the host":
+    "Schreibt pibar-temperature.ts nach ~/.pi/agent/extensions auf dem Host",
+  "Temperature extension installed – restarting the session.":
+    "Temperatur-Extension installiert – die Session startet neu.",
   "Messages then keep running when PiBar quits or the connection drops; the answer is there on the next start.":
     "Nachrichten laufen dann weiter, wenn PiBar endet oder die Verbindung abreißt; die Antwort steht beim nächsten Start da.",
   "Running in the background": "Läuft im Hintergrund",
@@ -338,6 +389,18 @@ const de = {
   "New file or folder": "Neue Datei oder neuer Ordner",
   "New folder": "Neuer Ordner",
   "in {folder}": "in {folder}",
+  "Upload files …": "Dateien hochladen …",
+  "Upload files": "Dateien hochladen",
+  Upload: "Hochladen",
+  "Uploading …": "Wird hochgeladen …",
+  "Drop files here or click to choose (any type, e.g. PDF)":
+    "Dateien hier ablegen oder klicken zum Auswählen (beliebige Typen, z. B. PDF)",
+  "File too large (max. 50 MB)": "Datei zu groß (max. 50 MB)",
+  "File already exists": "Datei existiert bereits",
+  "These files already exist. Overwrite?": "Diese Dateien existieren bereits. Überschreiben?",
+  "Files uploaded: {n}": "Dateien hochgeladen: {n}",
+  "Folders cannot be uploaded, only files.": "Ordner können nicht hochgeladen werden, nur Dateien.",
+  "Showing all files so the uploads are visible": "Alle Dateien werden angezeigt, damit die Uploads sichtbar sind",
   "Show another folder of the host here": "Einen weiteren Ordner des Hosts hier anzeigen",
   "new-folder": "neuer-ordner",
   "Copy report (still running …)": "Bericht kopieren (läuft noch …)",
@@ -738,6 +801,8 @@ const de = {
   Provider: "Anbieter",
   "Read aloud (text to speech)": "Vorlesen (Text zu Sprache)",
   "Read aloud": "Vorlesen",
+  "Copy answer": "Antwort kopieren",
+  "Answer copied": "Antwort kopiert",
   "Read answers aloud": "Antworten vorlesen",
   "Show the “improve text” button next to the input": "Knopf „Text verbessern“ neben der Eingabe zeigen",
   Reminder: "Erinnerung",
@@ -762,6 +827,43 @@ const de = {
     "{file} ist die Aufnahme; der Befehl gibt den Text aus. Beispiel:",
   "Dictate (click to start and stop, Esc cancels)": "Diktieren (Klick startet und stoppt, Esc bricht ab)",
   "Improve the text with the second LLM": "Text mit dem zweiten LLM verbessern",
+  // quick action buttons (src/main/quickActions.ts)
+  "Quick actions": "Schnellwahl",
+  "+ Add button": "+ Button hinzufügen",
+  "Command or message": "Befehl oder Nachricht",
+  "Shell script": "Shell-Skript",
+  "Script, e.g. npm run check": "Skript, z. B. npm run check",
+  "/compact or a message to Pi": "/compact oder eine Nachricht an Pi",
+  "Move up": "Nach oben",
+  "Move down": "Nach unten",
+  "Send to Pi": "An Pi senden",
+  "Run in the terminal": "Im Terminal ausführen",
+  "Open a session first.": "Öffne zuerst eine Session.",
+  "Small buttons at the bottom right of the chat. A command or message goes to the active session (slash commands work too); a shell script runs in a new terminal tab in the session's folder. Rows without a name or text are hidden.":
+    "Kleine Buttons unten rechts im Chat. Ein Befehl oder eine Nachricht geht an die aktive Session (Slash-Befehle gehen auch); ein Shell-Skript läuft in einem neuen Terminal-Tab im Ordner der Session. Zeilen ohne Name oder Text werden ausgeblendet.",
+  // plan/build mode (src/shared/planMode.ts)
+  Mode: "Modus",
+  Build: "Build",
+  Plan: "Plan",
+  "Pi may read and change files and run commands": "Pi darf Dateien lesen und ändern und Befehle ausführen",
+  "Pi only reads and analyses, then writes a numbered plan – nothing is changed":
+    "Pi liest und analysiert nur und schreibt dann einen nummerierten Plan – nichts wird geändert",
+  "Plan mode: Pi only reads and writes a plan.": "Planmodus: Pi liest nur und schreibt einen Plan.",
+  "Build mode: Pi may change files again.": "Build-Modus: Pi darf wieder Dateien ändern.",
+  "Saved – applies when you switch to Build mode.": "Gespeichert – gilt beim Wechsel in den Build-Modus.",
+  "Plan mode is on: Pi stays read-only for now; the selection applies in Build mode.":
+    "Planmodus ist an: Pi bleibt vorerst nur lesend; die Auswahl gilt im Build-Modus.",
+  // subagents (src/main/subagents.ts, src-tauri/src/agents.rs)
+  Subagents: "Subagents",
+  "New subagent": "Neuer Subagent",
+  "New subagent …": "Neuer Subagent …",
+  Agent: "Agent",
+  "Task for the agent …": "Aufgabe für den Agenten …",
+  step: "Schritt",
+  "No agents found. Put Markdown definitions in ~/.pi/agent/agents on the host.":
+    "Keine Agenten gefunden. Lege Markdown-Definitionen unter ~/.pi/agent/agents auf dem Host ab.",
+  "Starts a session of its own in the folder of this session, with the agent's tools, model and system prompt. It appears indented under this session.":
+    "Startet eine eigene Session im Ordner dieser Session – mit den Tools, dem Modell und dem System-Prompt des Agenten. Sie erscheint eingerückt unter dieser Session.",
 } as const;
 
 export type Msg = keyof typeof de;

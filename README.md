@@ -4,7 +4,7 @@ Desktop GUI for the [Pi coding agent](https://pi.dev): sessions on the left, cha
 right, plus a quick bar you open from anywhere with a double tap.
 Built with Tauri 2 (Rust core + web UI); runs on macOS, Linux and Windows.
 
-**Version 1.5.0** · [Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT
+**Version 1.6.0** · [Deutsch](README.de.md) · [Contributing](CONTRIBUTING.md) · [Codemap](docs/CODEMAP.md) · MIT
 License
 
 > Status: prototype. macOS is the main target; Linux and Windows build, but double tap, area screenshots and OCR are
@@ -33,6 +33,19 @@ License
   open, tool output live). The view belongs to the session: switching to another session brings back that session's
   view, and Settings → Chat sets the view new sessions start with
 - **Answer style** (header): short, normal, or as short as possible with technical details
+- **Temperature** (header): a slider from 0 to 1 with a short explanation – low keeps Pi precise and close to the
+  rules, high makes it freer and more creative. The value belongs to the session and survives a restart; PiBar installs
+  a small extension on the host for it (one click in the menu). Models that reject temperature (extended thinking,
+  some reasoning models) keep their default
+- **Plan / Build** (header): Plan mode restricts Pi to read-only tools (read, grep, find, ls) and asks for a numbered
+  plan instead of changes; Build restores the session's own tools. The choice belongs to the session and survives a
+  restart; Pi restarts in the same session when switching, the history stays
+- **Quick actions**: small buttons at the bottom right of the chat – a command/message goes to the session (slash
+  commands work too), a shell script runs in a new terminal tab in the session's folder. Managed in Settings → Quick
+  actions (add, edit, remove, move); the buttons change right away
+- **Subagents**: under a session in the left column, indented and collapsible – the runs of Pi's subagent extension
+  live (a click shows the tool card), and "New subagent …" in the session menu starts a child session of its own with
+  an agent definition of the host (`~/.pi/agent/agents/*.md` or `.pi/agents`: tools, model, system prompt)
 - **Tool dock** at the input: a quiet `+`; when the mouse comes near, more buttons fade in – **attach files** (text files
   and images, also by drag & drop or paste; shown as chips above the input), **screenshot**, **skills** and **tools**
 - **Skills and commands**: type `/` in the input (or use the dock) for the session's skills, prompt templates and
@@ -153,6 +166,9 @@ License
   unsaved edits (+/− lines, 3 lines of context); right click on a file → Show changes
 - **Context**: drag a folder or file from the tree into the input, or right click → Add to context; Pi gets the path
   and reads what it needs with its tools
+- **Upload**: files of any type (e.g. PDF) from your computer into a folder of the tree – "+" or right click →
+  "Upload files …", or drop them onto a folder (also over SSH, max. 50 MB per file); existing files are only
+  overwritten after confirmation, and the "docs only" filter turns off so the uploads show up
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
 - Optional **Git status** (Settings → Chat): for the session folder and for repositories in its subfolders the
   branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)

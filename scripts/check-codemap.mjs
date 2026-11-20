@@ -41,8 +41,8 @@ function findSymbol(file, name) {
   const n = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const patterns = [
     new RegExp(`\\b(fn|function|class|struct|enum|trait|mod|type|interface|const|let|static)\\s+${n}\\b`),
-    new RegExp(`^\\s*(pub\\s+)?(async\\s+)?(static\\s+)?${n}\\s*[(<]`), // method
-    new RegExp(`^\\s*(readonly\\s+)?${n}\\s*[:=]`), // field / object entry
+    new RegExp(`^\\s*((pub|private|protected|public|async|static|readonly)\\s+)*${n}\\s*[(<]`), // method
+    new RegExp(`^\\s*((private|protected|public|static|readonly)\\s+)*${n}\\s*[:=]`), // field / object entry
     new RegExp(`\\bimpl\\b.*\\b${n}\\b`),
   ];
   const i = lines.findIndex((l) => patterns.some((p) => p.test(l)));

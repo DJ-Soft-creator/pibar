@@ -1,3 +1,4 @@
+mod agents;
 mod bg;
 mod config;
 mod diag;
@@ -12,6 +13,7 @@ mod pi;
 mod quick;
 mod sessions;
 mod snapshot;
+mod temp;
 mod terminal;
 mod voice;
 
@@ -106,9 +108,24 @@ fn pi_open(
     cwd: String,
     session_path: Option<String>,
     tools: Option<Vec<String>>,
+    append_prompt: Option<String>,
 ) -> Result<u32, String> {
     let host = config::find_host(&app, &host_id)?;
-    mgr.open(&app, &host, &cwd, session_path, tools)
+    mgr.open(&app, &host, &cwd, session_path, tools, append_prompt)
+}
+
+// ---------- Subagent definitions (src-tauri/src/agents.rs) ----------
+
+#[tauri::command]
+async fn list_agents(app: AppHandle, host_id: String, cwd: String) -> Result<Vec<agents::AgentInfo>, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || agents::list(&host, &cwd)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn agent_prompt_file(app: AppHandle, host_id: String, path: String) -> Result<String, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || agents::prompt_file(&host, &path)).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -164,9 +181,20 @@ async fn bg_start(
     model_id: Option<String>,
     thinking: Option<String>,
     tools: Option<Vec<String>>,
+    public_mode: Option<bool>,
+    temperature: Option<f64>,
 ) -> Result<u32, String> {
     let host = config::find_host(&app, &host_id)?;
     let mut args: Vec<String> = vec!["--session".into(), session.clone()];
+    // the flag of Pi's mode-guard extension: reduce the context already in the detached run
+    if public_mode.unwrap_or(false) {
+        args.push("--public-mode".into());
+    }
+    // the flag of PiBar's temperature extension: the sampling temperature of the detached run
+    if let Some(v) = temperature.filter(|v| v.is_finite() && (0.0..=2.0).contains(v)) {
+        args.push("--temperature".into());
+        args.push(v.to_string());
+    }
     if let Some(p) = provider.filter(|p| !p.trim().is_empty()) {
         args.push("--provider".into());
         args.push(p);
@@ -186,6 +214,13 @@ async fn bg_start(
         .await
         .map_err(|e| e.to_string())??;
     mgr.open_follow(&app, &host, &session)
+}
+
+/// Install the temperature extension on a host (Pi loads it on the next start of a session)
+#[tauri::command]
+async fn temp_install(app: AppHandle, host_id: String) -> Result<(), String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || temp::install(&host)).await.map_err(|e| e.to_string())?
 }
 
 /// Follow a run in the background that was started earlier (e.g. before PiBar was restarted)
@@ -307,6 +342,23 @@ async fn write_file(app: AppHandle, host_id: String, path: String, content: Stri
 async fn create_file(app: AppHandle, host_id: String, path: String) -> Result<(), String> {
     let host = config::find_host(&app, &host_id)?;
     tauri::async_runtime::spawn_blocking(move || files::create(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+/// Upload a file of any type (e.g. PDF) into a folder on the host; data is base64.
+/// false = the file exists and was kept (ask the user, then call again with overwrite).
+#[tauri::command]
+async fn upload_file(
+    app: AppHandle,
+    host_id: String,
+    path: String,
+    data: String,
+    overwrite: Option<bool>,
+) -> Result<bool, String> {
+    let host = config::find_host(&app, &host_id)?;
+    let overwrite = overwrite.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || files::upload(&host, &path, &data, overwrite))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -596,6 +648,8 @@ pub fn run() {
             session_outlines,
             search_sessions,
             list_models,
+            list_agents,
+            agent_prompt_file,
             pi_open,
             pi_send,
             pi_reply,
@@ -604,6 +658,7 @@ pub fn run() {
             diagnose,
             pi_close_all,
             bg_start,
+            temp_install,
             bg_follow,
             bg_running,
             bg_stop,
@@ -625,6 +680,7 @@ pub fn run() {
             rewind_undo,
             session_touches,
             write_file,
+            upload_file,
             create_file,
             create_dir,
             list_dirs,

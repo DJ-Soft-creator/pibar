@@ -1,9 +1,10 @@
 //! List, read and write Markdown and HTML files (images: read only) in a session's folders, optionally with the Git status.
-//! Locally and over SSH with the same shell commands.
+//! Locally and over SSH with the same shell commands. Uploads take any file type (e.g. PDF) as base64 from the UI.
 
 use crate::config::HostCfg;
 use crate::hostexec::{self, shell_path, sq};
 use crate::i18n::tr;
+use base64::Engine;
 use serde::Serialize;
 
 /// Paths for the file commands: absolute (or "~/"), without ".." segments or control characters, so nothing
@@ -300,6 +301,42 @@ pub fn write(host: &HostCfg, path: &str, content: &str) -> Result<(), String> {
     hostexec::run_shell(host, &script, Some(content.as_bytes())).map(|_| ())
 }
 
+/// Largest file the panel uploads (it travels base64-encoded through the UI)
+const MAX_UPLOAD: u64 = 50_000_000;
+const EXISTS: &str = "__PIBAR_EXISTS__";
+
+/// Decode and check the base64 payload of an upload before anything runs on the host
+pub fn decode_upload(data: &str) -> Result<Vec<u8>, String> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data)
+        .map_err(|_| tr("Invalid upload data", "Ungültige Upload-Daten"))?;
+    if bytes.len() as u64 > MAX_UPLOAD {
+        return Err(tr("File too large to upload (max. 50 MB)", "Datei zu groß zum Hochladen (max. 50 MB)"));
+    }
+    Ok(bytes)
+}
+
+/// Shell script that writes stdin to `path` (temp file, then rename, like [`write`]);
+/// without `overwrite` an existing file is kept and reported with a marker
+pub fn upload_script(path: &str, overwrite: bool) -> String {
+    let p = sq(path);
+    let guard = if overwrite { String::new() } else { format!("if [ -e {p} ]; then echo {EXISTS}; exit 0; fi; ") };
+    format!("{guard}cat > {p}.pibar-tmp && mv {p}.pibar-tmp {p}")
+}
+
+/// Upload a file of any type (e.g. PDF) into a folder on the host; `data` is base64. Works over SSH too:
+/// the bytes go through stdin of the same shell Pi uses, no extra tools needed on the host.
+/// Returns false when the file exists and `overwrite` is off (the UI asks and tries again).
+pub fn upload(host: &HostCfg, path: &str, data: &str, overwrite: bool) -> Result<bool, String> {
+    check_path_shape(path)?;
+    if path.ends_with('/') {
+        return Err(tr(format!("Not a file path: {path}"), format!("Kein Dateipfad: {path}")));
+    }
+    let bytes = decode_upload(data)?;
+    let out = hostexec::run_shell(host, &upload_script(path, overwrite), Some(&bytes))?;
+    Ok(out.trim() != EXISTS)
+}
+
 pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
     check_path_shape(path)?;
     let p = sq(path);
@@ -433,6 +470,55 @@ mod tests {
         let l = parse_listing("~/repo", out);
         let paths: Vec<_> = l.git[0].changes.iter().map(|c| c.path.as_str()).collect();
         assert_eq!(paths, vec!["Über uns.md", "neu/Ärger.md"]);
+    }
+
+    #[test]
+    fn upload_guards_existing_files() {
+        let s = upload_script("/a b/x.pdf", false);
+        assert!(s.starts_with("if [ -e '/a b/x.pdf' ]; then echo __PIBAR_EXISTS__; exit 0; fi; "));
+        assert!(s.ends_with("cat > '/a b/x.pdf'.pibar-tmp && mv '/a b/x.pdf'.pibar-tmp '/a b/x.pdf'"));
+        let o = upload_script("/x.pdf", true);
+        assert!(!o.contains(EXISTS));
+        assert!(o.starts_with("cat > "));
+    }
+
+    #[test]
+    fn upload_payload_is_checked() {
+        assert_eq!(decode_upload("aGk=").unwrap(), b"hi");
+        assert!(decode_upload("!!!").is_err());
+        let big = base64::engine::general_purpose::STANDARD.encode(vec![0u8; MAX_UPLOAD as usize + 1]);
+        assert!(decode_upload(&big).is_err());
+    }
+
+    #[test]
+    fn upload_writes_bytes_and_keeps_existing_files() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!("pibar-upload-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = format!("{}/Dokument ä.pdf", dir.to_string_lossy());
+        // the real script through sh with stdin, like the host shell runs it (run_shell needs the app binary)
+        let run = |overwrite: bool, bytes: &[u8]| {
+            let mut c = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(upload_script(&path, overwrite))
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .unwrap();
+            c.stdin.take().unwrap().write_all(bytes).unwrap();
+            let out = c.wait_with_output().unwrap();
+            assert!(out.status.success());
+            String::from_utf8_lossy(&out.stdout).trim() != EXISTS
+        };
+        let bytes = vec![0u8, 159, 146, 100]; // binary, not text
+        assert!(run(false, &bytes));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert!(!run(false, b"new")); // exists: kept
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert!(run(true, b"new")); // overwritten
+        assert_eq!(std::fs::read(&path).unwrap(), b"new");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

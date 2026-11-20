@@ -3,6 +3,7 @@
 // Stored in AppConfig.projects.
 import { type Project } from "../shared/api";
 import { VIEWS, isChatMode } from "../shared/chatViews";
+import { isContextMode } from "../shared/contextMode";
 import { h, openModal, toast } from "../shared/dom";
 import { baseName, shortPath } from "../shared/format";
 import { icon } from "../shared/icons";
@@ -78,6 +79,20 @@ function viewName(p: Project): string {
   return found ? t(found[1]) : "";
 }
 
+/** Label of the context mode fixed for a project; empty if none is set (then the settings decide) */
+function modeName(p: Project): string {
+  return p.contextMode === "private"
+    ? t("Private – full context")
+    : p.contextMode === "public"
+      ? t("Public – reduced context")
+      : "";
+}
+
+/** Short label of the mode fixed for a project, for the heading of the project */
+function modeShort(p: Project): string {
+  return p.contextMode === "private" ? t("Private") : p.contextMode === "public" ? t("Public") : "";
+}
+
 // ---------- Dialogs ----------
 
 /**
@@ -85,7 +100,11 @@ function viewName(p: Project): string {
  * that run there appear under the project, and a new session started from the project runs there. `focus` picks the
  * field to edit first.
  */
-export function projectDialog(existing?: Project, hostId?: string, focus: "name" | "dir" | "preset" | "view" = "name") {
+export function projectDialog(
+  existing?: Project,
+  hostId?: string,
+  focus: "name" | "dir" | "preset" | "view" | "mode" = "name",
+) {
   const hosts = state.config.hosts;
   if (!hosts.length) return toast(t("Add a host first in the settings."), "err");
   const start = existing?.hostId ?? hostId ?? defaultHostId() ?? hosts[0].id;
@@ -115,6 +134,14 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
     h("option", { value: "", selected: !isChatMode(existing?.view) }, t("Default of the settings")),
     ...VIEWS.map(([v, label]) => h("option", { value: v, selected: existing?.view === v }, t(label))),
   ) as HTMLSelectElement;
+  // default context mode of the sessions here (Pi extension mode-guard): private = full, public = reduced context
+  const selMode = h(
+    "select",
+    {},
+    h("option", { value: "", selected: !isContextMode(existing?.contextMode) }, t("Default of the settings")),
+    h("option", { value: "private", selected: existing?.contextMode === "private" }, t("Private – full context")),
+    h("option", { value: "public", selected: existing?.contextMode === "public" }, t("Public – reduced context")),
+  ) as HTMLSelectElement;
   // a new project follows the default folder of its host until the user types or picks another one
   let follow = !existing;
   const fill = () => {
@@ -133,6 +160,7 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
       existing.dir = dir;
       existing.preset = selPreset.value;
       existing.view = selView.value;
+      existing.contextMode = isContextMode(selMode.value) ? selMode.value : undefined;
     } else {
       projects().push({
         id: `p${Date.now()}`,
@@ -142,6 +170,7 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
         collapsed: false,
         preset: selPreset.value,
         view: selView.value,
+        contextMode: isContextMode(selMode.value) ? selMode.value : undefined,
       });
     }
     saveConfig();
@@ -171,6 +200,7 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
       ),
       h("div", { class: "row" }, h("label", {}, t("Inference preset")), selPreset),
       h("div", { class: "row" }, h("label", {}, t("View")), selView),
+      h("div", { class: "row" }, h("label", {}, t("Context mode")), selMode),
       h(
         "p",
         { class: "hint" },
@@ -183,6 +213,13 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
         { class: "hint" },
         t("The view applies to every session in the project – a session keeps the view you switch in the header."),
       ),
+      h(
+        "p",
+        { class: "hint" },
+        t(
+          "The context mode applies to new sessions in the project (needs the mode-guard extension) – a session keeps the mode you switch in the header.",
+        ),
+      ),
       presets.length ? null : h("p", { class: "hint" }, t("No preset yet – create one in the settings under Models.")),
     ),
     [
@@ -190,7 +227,16 @@ export function projectDialog(existing?: Project, hostId?: string, focus: "name"
       h("button", { class: "primary", onclick: done }, t("Save")),
     ],
   );
-  const first = focus === "dir" ? inDir : focus === "preset" ? selPreset : focus === "view" ? selView : inName;
+  const first =
+    focus === "dir"
+      ? inDir
+      : focus === "preset"
+        ? selPreset
+        : focus === "view"
+          ? selView
+          : focus === "mode"
+            ? selMode
+            : inName;
   setTimeout(() => first.focus(), 0);
 }
 
@@ -211,6 +257,11 @@ export function projectMenu(anchor: HTMLElement, p: Project, at?: { x: number; y
         label: `${t("View")}: ${viewName(p) || t("Default of the settings")}`,
         desc: t("Chat view its sessions start with"),
         onSelect: () => projectDialog(p, undefined, "view"),
+      },
+      {
+        label: `${t("Context mode")}: ${modeName(p) || t("Default of the settings")}`,
+        desc: t("Context mode its sessions start with"),
+        onSelect: () => projectDialog(p, undefined, "mode"),
       },
       { separator: true },
       {
@@ -271,6 +322,9 @@ function projectBlock(p: Project, rows: ListRow[]): HTMLElement {
         // the preset every session started here begins with, and the view its sessions start with
         presetName(p) ? h("span", { class: "host-preset", title: t("Inference preset") }, presetName(p)) : null,
         viewName(p) ? h("span", { class: "host-preset view", title: t("View") }, viewName(p)) : null,
+        modeShort(p)
+          ? h("span", { class: "host-preset mode", title: t("Context mode its sessions start with") }, modeShort(p))
+          : null,
         h("span", { class: "host-where" }, where),
       ),
       ...marks(act),
