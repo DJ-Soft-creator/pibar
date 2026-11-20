@@ -8,8 +8,9 @@ import { t } from "../shared/i18n";
 import { buildTree, countFiles, TreeDir } from "../shared/tree";
 import { diffLines, diffStats, hunks, type DiffLine } from "../shared/diff";
 import { allChanges, gitInline, gitLine, gitMark, gitStatusFor } from "../shared/git";
-import { openMenu } from "./menu";
+import { openMenu, type MenuEntry } from "./menu";
 import { uploadDialog, uploadDrop } from "./fileUpload";
+import { deleteDialog } from "./deleteDialog";
 import type { SessionTab } from "./sessionTab";
 import { saveConfig, state } from "./state";
 import { fileHistory, repoHistory } from "./gitHistory";
@@ -99,7 +100,7 @@ function pathDrag(kind: "folder" | "file", path: string) {
   };
 }
 
-/** Right click on a folder: into the context, create something in it, or upload files from this computer */
+/** Right click on a folder: into the context, create something in it, upload files from this computer, or delete it */
 function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
   e.preventDefault();
   const anchor = e.currentTarget as HTMLElement;
@@ -110,10 +111,56 @@ function folderMenu(e: MouseEvent, tab: SessionTab, path: string) {
       { label: t("New file or folder"), onSelect: () => createMenu(anchor, tab, path) },
       { label: t("Upload files …"), onSelect: () => uploadInto(tab, path) },
       { label: t("Git history"), onSelect: () => repoHistory(tab.hostId, path) },
+      // a root of the tree is never deleted, only removed from the session ("×" in its header)
+      ...(isRoot(path)
+        ? []
+        : ([
+            { separator: true },
+            { label: t("Delete folder …"), danger: true, onSelect: () => deletePath(tab, path, true) },
+          ] as MenuEntry[])),
     ],
     "left",
     { x: e.clientX, y: e.clientY },
   );
+}
+
+/** Roots of the tree (working folder plus added folders): they are never deleted */
+function treeRoots(): string[] {
+  return (last?.listings ?? []).map((l) => l.root || l.folder);
+}
+
+function isRoot(path: string): boolean {
+  const p = path.replace(/\/+$/, "");
+  return treeRoots().some((r) => r.replace(/\/+$/, "") === p);
+}
+
+/** Delete a file or folder after two confirmations (deleteDialog); then refresh tree, Git status and editor */
+function deletePath(tab: SessionTab, path: string, dir: boolean) {
+  deleteDialog(path, dir, async () => {
+    try {
+      await api.deletePath(tab.hostId, path, treeRoots());
+    } catch (e) {
+      toast(`${t("Delete")}: ${errMsg(e)}`, "err");
+      return;
+    }
+    forgetPath(path);
+    toast(t("Deleted: {name}", { name: baseName(path) }));
+    await renderFiles();
+  });
+}
+
+/** After a delete: close the editor if it showed the file (or one inside the folder), forget open folders below it */
+function forgetPath(path: string) {
+  const p = path.replace(/\/+$/, "");
+  const hit = (x: string) => x === p || x.startsWith(`${p}/`);
+  if (editor.path && hit(editor.path)) {
+    editor.original = elEdText.value; // the file is gone: no "discard changes?" question on close
+    closeEditor();
+  }
+  for (const key of [...openDirs]) {
+    const i = key.indexOf("|");
+    if (hit(`${key.slice(0, i)}/${key.slice(i + 1)}`)) openDirs.delete(key);
+  }
 }
 
 /** After an upload: open the folder in the tree; the "docs only" filter would hide e.g. PDFs, so switch it off */
@@ -213,6 +260,8 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
                   ? []
                   : [{ label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") }]),
                 { label: t("History (Git)"), onSelect: () => fileHistory(tab.hostId, full) },
+                { separator: true },
+                { label: t("Delete file …"), danger: true, onSelect: () => deletePath(tab, full, false) },
               ],
               "left",
               { x: e.clientX, y: e.clientY },

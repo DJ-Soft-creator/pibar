@@ -607,6 +607,8 @@ export const api = {
     invoke<boolean>("upload_file", { hostId, path, data, overwrite }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
+  /** Delete a file or folder (with content) strictly inside the session folders `roots`; the UI asks twice */
+  deletePath: (hostId: string, path: string, roots: string[]) => invoke<void>("delete_path", { hostId, path, roots }),
   /** Subfolders of a folder on the host, for the folder picker (src/main/folderPicker.ts) */
   /** User messages (entry ids) of session files, to find where branches part (src/shared/branches.ts) */
   sessionOutlines: (hostId: string, paths: string[]) => invoke<SessionOutline[]>("session_outlines", { hostId, paths }),

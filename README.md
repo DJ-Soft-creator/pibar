@@ -173,6 +173,9 @@ License
 - **Upload**: files of any type (e.g. PDF) from your computer into a folder of the tree – "+" or right click →
   "Upload files …", or drop them onto a folder (also over SSH, max. 50 MB per file); existing files are only
   overwritten after confirmation, and the "docs only" filter turns off so the uploads show up
+- **Delete**: right click on a file or folder → "Delete …" – two confirmations, the second one with a checkbox
+  ("I know this cannot be undone"); folders go with their content, a symlink loses only the link. The session's root
+  folders are never deleted (only removed from the session), locally and over SSH
 - Draggable divider between tree and editor; folders that do not exist on the host can be created with one click
 - Optional **Git status** (Settings → Chat): for the session folder and for repositories in its subfolders the
   branch, commits not pushed (↑) or to pull (↓) and changes; a small letter at changed files (M, A, U, D)

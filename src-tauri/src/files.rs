@@ -381,6 +381,57 @@ pub fn create_dir(host: &HostCfg, path: &str) -> Result<(), String> {
     hostexec::run_shell(host, &format!("mkdir -p {}", shell_path(path)), None).map(|_| ())
 }
 
+/// Paths that may be deleted: the usual shape, and never a root ("/", "~", "~/") or a "." segment
+pub fn check_delete_path(path: &str) -> Result<(), String> {
+    check_path_shape(path)?;
+    let bad =
+        |why: &str| Err(tr(format!("Path not allowed ({why}): {path}"), format!("Pfad nicht erlaubt ({why}): {path}")));
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() || trimmed == "~" {
+        return bad("root folder");
+    }
+    if path.split('/').any(|seg| seg == ".") {
+        return bad(".");
+    }
+    Ok(())
+}
+
+/// May `path` be deleted under these session folders? It must lie strictly inside one of them, never be the folder
+/// itself, so a root of the tree can never be deleted. The UI passes the resolved roots of the listings.
+pub fn deletable_under(path: &str, roots: &[String]) -> bool {
+    let p = path.trim_end_matches('/');
+    roots.iter().any(|r| {
+        let r = r.trim_end_matches('/');
+        !r.is_empty() && p.len() > r.len() + 1 && p.starts_with(&format!("{r}/"))
+    })
+}
+
+/// First output line when the path does not exist (anymore)
+const GONE: &str = "__PIBAR_GONE__";
+
+/// Delete a file or folder (with its content) on the host, locally or over SSH. Only paths strictly inside one of
+/// the session folders (`roots`) go through; a symlink loses only the link, never its target. The UI asks twice
+/// before calling this (src/main/deleteDialog.ts).
+pub fn delete(host: &HostCfg, path: &str, roots: &[String]) -> Result<(), String> {
+    check_delete_path(path)?;
+    if !deletable_under(path, roots) {
+        return Err(tr(
+            format!("Only files and folders inside the session folders can be deleted: {path}"),
+            format!("Nur Dateien und Ordner innerhalb der Session-Ordner können gelöscht werden: {path}"),
+        ));
+    }
+    let p = sq(path);
+    // -h first: a symlink to a folder must lose only the link, not its target
+    let script = format!(
+        "if [ -h {p} ]; then rm -f -- {p}; elif [ -d {p} ]; then rm -rf -- {p}; elif [ -e {p} ]; then rm -f -- {p}; else echo {GONE}; fi"
+    );
+    let out = hostexec::run_shell(host, &script, None)?;
+    if out.trim() == GONE {
+        return Err(tr("File or folder does not exist (anymore)", "Datei oder Ordner existiert nicht (mehr)"));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,6 +512,30 @@ mod tests {
         for bad in ["notes/a.md", "/home/u/notes/../.ssh/x", "~/../etc/passwd", "/home/u/a.md\nrm -rf ~"] {
             assert!(check_path_shape(bad).is_err(), "{bad}");
         }
+    }
+
+    #[test]
+    fn delete_paths_never_point_at_a_root() {
+        for ok in ["/home/u/notes/a.md", "~/notes/sub", "/home/u/notes/sub/"] {
+            assert!(check_delete_path(ok).is_ok(), "{ok}");
+        }
+        for bad in ["", "/", "~", "~/", "/home/u/./notes", "notes/a.md", "/a/../b", "/a\nb"] {
+            assert!(check_delete_path(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn only_paths_strictly_inside_a_session_folder_are_deletable() {
+        let roots = vec!["/home/u/notes".to_string(), "~/work/".to_string()];
+        assert!(deletable_under("/home/u/notes/a.md", &roots));
+        assert!(deletable_under("/home/u/notes/sub/", &roots));
+        assert!(deletable_under("~/work/a.md", &roots));
+        // the roots themselves and look-alike siblings stay
+        assert!(!deletable_under("/home/u/notes", &roots));
+        assert!(!deletable_under("/home/u/notes/", &roots));
+        assert!(!deletable_under("/home/u/notes2/a.md", &roots));
+        assert!(!deletable_under("/home/u/a.md", &roots));
+        assert!(!deletable_under("/home/u/notes/a.md", &[]));
     }
 
     #[test]

@@ -381,6 +381,15 @@ async fn create_dir(app: AppHandle, host_id: String, path: String) -> Result<(),
     tauri::async_runtime::spawn_blocking(move || files::create_dir(&host, &path)).await.map_err(|e| e.to_string())?
 }
 
+/// Delete a file or folder inside the session folders (`roots`); the UI asks twice (src/main/deleteDialog.ts)
+#[tauri::command]
+async fn delete_path(app: AppHandle, host_id: String, path: String, roots: Vec<String>) -> Result<(), String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || files::delete(&host, &path, &roots))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 // ---------- Git history (read only) ----------
 
 #[tauri::command]
@@ -683,6 +692,7 @@ pub fn run() {
             upload_file,
             create_file,
             create_dir,
+            delete_path,
             list_dirs,
             read_file_head,
             quick_hide,

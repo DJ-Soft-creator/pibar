@@ -187,6 +187,9 @@ MIT-Lizenz
   Rechtsklick → „Dateien hochladen …“, oder auf einen Ordner ziehen (auch über SSH, max. 50 MB pro Datei);
   vorhandene Dateien werden erst nach Rückfrage überschrieben, und der „Nur Markdown“-Filter schaltet sich ab,
   damit die Uploads sichtbar sind
+- **Löschen**: Rechtsklick auf eine Datei oder einen Ordner → „Löschen …“ – zwei Rückfragen, die zweite mit einer
+  Checkbox („Ich weiß, dass das nicht rückgängig gemacht werden kann“); Ordner samt Inhalt, ein Symlink verliert nur
+  den Link. Die Wurzelordner der Session werden nie gelöscht (nur aus der Session entfernt), lokal und über SSH
 - Verschiebbarer Trenner zwischen Baum und Editor; Ordner, die es auf dem Host nicht gibt, lassen sich mit einem Klick
   anlegen
 - Optional **Git-Status** (Einstellungen → Chat): für den Session-Ordner und für Repositories in seinen
