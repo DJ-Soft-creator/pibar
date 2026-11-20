@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelPreset } from "./api";
-import { cleanPresets, matchPreset, presetForNewSession, resolveChoice, splitModelKey } from "./presets";
+import { cleanPresets, matchPreset, movePreset, presetForNewSession, resolveChoice, splitModelKey } from "./presets";
 
 const p = (id: string, model: string, thinking: string): ModelPreset => ({ id, name: id, model, thinking });
 
@@ -18,6 +18,25 @@ describe("presets", () => {
       { id: "c", name: "Empty", model: "", thinking: "" },
     ]);
     expect(out).toEqual([{ id: "a", name: "Fast", model: "x/y", thinking: "" }]);
+  });
+  it("keeps the order while cleaning", () => {
+    const list = [p("c", "a/x", ""), p("a", "b/y", "low"), p("b", "c/z", "high")];
+    expect(cleanPresets(list).map((x) => x.id)).toEqual(["c", "a", "b"]);
+  });
+  it("moves a preset up or down, the rest keep their order", () => {
+    const list = [p("a", "a/x", ""), p("b", "b/y", ""), p("c", "c/z", "")];
+    expect(movePreset(list, 2, 0).map((x) => x.id)).toEqual(["c", "a", "b"]);
+    expect(movePreset(list, 0, 1).map((x) => x.id)).toEqual(["b", "a", "c"]);
+    // the input list is not changed
+    expect(list.map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+  it("clamps the positions and does nothing at the edges", () => {
+    const list = [p("a", "a/x", ""), p("b", "b/y", "")];
+    expect(movePreset(list, 0, -3).map((x) => x.id)).toEqual(["a", "b"]);
+    expect(movePreset(list, 1, 9).map((x) => x.id)).toEqual(["a", "b"]);
+    expect(movePreset(list, 1, 1).map((x) => x.id)).toEqual(["a", "b"]);
+    expect(movePreset([], 0, 1)).toEqual([]);
+    expect(movePreset([p("a", "a/x", "")], 0, 1).map((x) => x.id)).toEqual(["a"]);
   });
   it("finds the preset matching model and thinking", () => {
     const list = [p("fast", "a/mini", "low"), p("deep", "a/big", "high"), p("think", "", "max")];

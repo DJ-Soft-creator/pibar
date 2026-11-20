@@ -69,6 +69,8 @@ const de = {
   "+ From current session": "+ Aus aktueller Session",
   "Quick choice of model and thinking level in the toolbar and the quick bar. Choosing a preset hides the other two dropdowns.":
     "Schnellauswahl von Modell und Denkaufwand in der Kopfzeile und der Quick-Bar. Ist ein Preset gewählt, werden die beiden anderen Auswahlfelder ausgeblendet.",
+  "The order applies to the toolbar and the quick bar; the first preset is the quick bar's default.":
+    "Die Reihenfolge gilt für Kopfzeile und Quick-Bar; das erste Preset ist die Vorgabe der Quick-Bar.",
   "Thinking level of this session": "Denkaufwand dieser Session",
   "Tokens / cost of this session": "Tokens / Kosten dieser Session",
   "Show/hide sessions (⌘B)": "Sessions ein-/ausblenden (⌘B)",

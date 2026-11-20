@@ -10,11 +10,27 @@ export function splitModelKey(key: string): { provider: string; id: string } | n
   return { provider: key.slice(0, i), id: key.slice(i + 1) };
 }
 
-/** Trim fields and drop presets without a name or without anything to set */
+/** Trim fields and drop presets without a name or without anything to set; the order stays as edited */
 export function cleanPresets(list: ModelPreset[]): ModelPreset[] {
   return list
     .map((p) => ({ ...p, name: p.name.trim(), model: p.model.trim(), thinking: p.thinking.trim() }))
     .filter((p) => p.name && (p.model || p.thinking));
+}
+
+/**
+ * Preset list with one entry moved from `from` to `to` (both clamped to the list): a new array, every other entry
+ * keeps its place. The order is what the toolbar, the quick bar and the default choices show.
+ */
+export function movePreset(list: ModelPreset[], from: number, to: number): ModelPreset[] {
+  const out = [...list];
+  const n = out.length;
+  if (n < 2) return out;
+  const f = Math.min(Math.max(0, from), n - 1);
+  const t = Math.min(Math.max(0, to), n - 1);
+  if (f === t) return out;
+  const [p] = out.splice(f, 1);
+  out.splice(t, 0, p);
+  return out;
 }
 
 /** First preset that fits model ("provider/id") and thinking level; an empty preset field fits anything */

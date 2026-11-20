@@ -29,7 +29,8 @@ MIT-Lizenz
 - Modell und Denkaufwand je Session oder ein gespeichertes Preset für beides; eine Nachricht direkt nach dem Wechsel
   wartet, bis Pi umgestellt hat; jede Antwort zeigt das Modell, das sie erzeugt hat (beim Überfahren). Die Wahl gehört
   zur Session: Sie kommt zurück, wenn du die Session wieder öffnest oder PiBar neu startest – bis du ein anderes
-  Modell oder Preset wählst
+  Modell oder Preset wählst. Presets werden in den Einstellungen mit den Pfeilen ↑/↓ sortiert; die Reihenfolge gilt
+  für Kopfzeile und Quick-Bar (erstes Preset = deren Vorgabe)
 - **Ansicht** (Kopfzeile): _Natürlich_ (nur Pis Antworten – eine Antwort, die nur aus Toolaufrufen besteht oder ohne
   sichtbaren Text ist, verschwindet ganz), _Technisch_ (Denken und Toolaufrufe als kleine, zugeklappte Karten,
   Standard) oder _Debug_ (Karten offen, Tool-Ausgabe live). Die Ansicht gehört zur Session: Beim Wechsel zu

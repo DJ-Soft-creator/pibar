@@ -27,7 +27,9 @@ License
   full date as tooltip). To see them always: View menu → "Always show message times" (or Settings → Chat)
 - Model and thinking level per session, or a saved preset for both; a message sent right after a change waits until
   Pi has switched; each answer shows the model that produced it (on hover). The choice belongs to the session: it
-  comes back when you open the session again or restart PiBar, until you pick another model or preset
+  comes back when you open the session again or restart PiBar, until you pick another model or preset. Presets are
+  ordered with the up/down arrows in the settings; the order applies to the toolbar and the quick bar (first preset =
+  its default)
 - **View** (header): _Natural_ (only Pi's answers – an answer made purely of tool calls, or one without visible text,
   disappears completely), _Technical_ (thinking and tool calls as small collapsed cards, default) or _Debug_ (cards
   open, tool output live). The view belongs to the session: switching to another session brings back that session's

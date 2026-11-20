@@ -6,7 +6,7 @@ import { h, errMsg, openModal, toast, type KeysWith } from "../shared/dom";
 import { thinkingLabel, THINKING_LEVELS } from "../shared/format";
 import { LANGUAGES, t, type Msg } from "../shared/i18n";
 import { scaleLabel } from "../shared/textScale";
-import { cleanPresets } from "../shared/presets";
+import { cleanPresets, movePreset } from "../shared/presets";
 import { VIEWS } from "../shared/chatViews";
 import { isContextMode, type ContextMode } from "../shared/contextMode";
 import { applyUiPrefs, defaultLabel, renderToolbar, setTheme } from "./chatView";
@@ -96,7 +96,37 @@ function presetEditor(): { el: HTMLElement; get: () => ModelPreset[] } {
         thinking.addEventListener("change", () => (p.thinking = thinking.value));
         const remove = h("button", { class: "ghost", title: t("Remove") }, "×");
         remove.addEventListener("click", () => (draft.splice(idx, 1), render()));
-        return h("div", { class: "preset-row" }, name, model, thinking, remove);
+        // the arrows move the row; the focus follows it, so several clicks in a row keep working
+        const move = (to: number, cls: string) => {
+          draft.splice(0, draft.length, ...movePreset(draft, idx, to));
+          render();
+          const row = list.children[to];
+          const btn = row?.querySelector<HTMLButtonElement>(`.${cls}`);
+          (btn && !btn.disabled ? btn : row?.querySelector<HTMLButtonElement>(".preset-move:not(:disabled)"))?.focus();
+        };
+        const up = h(
+          "button",
+          {
+            class: "ghost preset-move preset-up",
+            title: t("Move up"),
+            "aria-label": t("Move up"),
+            disabled: idx === 0,
+          },
+          "↑",
+        );
+        up.addEventListener("click", () => move(idx - 1, "preset-up"));
+        const down = h(
+          "button",
+          {
+            class: "ghost preset-move preset-down",
+            title: t("Move down"),
+            "aria-label": t("Move down"),
+            disabled: idx === draft.length - 1,
+          },
+          "↓",
+        );
+        down.addEventListener("click", () => move(idx + 1, "preset-down"));
+        return h("div", { class: "preset-row" }, name, model, thinking, up, down, remove);
       }),
     );
   };
@@ -117,6 +147,11 @@ function presetEditor(): { el: HTMLElement; get: () => ModelPreset[] } {
       t(
         "Quick choice of model and thinking level in the toolbar and the quick bar. Choosing a preset hides the other two dropdowns.",
       ),
+    ),
+    h(
+      "p",
+      { class: "hint" },
+      t("The order applies to the toolbar and the quick bar; the first preset is the quick bar's default."),
     ),
     list,
     models,

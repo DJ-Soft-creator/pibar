@@ -1464,9 +1464,9 @@ body.resizing-v .term-split::after {
   gap: 8px;
   margin-top: 14px;
 }
-.preset-row {
+.preset-list .preset-row {
   display: grid;
-  grid-template-columns: 1fr 1.6fr 1fr auto;
+  grid-template-columns: 1fr 1.6fr 1fr auto auto auto;
   gap: 6px;
   align-items: center;
   margin-bottom: 6px;
