@@ -429,11 +429,13 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
         onSelect: () => reminderDialog({ hostId: s.hostId, path: s.path, cwd: s.cwd, title: s.title }),
       },
     );
-  if (s.tab?.sessionId)
+  // the id of an open tab comes from Pi itself; a closed session has it in the host's session list (file header)
+  const sessionId = s.tab?.sessionId || state.sessionsByHost.get(s.hostId)?.find((x) => x.path === s.path)?.id || "";
+  if (sessionId)
     entries.push({
       label: t("Copy session ID"),
-      desc: s.tab.sessionId,
-      onSelect: () => void copyText(s.tab!.sessionId).then(() => toast(t("Copied"))),
+      desc: sessionId,
+      onSelect: () => void copyText(sessionId).then(() => toast(t("Copied"))),
     });
   if (s.tab?.bg)
     entries.push({

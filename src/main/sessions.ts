@@ -266,6 +266,7 @@ export function hostRows(host: HostCfg): ListRow[] {
         ref,
         title: displayTitle(key, s.name || s.title),
         cwd: s.cwd,
+        id: s.id,
         created: Date.parse(s.timestamp) || 0,
         modified: (s.modified ?? 0) * 1000,
         // a run in the background is known from the session meta, also while its tab is closed
@@ -524,6 +525,8 @@ export type ListRow = OrderRow & {
   color?: string;
   /** The session is open in a tab – part of "Only what I am working on" */
   open?: boolean;
+  /** Session id from the file header: full id in the tooltip, short id on subagent rows */
+  id?: string;
 };
 
 /** Time shown in a row: matches the order (last activity, or creation when sorted by it) */
@@ -906,6 +909,9 @@ function sessionItem(row: ListRow, ts: string) {
       },
       icon(ic, 13),
     );
+  // a subagent session (meta.parentKey) shows its short session id in the meta line; every row has the full id
+  // in its tooltip, so it can be told apart and found again (e.g. in the session folder on the host)
+  const idShort = m.parentKey && row.id ? row.id.slice(0, 8) : "";
   const titleEl = h("span", { class: "sess-title" }, cleanTitle(title) || t("New session"));
   if (m.pinned) {
     const pin = h("span", { class: "pin" });
@@ -923,7 +929,12 @@ function sessionItem(row: ListRow, ts: string) {
       }`,
       role: "button",
       tabindex: 0,
-      title: [cleanTitle(title), cwd, m.color ? t("Colour: {name}", { name: colorName(m.color) }) : ""]
+      title: [
+        cleanTitle(title),
+        cwd,
+        row.id ? `ID: ${row.id}` : "",
+        m.color ? t("Colour: {name}", { name: colorName(m.color) }) : "",
+      ]
         .filter(Boolean)
         .join("\n"),
       draggable: "true",
@@ -947,15 +958,15 @@ function sessionItem(row: ListRow, ts: string) {
       ? h(
           "span",
           { class: "sess-meta working" },
-          [t("Running in the background"), shortPath(cwd)].filter(Boolean).join(" · "),
+          [idShort, t("Running in the background"), shortPath(cwd)].filter(Boolean).join(" · "),
         )
       : isWorking(tab)
         ? h(
             "span",
             { class: "sess-meta working" },
-            [t("Pi is working …"), tab?.activity, shortPath(cwd)].filter(Boolean).join(" · "),
+            [idShort, t("Pi is working …"), tab?.activity, shortPath(cwd)].filter(Boolean).join(" · "),
           )
-        : h("span", { class: "sess-meta" }, [shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
+        : h("span", { class: "sess-meta" }, [idShort, shortPath(cwd), relTime(ts)].filter(Boolean).join(" · ")),
     sessionPill(tab, row.running, row.unread),
     h(
       "span",
