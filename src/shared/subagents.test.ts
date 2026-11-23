@@ -1,6 +1,6 @@
-// Tests for the subagent parsing (shared/subagents.ts)
+// Tests for the subagent parsing and model resolution (shared/subagents.ts)
 import { describe, expect, it } from "vitest";
-import { subagentFromArgs, subagentFromDetails, subagentWorking } from "./subagents";
+import { resolveAgentModel, subagentFromArgs, subagentFromDetails, subagentWaits, subagentWorking } from "./subagents";
 
 describe("subagentFromArgs", () => {
   it("reads a single task", () => {
@@ -74,5 +74,54 @@ describe("subagentWorking", () => {
     expect(subagentWorking(call)).toBe(true);
     expect(subagentWorking({ ...call, done: true })).toBe(false);
     expect(subagentWorking({ ...call, runs: [{ agent: "x", task: "", status: "completed" }] })).toBe(false);
+  });
+});
+
+describe("resolveAgentModel", () => {
+  const parent = { provider: "anthropic", id: "claude-opus-4-5" };
+  const models = [
+    { provider: "anthropic", id: "claude-haiku-4-5" },
+    { provider: "openai", id: "gpt-5" },
+  ];
+
+  it("takes the parent session's model when the agent has none (never Pi's default)", () => {
+    expect(resolveAgentModel("", "", parent, models)).toEqual(parent);
+    expect(resolveAgentModel("agent", "", parent, models)).toEqual(parent);
+    expect(resolveAgentModel("session", "anthropic/claude-haiku-4-5", parent, models)).toEqual(parent);
+  });
+
+  it("takes the agent's model, with or without provider", () => {
+    expect(resolveAgentModel("", "openai/gpt-5", parent, models)).toEqual({ provider: "openai", id: "gpt-5" });
+    expect(resolveAgentModel("agent", "claude-haiku-4-5", parent, models)).toEqual(models[0]);
+  });
+
+  it("falls back to the parent's model when a bare agent model is unknown", () => {
+    expect(resolveAgentModel("", "no-such-model", parent, models)).toEqual(parent);
+  });
+
+  it("takes an explicit choice from the dialog", () => {
+    expect(resolveAgentModel("openai/gpt-5", "anthropic/claude-haiku-4-5", parent, models)).toEqual({
+      provider: "openai",
+      id: "gpt-5",
+    });
+  });
+
+  it("returns null when nothing is known", () => {
+    expect(resolveAgentModel("", "", null, models)).toBeNull();
+    expect(resolveAgentModel("session", "", null, models)).toBeNull();
+  });
+});
+
+describe("subagentWaits", () => {
+  it("sequential (and unset) waits while another subagent runs", () => {
+    expect(subagentWaits("sequential", 1)).toBe(true);
+    expect(subagentWaits(undefined, 2)).toBe(true);
+    expect(subagentWaits("sequential", 0)).toBe(false);
+    expect(subagentWaits(undefined, 0)).toBe(false);
+  });
+
+  it("parallel never waits", () => {
+    expect(subagentWaits("parallel", 0)).toBe(false);
+    expect(subagentWaits("parallel", 3)).toBe(false);
   });
 });

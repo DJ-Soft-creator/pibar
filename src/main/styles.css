@@ -2011,7 +2011,14 @@ body.resizing-v .term-split::after {
   width: 8px;
   height: 8px;
 }
+.sess-kid {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 .sess-kid .sess {
+  flex: 1;
+  min-width: 0;
   margin-left: 4px;
 }
 /* fold triangle in front of a session row with older versions (same language as the group heads) */
@@ -2078,6 +2085,25 @@ body.resizing-v .term-split::after {
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+}
+/* small ■ that stops a running subagent (child session row or extension run row) */
+.sa-stop {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  font-size: calc(9px * var(--fs));
+  color: var(--muted);
+  opacity: 0.65;
+}
+.sa-stop:hover:not(:disabled) {
+  color: var(--danger);
+  opacity: 1;
+}
+.subagent-row .sa-stop {
+  margin-left: auto;
+}
+.sess-kid .sa-stop {
+  margin-right: 2px;
 }
 /* Status line under the input, like Pi's footer */
 .status-line {

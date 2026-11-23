@@ -397,6 +397,8 @@ const de = {
   "in {folder}": "in {folder}",
   "Upload files …": "Dateien hochladen …",
   "Upload files": "Dateien hochladen",
+  "Download …": "Herunterladen …",
+  Download: "Herunterladen",
   Upload: "Hochladen",
   "Uploading …": "Wird hochgeladen …",
   "Drop files here or click to choose (any type, e.g. PDF)":
@@ -883,8 +885,20 @@ const de = {
   step: "Schritt",
   "No agents found. Put Markdown definitions in ~/.pi/agent/agents on the host.":
     "Keine Agenten gefunden. Lege Markdown-Definitionen unter ~/.pi/agent/agents auf dem Host ab.",
-  "Starts a session of its own in the folder of this session, with the agent's tools, model and system prompt. It appears indented under this session.":
-    "Startet eine eigene Session im Ordner dieser Session – mit den Tools, dem Modell und dem System-Prompt des Agenten. Sie erscheint eingerückt unter dieser Session.",
+  "Starts a session of its own in the folder of this session, with the agent's tools and system prompt and the chosen model (default: the agent's model, otherwise this session's model). It appears indented under this session.":
+    "Startet eine eigene Session im Ordner dieser Session – mit den Tools und dem System-Prompt des Agenten und dem gewählten Modell (Standard: das Modell des Agenten, sonst das dieser Session). Sie erscheint eingerückt unter dieser Session.",
+  "Model of the agent": "Modell des Agenten",
+  "Same model as this session": "Gleiches Modell wie diese Session",
+  "One after another": "Nacheinander",
+  "At the same time": "Gleichzeitig",
+  "Run order": "Reihenfolge",
+  "Subagent queued – it starts when the running one is done.":
+    "Subagent eingereiht – er startet, wenn der laufende fertig ist.",
+  "Stop this subagent": "Diesen Subagenten stoppen",
+  "Stop this run (aborts the session's current turn)":
+    "Diesen Run stoppen (bricht den aktuellen Durchlauf der Session ab)",
+  "How PiBar's own subagent sessions run. One after another suits small hardware: a new subagent waits until the running one is done. Runs of Pi's subagent extension are not affected.":
+    "Wie PiBars eigene Subagent-Sessions laufen. Nacheinander passt zu kleiner Hardware: Ein neuer Subagent wartet, bis der laufende fertig ist. Runs der Pi-Subagent-Extension sind nicht betroffen.",
 } as const;
 
 export type Msg = keyof typeof de;

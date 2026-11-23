@@ -14,7 +14,7 @@ pub struct AgentInfo {
     pub description: String,
     /// Tool allowlist, None = Pi's default
     pub tools: Option<Vec<String>>,
-    /// Model ("provider/id" or a bare id), empty = the session's model
+    /// Model ("provider/id" or a bare id), empty = the parent session's model
     pub model: String,
     /// "user" (~/.pi/agent/agents) or "project" (.pi/agents)
     pub source: String,

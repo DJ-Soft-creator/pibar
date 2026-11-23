@@ -361,6 +361,25 @@ async fn upload_file(
         .map_err(|e| e.to_string())?
 }
 
+/// Download a file of any type from the host to this computer: [`files::download`] reads it as base64 through
+/// the shell (locally and over SSH), then a native save dialog (rfd) picks the local target and gets the bytes.
+/// false = the user cancelled the dialog.
+#[tauri::command]
+async fn download_file(app: AppHandle, host_id: String, path: String) -> Result<bool, String> {
+    let host = config::find_host(&app, &host_id)?;
+    let name = path.rsplit('/').next().unwrap_or("file").to_string();
+    let bytes = tauri::async_runtime::spawn_blocking(move || files::download(&host, &path))
+        .await
+        .map_err(|e| e.to_string())??;
+    let Some(target) = rfd::AsyncFileDialog::new().set_file_name(name).save_file().await else {
+        return Ok(false);
+    };
+    target.write(&bytes).await.map_err(|e| {
+        i18n::tr(format!("Could not save the file: {e}"), format!("Datei konnte nicht gespeichert werden: {e}"))
+    })?;
+    Ok(true)
+}
+
 #[tauri::command]
 async fn list_dirs(
     app: AppHandle,
@@ -690,6 +709,7 @@ pub fn run() {
             session_touches,
             write_file,
             upload_file,
+            download_file,
             create_file,
             create_dir,
             delete_path,

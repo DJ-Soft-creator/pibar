@@ -173,6 +173,9 @@ pub struct UiPrefs {
     /// Send messages as detached runs on the host by default ("in the background")
     #[serde(default)]
     pub background: bool,
+    /// How PiBar's subagent sessions run: "sequential" (one after another) or "parallel" (at the same time)
+    #[serde(default = "default_subagent_mode")]
+    pub subagent_mode: String,
     /// Order of the session list: "activity" (last change), "created", "name" or "folder"
     #[serde(default = "default_session_sort")]
     pub session_sort: String,
@@ -205,6 +208,10 @@ pub struct UiPrefs {
 
 pub fn default_auto_scroll() -> String {
     "auto".into()
+}
+
+pub fn default_subagent_mode() -> String {
+    "sequential".into()
 }
 
 pub fn default_session_filter() -> String {
@@ -285,6 +292,7 @@ impl Default for UiPrefs {
             auto_scroll: default_auto_scroll(),
             files_docs_only: false,
             background: false,
+            subagent_mode: default_subagent_mode(),
             session_sort: default_session_sort(),
             session_group: default_session_group(),
             session_filter: default_session_filter(),

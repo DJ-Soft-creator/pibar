@@ -343,6 +343,8 @@ export interface AppConfig {
     filesDocsOnly?: boolean;
     /** Send messages as detached runs on the host by default ("in the background") */
     background?: boolean;
+    /** How PiBar's subagent sessions run: "sequential" (one after another, default) or "parallel" (at the same time) */
+    subagentMode?: "sequential" | "parallel";
     /** Last session shown per host (host id → session file), so switching hosts brings it back */
     sessionByHost?: Record<string, string>;
     /** Colour profile for hosts without their own, "" = the theme's colours */
@@ -429,7 +431,7 @@ export interface AgentInfo {
   description: string;
   /** Tool allowlist, null = Pi's default */
   tools: string[] | null;
-  /** "provider/id" or a bare model id, "" = the session's model */
+  /** "provider/id" or a bare model id, "" = the parent session's model (resolveAgentModel in shared/subagents.ts) */
   model: string;
   /** "user" (~/.pi/agent/agents) or "project" (.pi/agents) */
   source: string;
@@ -607,6 +609,9 @@ export const api = {
    * false = the file exists and was kept; ask the user, then call again with overwrite. */
   uploadFile: (hostId: string, path: string, data: string, overwrite = false) =>
     invoke<boolean>("upload_file", { hostId, path, data, overwrite }),
+  /** Download a file of any type from the host to this computer: Rust reads it and shows a native save dialog.
+   * false = the user cancelled the dialog (src-tauri/src/lib.rs, files::download). */
+  downloadFile: (hostId: string, path: string) => invoke<boolean>("download_file", { hostId, path }),
   createFile: (hostId: string, path: string) => invoke<void>("create_file", { hostId, path }),
   createDir: (hostId: string, path: string) => invoke<void>("create_dir", { hostId, path }),
   /** Delete a file or folder (with content) strictly inside the session folders `roots`; the UI asks twice */

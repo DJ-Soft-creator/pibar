@@ -20,6 +20,8 @@ tauri-plugin-notification = "2"
 portable-pty = "0.9"
 sys-locale = "0.3"
 base64 = "0.22"
+# native save dialog for downloads (files panel); xdg-portal + tokio on Linux, native on macOS/Windows
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "time"] }

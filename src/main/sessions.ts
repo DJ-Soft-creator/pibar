@@ -67,7 +67,7 @@ import {
   groupCollapsed,
   toggleGroup,
 } from "./sessionGroups";
-import { sessionKids } from "./subagents";
+import { sessionKids, subagentClosed } from "./subagents";
 import { versionChevron, versionKids, versionMap, type VersionNode } from "./sessionVersions";
 import {
   blockKeysOf,
@@ -1319,6 +1319,7 @@ export function activate(tab: SessionTab) {
 /** Stop the session's Pi process and remove it from the open sessions. The session file stays. */
 export function closeSession(tab: SessionTab) {
   const key = tab.key;
+  subagentClosed(tab);
   tab.close();
   state.tabs.delete(key);
   state.tabsByHandle.delete(tab.handle);

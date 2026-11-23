@@ -134,6 +134,16 @@ function isRoot(path: string): boolean {
   return treeRoots().some((r) => r.replace(/\/+$/, "") === p);
 }
 
+/** Save a file of the tree to this computer: Rust reads it from the host (also over SSH) and shows a native
+ * save dialog; a cancelled dialog does nothing (api.downloadFile, files::download) */
+async function downloadFile(tab: SessionTab, path: string) {
+  try {
+    if (await api.downloadFile(tab.hostId, path)) toast(t("Saved: {file}", { file: baseName(path) }));
+  } catch (e) {
+    toast(`${t("Download")}: ${errMsg(e)}`, "err");
+  }
+}
+
 /** Delete a file or folder after two confirmations (deleteDialog); then refresh tree, Git status and editor */
 function deletePath(tab: SessionTab, path: string, dir: boolean) {
   deleteDialog(path, dir, async () => {
@@ -260,6 +270,7 @@ function treeRows(tab: SessionTab, root: string, dir: TreeDir, depth: number): H
                   ? []
                   : [{ label: t("Show changes (diff)"), onSelect: () => openFile(tab.hostId, full, "diff") }]),
                 { label: t("History (Git)"), onSelect: () => fileHistory(tab.hostId, full) },
+                { label: t("Download …"), onSelect: () => void downloadFile(tab, full) },
                 { separator: true },
                 { label: t("Delete file …"), danger: true, onSelect: () => deletePath(tab, full, false) },
               ],

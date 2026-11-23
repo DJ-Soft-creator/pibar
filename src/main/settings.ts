@@ -428,6 +428,13 @@ export function settingsDialog() {
     style: "width:auto",
   }) as HTMLInputElement;
 
+  const subagentMode = h(
+    "select",
+    {},
+    h("option", { value: "sequential", selected: state.config.ui.subagentMode !== "parallel" }, t("One after another")),
+    h("option", { value: "parallel", selected: state.config.ui.subagentMode === "parallel" }, t("At the same time")),
+  ) as HTMLSelectElement;
+
   const termFollow = h("input", {
     type: "checkbox",
     checked: state.config.ui.termFollowSession !== false,
@@ -544,6 +551,7 @@ export function settingsDialog() {
     state.config.ui.autoScroll = autoScroll.value as ScrollMode;
     state.config.ui.notifyDone = notifyDone.checked;
     state.config.ui.background = background.checked;
+    state.config.ui.subagentMode = subagentMode.value === "parallel" ? "parallel" : "sequential";
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -635,6 +643,23 @@ export function settingsDialog() {
           { class: "hint" },
           t(
             "Messages then keep running when PiBar quits or the connection drops; the answer is there on the next start.",
+          ),
+        ),
+      ),
+    ),
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Subagents")),
+      h(
+        "div",
+        {},
+        h("label", { class: "check" }, `${t("Run order")}: `, subagentMode),
+        h(
+          "p",
+          { class: "hint" },
+          t(
+            "How PiBar's own subagent sessions run. One after another suits small hardware: a new subagent waits until the running one is done. Runs of Pi's subagent extension are not affected.",
           ),
         ),
       ),

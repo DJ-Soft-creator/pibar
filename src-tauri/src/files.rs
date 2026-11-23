@@ -1,5 +1,6 @@
 //! List, read and write Markdown and HTML files (images: read only) in a session's folders, optionally with the Git status.
-//! Locally and over SSH with the same shell commands. Uploads take any file type (e.g. PDF) as base64 from the UI.
+//! Locally and over SSH with the same shell commands. Uploads take any file type (e.g. PDF) as base64 from the UI,
+//! downloads read any file type as base64 for a native save dialog on this computer.
 
 use crate::config::HostCfg;
 use crate::hostexec::{self, shell_path, sq};
@@ -337,6 +338,39 @@ pub fn upload(host: &HostCfg, path: &str, data: &str, overwrite: bool) -> Result
     Ok(out.trim() != EXISTS)
 }
 
+/// Largest file the panel downloads (it travels base64-encoded through the UI)
+const MAX_DOWNLOAD: u64 = 50_000_000;
+const DL_TOO_LARGE: &str = "__PIBAR_DL_TOO_LARGE__";
+
+/// Shell script that prints a file as base64 on one line; a file over the limit comes back as a marker
+pub fn download_script(path: &str) -> String {
+    let p = sq(path);
+    format!(
+        "s=$(wc -c < {p} | tr -d ' ') && [ -n \"$s\" ] || exit 1; if [ \"$s\" -gt {MAX_DOWNLOAD} ]; then echo {DL_TOO_LARGE}; exit 0; fi; base64 < {p} | tr -d '\\n'"
+    )
+}
+
+/// Decode the base64 answer of [`download_script`]; the too-large marker becomes an error
+pub fn parse_download(out: &str) -> Result<Vec<u8>, String> {
+    let out = out.trim();
+    if out == DL_TOO_LARGE {
+        return Err(tr("File too large to download (max. 50 MB)", "Datei zu groß zum Herunterladen (max. 50 MB)"));
+    }
+    base64::engine::general_purpose::STANDARD
+        .decode(out)
+        .map_err(|_| tr("Invalid download data", "Ungültige Download-Daten"))
+}
+
+/// Read a file of any type from the host as bytes (base64 through the same shell, so it works over SSH too);
+/// the UI saves it to this computer through a native save dialog (`download_file` in lib.rs)
+pub fn download(host: &HostCfg, path: &str) -> Result<Vec<u8>, String> {
+    check_path_shape(path)?;
+    if path.ends_with('/') {
+        return Err(tr(format!("Not a file path: {path}"), format!("Kein Dateipfad: {path}")));
+    }
+    parse_download(&hostexec::run_shell(host, &download_script(path), None)?)
+}
+
 pub fn create(host: &HostCfg, path: &str) -> Result<(), String> {
     check_path_shape(path)?;
     let p = sq(path);
@@ -566,6 +600,37 @@ mod tests {
     }
 
     #[test]
+    fn download_payload_is_checked() {
+        assert_eq!(parse_download("aGk=\n").unwrap(), b"hi");
+        assert_eq!(parse_download("").unwrap(), b"");
+        assert!(parse_download(DL_TOO_LARGE).is_err());
+        assert!(parse_download("!!!").is_err());
+    }
+
+    #[test]
+    fn download_script_quotes_and_guards_size() {
+        let s = download_script("/a b/x.pdf");
+        assert!(s.contains(&format!("-gt {MAX_DOWNLOAD}")));
+        assert!(s.contains(DL_TOO_LARGE));
+        assert!(s.ends_with("base64 < '/a b/x.pdf' | tr -d '\\n'"));
+    }
+
+    #[test]
+    fn download_reads_binary_bytes_through_the_shell() {
+        let dir = std::env::temp_dir().join(format!("pibar-download-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = format!("{}/Dokument ä.pdf", dir.to_string_lossy());
+        let bytes = vec![0u8, 159, 146, 100]; // binary, not text
+        std::fs::write(&path, &bytes).unwrap();
+        // the real script through sh, like the host shell runs it (run_shell needs the app binary)
+        let out = std::process::Command::new("sh").arg("-c").arg(download_script(&path)).output().unwrap();
+        assert!(out.status.success());
+        assert_eq!(parse_download(&String::from_utf8_lossy(&out.stdout)).unwrap(), bytes);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn upload_writes_bytes_and_keeps_existing_files() {
         use std::io::Write;
         let dir = std::env::temp_dir().join(format!("pibar-upload-{}", std::process::id()));
@@ -581,7 +646,12 @@ mod tests {
                 .stdout(std::process::Stdio::piped())
                 .spawn()
                 .unwrap();
-            c.stdin.take().unwrap().write_all(bytes).unwrap();
+            let mut stdin = c.stdin.take().unwrap();
+            // the "exists" guard exits before reading stdin: a broken pipe is expected then, not a failure
+            if let Err(e) = stdin.write_all(bytes) {
+                assert_eq!(e.kind(), std::io::ErrorKind::BrokenPipe);
+            }
+            drop(stdin);
             let out = c.wait_with_output().unwrap();
             assert!(out.status.success());
             String::from_utf8_lossy(&out.stdout).trim() != EXISTS

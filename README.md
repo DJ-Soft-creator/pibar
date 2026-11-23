@@ -47,7 +47,9 @@ License
   actions (add, edit, remove, move); the buttons change right away
 - **Subagents**: under a session in the left column, indented and collapsible – the runs of Pi's subagent extension
   live (a click shows the tool card), and "New subagent …" in the session menu starts a child session of its own with
-  an agent definition of the host (`~/.pi/agent/agents/*.md` or `.pi/agents`: tools, model, system prompt)
+  an agent definition of the host (`~/.pi/agent/agents/*.md` or `.pi/agents`: tools, model, system prompt); it runs
+  with the agent's model, this session's model or one picked in the dialog – never Pi's default. They run one after
+  another by default (Settings → Chat → Subagents switches to parallel), and a running subagent has a ■ stop button
 - **Tool dock** at the input: a quiet `+`; when the mouse comes near, more buttons fade in – **attach files** (text files
   and images, also by drag & drop or paste; shown as chips above the input), **screenshot**, **skills** and **tools**
 - **Skills and commands**: type `/` in the input (or use the dock) for the session's skills, prompt templates and
@@ -173,6 +175,8 @@ License
 - **Upload**: files of any type (e.g. PDF) from your computer into a folder of the tree – "+" or right click →
   "Upload files …", or drop them onto a folder (also over SSH, max. 50 MB per file); existing files are only
   overwritten after confirmation, and the "docs only" filter turns off so the uploads show up
+- **Download**: right click on a file → "Download …" saves it to your computer through a native save dialog
+  (any file type, also over SSH, max. 50 MB)
 - **Delete**: right click on a file or folder → "Delete …" – two confirmations, the second one with a checkbox
   ("I know this cannot be undone"); folders go with their content, a symlink loses only the link. The session's root
   folders are never deleted (only removed from the session), locally and over SSH

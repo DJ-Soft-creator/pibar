@@ -49,7 +49,10 @@ MIT-Lizenz
   → Schnellwahl (hinzufügen, bearbeiten, entfernen, verschieben); die Buttons ändern sich sofort
 - **Subagents**: unter einer Session in der linken Spalte, eingerückt und einklappbar – die Runs der Pi-Subagent-
   Extension live (Klick zeigt die Tool-Karte), und „Neuer Subagent …“ im Session-Menü startet eine eigene Kind-Session
-  mit einer Agenten-Definition des Hosts (`~/.pi/agent/agents/*.md` oder `.pi/agents`: Tools, Modell, System-Prompt)
+  mit einer Agenten-Definition des Hosts (`~/.pi/agent/agents/*.md` oder `.pi/agents`: Tools, Modell, System-Prompt);
+  sie läuft mit dem Modell des Agenten, dem dieser Session oder einem im Dialog gewählten – nie mit Pis Standard.
+  Standardmäßig laufen sie nacheinander (Einstellungen → Chat → Subagents stellt auf parallel um), und ein laufender
+  Subagent hat einen ■-Stopp-Knopf
 - **Werkzeugleiste** an der Eingabe: ein dezentes `+`; kommt die Maus in die Nähe, blenden weitere Knöpfe ein –
   **Dateien anhängen** (Textdateien und Bilder, auch per Drag & Drop oder Einfügen; als Chips über der Eingabe),
   **Screenshot**, **Skills** und **Tools**
@@ -187,6 +190,8 @@ MIT-Lizenz
   Rechtsklick → „Dateien hochladen …“, oder auf einen Ordner ziehen (auch über SSH, max. 50 MB pro Datei);
   vorhandene Dateien werden erst nach Rückfrage überschrieben, und der „Nur Markdown“-Filter schaltet sich ab,
   damit die Uploads sichtbar sind
+- **Download**: Rechtsklick auf eine Datei → „Herunterladen …“ speichert sie über einen nativen Speichern-Dialog
+  auf dem eigenen Rechner (beliebiger Dateityp, auch über SSH, max. 50 MB)
 - **Löschen**: Rechtsklick auf eine Datei oder einen Ordner → „Löschen …“ – zwei Rückfragen, die zweite mit einer
   Checkbox („Ich weiß, dass das nicht rückgängig gemacht werden kann“); Ordner samt Inhalt, ein Symlink verliert nur
   den Link. Die Wurzelordner der Session werden nie gelöscht (nur aus der Session entfernt), lokal und über SSH
