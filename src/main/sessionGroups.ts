@@ -10,6 +10,7 @@ import { MenuEntry, openMenu } from "./menu";
 import { reminderDialog, reminderFor } from "./reminders";
 import type { SessionTab } from "./sessionTab";
 import { selection } from "./sessionSelect";
+import { exportDialog } from "./sessionExport";
 import { closeSession, loadSessions, renderHosts } from "./sessions";
 import { subagentDialog } from "./subagents";
 import { saveConfig, state } from "./state";
@@ -427,6 +428,11 @@ export function sessionMenu(anchor: HTMLElement, s: SessionRef, at?: { x: number
       {
         label: reminderFor(key) ? t("Change reminder") : t("Remind me later"),
         onSelect: () => reminderDialog({ hostId: s.hostId, path: s.path, cwd: s.cwd, title: s.title }),
+      },
+      {
+        label: t("Export …"),
+        desc: t("JSON or CSV for machine evaluation"),
+        onSelect: () => exportDialog(s),
       },
     );
   // the id of an open tab comes from Pi itself; a closed session has it in the host's session list (file header)

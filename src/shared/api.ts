@@ -621,6 +621,10 @@ export const api = {
   sessionOutlines: (hostId: string, paths: string[]) => invoke<SessionOutline[]>("session_outlines", { hostId, paths }),
   /** Sessions of a host whose messages contain `query` (src/main/search.ts) */
   searchSessions: (hostId: string, query: string) => invoke<SearchHit[]>("search_sessions", { hostId, query }),
+  /** Whole session file as JSONL text, for the export (src/main/sessionExport.ts, sessions::export) */
+  readSessionFile: (hostId: string, path: string) => invoke<string>("read_session_file", { hostId, path }),
+  /** Save text to this computer through a native save dialog; false = cancelled (src-tauri/src/lib.rs) */
+  saveTextFile: (name: string, text: string) => invoke<boolean>("save_text_file", { name, text }),
   listDirs: (hostId: string, path: string, hidden = false) => invoke<DirListing>("list_dirs", { hostId, path, hidden }),
   /** Screenshot: "region" (drag an area) or "screen"; null if cancelled */
   captureScreen: (mode: "region" | "screen") =>

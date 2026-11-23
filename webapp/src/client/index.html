@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pibar Webapp</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="screen">
+    <div class="card">
+      <h1>Pibar Webapp</h1>
+      <p>Anmelden</p>
+      <input type="text" id="username" placeholder="Benutzername" autofocus>
+      <input type="password" id="password" placeholder="Passwort">
+      <button id="login-btn">Anmelden</button>
+      <p id="login-error" class="error"></p>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-screen" class="screen hidden">
+    <header class="topbar">
+      <h2>Pibar</h2>
+      <div class="topbar-actions">
+        <button id="view-btn" title="View-Menü">📋</button>
+        <button id="config-btn" title="Config Exchange">⚙️</button>
+        <button id="logout-btn" class="danger" title="Abmelden">✕</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>Projekte & Sessions</h3>
+        </div>
+        <ul id="session-list" class="session-list"></ul>
+        <div class="sidebar-footer">
+          <button id="new-session-btn">Neue Session</button>
+        </div>
+      </aside>
+
+      <!-- Content -->
+      <section class="content-area">
+        <!-- Chat -->
+        <div id="chat-panel" class="panel">
+          <div id="chat-header">
+            <h3>Chat</h3>
+            <div class="view-tabs">
+              <button class="view-tab active" data-view="natural">Natural</button>
+              <button class="view-tab" data-view="technical">Technical</button>
+              <button class="view-tab" data-view="active">Nur aktive</button>
+            </div>
+          </div>
+          <div id="chat-messages" class="messages"></div>
+          <div id="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Nachricht... (Strg+Enter senden)">
+            <button id="send-btn">Senden</button>
+          </div>
+        </div>
+
+        <!-- View -->
+        <div id="view-panel" class="panel hidden">
+          <h3>View</h3>
+          <div class="view-options">
+            <button class="view-option active" data-view="natural">Natural</button>
+            <button class="view-option" data-view="technical">Technical</button>
+            <button class="view-option" data-view="active">Nur aktive</button>
+          </div>
+          <div id="view-content"></div>
+        </div>
+
+        <!-- Project Editor -->
+        <div id="project-editor" class="panel hidden">
+          <h3>Projekt-Editor</h3>
+          <textarea id="project-text" placeholder="Projektinhalt..."></textarea>
+          <button id="save-project-btn">Speichern</button>
+        </div>
+
+        <!-- MD Editor -->
+        <div id="md-editor" class="panel hidden">
+          <h3>Markdown-Editor</h3>
+          <textarea id="md-text" placeholder="Markdown-Inhalt..."></textarea>
+          <div class="editor-actions">
+            <button id="md-preview-btn">Vorschau</button>
+            <button id="md-download-btn">Download</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Config Exchange Modal -->
+  <div id="config-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>Config Exchange</h3>
+      <p>Exportiere die Session-Konfiguration an den PiBar-Host:</p>
+      <button id="config-export-btn">Exportieren</button>
+      <button id="config-import-btn" class="danger">Importieren</button>
+      <div id="config-status"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/client/app.js"></script>
+</body>
+</html>

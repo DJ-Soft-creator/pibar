@@ -1,7 +1,8 @@
-//! Read a host's session list from Pi's session folder (~/.pi/agent/sessions) and delete session files.
-//! Pi has no list command itself, but the files are plain JSONL.
+//! Read a host's session list from Pi's session folder (~/.pi/agent/sessions), read whole session files for the
+//! export and delete session files. Pi has no list command itself, but the files are plain JSONL.
 
 use crate::config::HostCfg;
+use crate::files;
 use crate::hostexec::{self, sq};
 use crate::i18n::tr;
 use serde::Serialize;
@@ -394,6 +395,17 @@ pub fn is_session_file(path: &str) -> bool {
         && !path.split('/').any(|seg| seg == ".." || seg == ".")
 }
 
+/// Whole session file as JSONL text for the export (JSON/CSV in the UI, src/main/sessionExport.ts);
+/// only Pi session files, read through [`files::download`] so it works over SSH too (max. 50 MB)
+pub fn export(host: &HostCfg, path: &str) -> Result<String, String> {
+    if !is_session_file(path) {
+        return Err(tr(format!("Not a Pi session file: {path}"), format!("Keine Pi-Session-Datei: {path}")));
+    }
+    let bytes = files::download(host, path)?;
+    String::from_utf8(bytes)
+        .map_err(|_| tr("Session file is not valid UTF-8 text", "Session-Datei ist kein gültiger UTF-8-Text"))
+}
+
 /// Delete session files on the host; returns how many paths were handed over
 pub fn delete(host: &HostCfg, paths: &[String]) -> Result<usize, String> {
     if let Some(bad) = paths.iter().find(|p| !is_session_file(p)) {
@@ -429,6 +441,25 @@ __PIBAR_OUTLINE__\t/s/b.jsonl\t\n";
             ]
         );
         assert_eq!((o[1].mtime, o[1].users.len()), (0, 0));
+    }
+
+    #[test]
+    fn export_only_reads_session_files() {
+        let host = HostCfg {
+            id: "local".into(),
+            name: String::new(),
+            kind: "local".into(),
+            ssh_target: String::new(),
+            ssh_user: String::new(),
+            ssh_port: None,
+            pi_command: String::new(),
+            default_dir: String::new(),
+            use_herdr: false,
+            color_profile: String::new(),
+        };
+        // the guard refuses before any shell runs
+        assert!(export(&host, "/home/u/notes.jsonl").is_err());
+        assert!(export(&host, "/home/u/.pi/agent/sessions/../../.bashrc").is_err());
     }
 
     #[test]

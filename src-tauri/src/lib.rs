@@ -98,6 +98,26 @@ async fn search_sessions(app: AppHandle, host_id: String, query: String) -> Resu
     tauri::async_runtime::spawn_blocking(move || sessions::search(&host, &query)).await.map_err(|e| e.to_string())?
 }
 
+/// Whole session file as JSONL text for the export dialog (src/main/sessionExport.ts, [`sessions::export`])
+#[tauri::command]
+async fn read_session_file(app: AppHandle, host_id: String, path: String) -> Result<String, String> {
+    let host = config::find_host(&app, &host_id)?;
+    tauri::async_runtime::spawn_blocking(move || sessions::export(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+/// Save exported text to this computer: a native save dialog (rfd) picks the target.
+/// false = the user cancelled the dialog.
+#[tauri::command]
+async fn save_text_file(name: String, text: String) -> Result<bool, String> {
+    let Some(target) = rfd::AsyncFileDialog::new().set_file_name(name).save_file().await else {
+        return Ok(false);
+    };
+    target.write(text.as_bytes()).await.map_err(|e| {
+        i18n::tr(format!("Could not save the file: {e}"), format!("Datei konnte nicht gespeichert werden: {e}"))
+    })?;
+    Ok(true)
+}
+
 // ---------- Pi processes ----------
 
 #[tauri::command]
@@ -675,6 +695,8 @@ pub fn run() {
             delete_sessions,
             session_outlines,
             search_sessions,
+            read_session_file,
+            save_text_file,
             list_models,
             list_agents,
             agent_prompt_file,

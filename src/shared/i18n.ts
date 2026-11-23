@@ -369,6 +369,17 @@ const de = {
   "Right-click on the send button: menu for the background":
     "Rechtsklick auf den Senden-Knopf: Menü für den Hintergrund",
   "Copy session ID": "Session-ID kopieren",
+  "Export …": "Exportieren …",
+  Export: "Exportieren",
+  "Export session": "Session exportieren",
+  "JSON or CSV for machine evaluation": "JSON oder CSV zur maschinellen Auswertung",
+  "Exports the whole session file for machine evaluation.":
+    "Exportiert die gesamte Session-Datei zur maschinellen Auswertung.",
+  "lossless: every entry, including tool calls, tokens and costs":
+    "verlustfrei: jeder Eintrag, inklusive Tool-Aufrufen, Tokens und Kosten",
+  "one row per message: role, text, thinking, tool calls, tokens and costs":
+    "eine Zeile pro Nachricht: Rolle, Text, Thinking, Tool-Aufrufe, Tokens und Kosten",
+  "The session file is empty.": "Die Session-Datei ist leer.",
   "not in the list": "nicht in der Liste",
   Tokens: "Tokens",
   Output: "Ausgabe",
