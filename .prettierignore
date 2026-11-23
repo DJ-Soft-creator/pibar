@@ -1,6 +1,7 @@
 node_modules/
 dist/
 src-tauri/
+webapp/
 package-lock.json
 *.md
 .vitest/

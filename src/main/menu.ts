@@ -2,7 +2,6 @@
 // the file panel and the context menus of sessions and groups. One menu at a time; closes on click outside,
 // Escape or after a choice.
 import { h } from "../shared/dom";
-import { openConfigExchangeMenu } from "./configExchangeMenu";
 import { icon } from "../shared/icons";
 import { COLORS } from "../shared/sessionColors";
 

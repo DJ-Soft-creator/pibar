@@ -37,6 +37,9 @@ interface Session {
 
 const sessions: Session[] = [];
 
+/** Last config payload received from PiBar (src/main/configExchange.ts) */
+let configPayload: unknown = null;
+
 // ------------------------------------------------------------------
 // WebSocket: Chat & Config Exchange
 // ------------------------------------------------------------------
@@ -63,7 +66,7 @@ wss.on("connection", (ws: WebSocket) => {
 });
 
 function broadcastChat(msg: any) {
-  wss.clients().forEach((client) => {
+  wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(msg));
     }
@@ -141,10 +144,17 @@ app.get("/api/sessions/:id", (req, res) => {
 });
 
 app.get("/api/config", (_req, res) => {
-  res.json({
-    sessions,
-    users: Object.values(users),
-  });
+  if (!configPayload) return res.status(404).json({ error: "No config received yet" });
+  res.json(configPayload);
+});
+
+app.post("/api/config", (req, res) => {
+  const { sessions: s, projects, groups } = req.body ?? {};
+  if (!Array.isArray(s) || !Array.isArray(projects) || !Array.isArray(groups)) {
+    return res.status(400).json({ error: "Expected sessions, projects and groups arrays" });
+  }
+  configPayload = req.body;
+  res.json({ status: "ok" });
 });
 
 // ------------------------------------------------------------------

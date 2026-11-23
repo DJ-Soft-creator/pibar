@@ -1,213 +1,134 @@
-/**
- * Config Exchange API – PiBar ↔ Webapp
- *
- * Ermöglicht bidirektionale Konfigurations-Synchronisation:
- *   - PiBar exportiert seine Session-Konfig (Sessions, Projekte, Farben, Gruppen)
- *   - Webapp empfängt und speichert; PiBar kann Konfigurationen importieren
- *
- * Aufruf: configExchange.export() / configExchange.import(config)
- */
-
-import { readDirSync, readFileSync, writeFileSync, existsSync } from "fs";
-import { join } from "path";
-import { fileURLToPath } from "url";
-
-// ---------------------------------------------------------------------------
-// Typen
-// ---------------------------------------------------------------------------
+// Config exchange with the mobile webapp (webapp/): sends sessions, projects and groups there and imports them
+// back. Data comes from state.config (no file access in the WebView); the webapp URL lives in localStorage.
+// Menu entries: src/main/configExchangeMenu.ts, actions and dialogs: src/main/configExchangeTool.ts.
+import type { SessionGroup } from "../shared/api";
+import { saveConfig, state } from "./state";
 
 export interface SessionConfig {
+  /** Session key "<hostId>|<sessionPath>" (key in AppConfig.sessionMeta) */
   id: string;
   name: string;
+  /** Colour name, see COLORS in src/shared/sessionColors.ts; "" = none */
   color: string;
   group?: string;
   pinned: boolean;
-  status: "active" | "archived";
-  createdAt: string;
 }
 
 export interface ProjectConfig {
   id: string;
   name: string;
-  path: string;
-  isFolder: boolean;
+  hostId: string;
+  dir: string;
 }
 
 export interface ConfigPayload {
   sessions: SessionConfig[];
   projects: ProjectConfig[];
-  colors: Record<string, string>;
-  groups: Record<string, { name: string; color: string }>;
-  meta?: {
-    version: string;
-    generatedAt: string;
-    host: string;
-  };
+  groups: SessionGroup[];
+  meta: { generatedAt: string };
 }
 
-export interface ConfigStatus {
-  ok: boolean;
-  message: string;
-  exportedSessions: number;
-  exportedProjects: number;
+const URL_KEY = "pibar.webappUrl";
+
+/** Base URL of the webapp, e.g. "http://192.168.1.20:8787"; "" = not configured */
+export function webappUrl(): string {
+  return localStorage.getItem(URL_KEY) ?? "";
 }
 
-// ---------------------------------------------------------------------------
-// Konfiguration
-// ---------------------------------------------------------------------------
+/** Save the webapp URL (trimmed, without trailing slash); empty removes it */
+export function setWebappUrl(url: string) {
+  const clean = url.trim().replace(/\/+$/, "");
+  if (clean) localStorage.setItem(URL_KEY, clean);
+  else localStorage.removeItem(URL_KEY);
+}
 
-/** Pfad zum PiBar-Session-Store (JSONL) */
-const SESSION_STORE_DIR = join(
-  process.env.HOME ?? "/root",
-  ".pi",
-  "agent",
-  "sessions"
-);
+/** Sessions, projects and groups of the current config as an exchange payload */
+export function loadConfig(): ConfigPayload {
+  const cfg = state.config;
+  const sessions: SessionConfig[] = Object.entries(cfg.sessionMeta).map(([id, m]) => ({
+    id,
+    name:
+      m.name ??
+      id
+        .split("|")
+        .pop()
+        ?.split("/")
+        .pop()
+        ?.replace(/\.jsonl$/i, "") ??
+      id,
+    color: m.color ?? "",
+    group: m.group,
+    pinned: Boolean(m.pinned),
+  }));
+  const projects: ProjectConfig[] = (cfg.projects ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    hostId: p.hostId,
+    dir: p.dir,
+  }));
+  return { sessions, projects, groups: cfg.groups, meta: { generatedAt: new Date().toISOString() } };
+}
 
-/** Webhook-URL, an den PiBar die Config sendet (via WebSocket / HTTP) */
-const WEBHOOK_URL = process.env.CONFIG_EXCHANGE_WEBHOOK_URL ?? "";
-
-// ---------------------------------------------------------------------------
-// Export: SessionConfig auslesen und an Webapp senden
-// ---------------------------------------------------------------------------
-
-/**
- * Liest alle Sessions aus dem JSONL-Store und gibt eine SessionConfig zurück.
- */
-export function exportSessionConfig(): Promise<SessionConfig[]> {
-  return new Promise((resolve, reject) => {
-    if (!existsSync(SESSION_STORE_DIR)) {
-      return resolve([]);
-    }
-
-    const files = readDirSync(SESSION_STORE_DIR)
-      .filter((f) => f.endsWith(".jsonl"))
-      .sort();
-
-    const sessions: SessionConfig[] = [];
-    for (const file of files) {
-      try {
-        const content = readFileSync(join(SESSION_STORE_DIR, file), "utf-8");
-        const lines = content.split("\n").filter((l) => l.trim());
-        for (const line of lines) {
-          const entry = JSON.parse(line);
-          if (
-            typeof entry === "object" &&
-            "id" in entry &&
-            "name" in entry &&
-            "color" in entry
-          ) {
-            sessions.push({
-              id: String(entry.id),
-              name: String(entry.name),
-              color: String(entry.color),
-              group: entry.group,
-              pinned: Boolean(entry.pinned ?? false),
-              status: (entry.status as SessionConfig["status"]) ?? "active",
-              createdAt: entry.createdAt ?? new Date().toISOString(),
-            });
-          }
-        }
-      } catch {
-        // Ignoriere fehlerhafte Einträge
-      }
-    }
-    resolve(sessions);
+/** POST the payload to the webapp; throws when no URL is set or the webapp refuses */
+export async function sendToWebapp(config: ConfigPayload): Promise<void> {
+  const url = webappUrl();
+  if (!url) throw new Error("no webapp URL");
+  const res = await fetch(`${url}/api/config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
   });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+/** GET the last payload the webapp received; throws when it is unreachable or has none */
+export async function fetchFromWebapp(): Promise<ConfigPayload> {
+  const url = webappUrl();
+  if (!url) throw new Error("no webapp URL");
+  const res = await fetch(`${url}/api/config`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data: unknown = await res.json();
+  if (!isPayload(data)) throw new Error("no config on the webapp yet");
+  return data;
+}
+
+/** Shape check of a payload from the webapp (its JSON is untyped) */
+function isPayload(data: unknown): data is ConfigPayload {
+  if (typeof data !== "object" || data === null) return false;
+  const p = data as Partial<ConfigPayload>;
+  return Array.isArray(p.sessions) && Array.isArray(p.projects) && Array.isArray(p.groups);
 }
 
 /**
- * Sendet die Session-Konfig an den Webapp-Host (Webhook).
- * Wird aufgerufen, wenn der User "Config Exchange" im PiBar-Menü wählt.
+ * Merge a payload into the config: only entries whose id/key is still unknown are added, nothing is overwritten.
+ * Returns how many sessions, groups and projects were added; saves the config when anything changed.
  */
-export async function sendToWebapp(config: ConfigPayload): Promise<boolean> {
-  if (!WEBHOOK_URL) {
-    console.warn("[configExchange] No webhook URL configured (CONFIG_EXCHANGE_WEBHOOK_URL).");
-    return false;
-  }
-
-  try {
-    // Versuche HTTP POST (für WebSocket-basierte RPC nutzen wir einen anderen Mechanismus)
-    const response = await fetch(WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(config),
-    });
-
-    if (!response.ok) {
-      console.error("[configExchange] Webhook-Fehler:", response.status);
-      return false;
-    }
-
-    const text = await response.text();
-    console.log("[configExchange] Sent to webapp:", text);
-    return true;
-  } catch (err) {
-    console.error("[configExchange] Send error:", err);
-    return false;
-  }
-}
-
-/**
- * Importiert eine Session-Konfig von außen (z. B. von der Webapp).
- * Schreibt die Konfig in den JSONL-Store.
- */
-export async function importSessionConfig(config: ConfigPayload): Promise<boolean> {
-  if (!existsSync(SESSION_STORE_DIR)) {
-    return false;
-  }
-
-  // Prüfe auf bestehende Sessions mit gleichem ID (Überschreiben vermeiden)
-  const existing = readDirSync(SESSION_STORE_DIR)
-    .filter((f) => f.endsWith(".jsonl"))
-    .map((f) => JSON.parse(readFileSync(join(SESSION_STORE_DIR, f), "utf-8")));
-
-  const toWrite: string[] = [];
+export async function importSessionConfig(
+  config: ConfigPayload,
+): Promise<{ sessions: number; groups: number; projects: number }> {
+  const cfg = state.config;
+  const added = { sessions: 0, groups: 0, projects: 0 };
   for (const s of config.sessions) {
-    // Überschreibe nur, wenn ID noch nicht existiert
-    if (!existing.some((e) => String(e.id) === s.id)) {
-      toWrite.push(JSON.stringify(s) + "\n");
-    }
+    if (!s.id || cfg.sessionMeta[s.id]) continue;
+    cfg.sessionMeta[s.id] = {
+      name: s.name,
+      color: s.color || undefined,
+      group: s.group,
+      pinned: s.pinned || undefined,
+    };
+    added.sessions++;
   }
-
-  if (toWrite.length === 0) {
-    console.log("[configExchange] No new sessions to import.");
-    return true;
+  for (const g of config.groups) {
+    if (!g.id || cfg.groups.some((x) => x.id === g.id)) continue;
+    cfg.groups.push(g);
+    added.groups++;
   }
-
-  const dirContent = existing.map((e) => JSON.stringify(e)).join("\n");
-  writeFileSync(join(SESSION_STORE_DIR, "sessions.jsonl"), dirContent + toWrite.join("\n"));
-  console.log("[configExchange] Imported", toWrite.length, "sessions.");
-  return true;
-}
-
-/**
- * Gibt den aktuellen Config-Status zurück.
- */
-export async function getConfigStatus(): Promise<ConfigStatus> {
-  const sessions = await exportSessionConfig();
-  return {
-    ok: true,
-    message: `Exported ${sessions.length} session(s).`,
-    exportedSessions: sessions.length,
-    exportedProjects: 0,
-  };
-}
-
-/**
- * Lädt die komplette Config (Sessions + Projekte) aus dem Store.
- */
-export async function loadConfig(): Promise<ConfigPayload> {
-  const sessions = await exportSessionConfig();
-  return {
-    sessions,
-    projects: [],
-    colors: {},
-    groups: {},
-    meta: {
-      version: "1.0.0",
-      generatedAt: new Date().toISOString(),
-      host: process.env.HOST ?? "unknown",
-    },
-  };
+  cfg.projects ??= [];
+  for (const p of config.projects) {
+    if (!p.id || cfg.projects.some((x) => x.id === p.id)) continue;
+    cfg.projects.push({ id: p.id, name: p.name, hostId: p.hostId, dir: p.dir, collapsed: false });
+    added.projects++;
+  }
+  if (added.sessions || added.groups || added.projects) await saveConfig();
+  return added;
 }

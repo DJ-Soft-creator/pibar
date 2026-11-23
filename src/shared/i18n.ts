@@ -372,6 +372,21 @@ const de = {
   "Export …": "Exportieren …",
   Export: "Exportieren",
   "Export session": "Session exportieren",
+  // config exchange (webapp)
+  "Webapp URL": "Webapp-URL",
+  "Webapp URL…": "Webapp-URL …",
+  "Address of the mobile webapp; empty = config exchange off.":
+    "Adresse der mobilen Webapp; leer = Konfig-Austausch aus.",
+  "Send config to webapp": "Konfig an Webapp senden",
+  "Sessions, projects and groups to the mobile webapp": "Sessions, Projekte und Gruppen an die mobile Webapp",
+  "Import config from webapp": "Konfig von Webapp importieren",
+  "No webapp URL configured.": "Keine Webapp-URL konfiguriert.",
+  "Config sent to the webapp.": "Konfig an die Webapp gesendet.",
+  "Sending failed": "Senden fehlgeschlagen",
+  "Import failed": "Import fehlgeschlagen",
+  "Nothing new to import.": "Nichts Neues zu importieren.",
+  "Imported {sessions} session(s), {groups} group(s), {projects} project(s).":
+    "{sessions} Session(s), {groups} Gruppe(n), {projects} Projekt(e) importiert.",
   "JSON or CSV for machine evaluation": "JSON oder CSV zur maschinellen Auswertung",
   "Exports the whole session file for machine evaluation.":
     "Exportiert die gesamte Session-Datei zur maschinellen Auswertung.",

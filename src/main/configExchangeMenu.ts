@@ -1,22 +1,18 @@
-/**
- * Config Exchange Menu – PiBar sidebar entry
- *
- * Öffnet ein Menü mit der Option "Config Exchange", um die Session-Konfiguration
- * an den Webapp-Host zu exportieren (bzw. importieren).
- */
+// Config exchange entries for the session list's view menu (src/main/sessions.ts): send the config to the
+// mobile webapp, import it back, set the webapp URL. Actions: src/main/configExchangeTool.ts.
+import { t } from "../shared/i18n";
+import type { MenuItem } from "./menu";
+import { exportConfig, importConfig, webappUrlDialog } from "./configExchangeTool";
 
-import { openMenu } from "./menu";
-import { configExchangeTool } from "./configExchangeTool";
-
-export function openConfigExchangeMenu(anchor: HTMLElement) {
-  const items = [
+/** Menu entries; `refresh` redraws the session list after an import */
+export function configExchangeItems(refresh: () => void): MenuItem[] {
+  return [
     {
-      label: "Config Exchange",
-      desc: "Exportiere Session-Konfig nach Webapp (oder importiere Konfiguration von Webapp)",
-      onSelect: () => {
-        configExchangeTool.exportConfig();
-      },
+      label: t("Send config to webapp"),
+      desc: t("Sessions, projects and groups to the mobile webapp"),
+      onSelect: () => void exportConfig(),
     },
+    { label: t("Import config from webapp"), onSelect: () => void importConfig(refresh) },
+    { label: t("Webapp URL…"), onSelect: webappUrlDialog },
   ];
-  openMenu(anchor, items);
 }

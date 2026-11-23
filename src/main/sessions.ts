@@ -37,6 +37,7 @@ import {
   type SessionSort,
 } from "../shared/sessionOrder";
 import { openMenu, type MenuEntry } from "./menu";
+import { configExchangeItems } from "./configExchangeMenu";
 import { COLORS } from "../shared/sessionColors";
 import { getLang, t, type Msg } from "../shared/i18n";
 import { fillInput, renderToolbar, showEmpty, showTab } from "./chatView";
@@ -623,6 +624,8 @@ function viewMenu(anchor: HTMLElement) {
         selected: groupMode() === v,
         onSelect: () => set({ sessionGroup: v }),
       })),
+      { separator: true },
+      ...configExchangeItems(renderHosts),
     ],
     "right",
   );
