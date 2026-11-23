@@ -68,6 +68,7 @@ import {
   toggleGroup,
 } from "./sessionGroups";
 import { sessionKids } from "./subagents";
+import { versionChevron, versionKids, versionMap, type VersionNode } from "./sessionVersions";
 import {
   blockKeysOf,
   dragStart,
@@ -731,17 +732,23 @@ export function sessionSections(rows: ListRow[], sectionPrefix = "", block = sec
   // stays flat so a hit is visible even when its parent is not in the list (src/main/subagents.ts)
   const nest = !isSearching(state.search.query);
   const present = new Set(rows.map((r) => refKey(r.ref)));
+  // versions of a session (Pi forks): only the newest file of a family stays a row of its own, the older ones
+  // hang under it, newest first (src/main/sessionVersions.ts)
+  const versions = nest ? versionMap(rows) : new Map<string, VersionNode>();
+  const inVersions = new Set([...versions.values()].flatMap((v) => v.older.map((r) => refKey(r.ref))));
   const mains = nest
     ? rows.filter((r) => {
         const parent = meta(r.ref).parentKey;
-        return !parent || !present.has(parent);
+        return (!parent || !present.has(parent)) && !inVersions.has(refKey(r.ref));
       })
     : rows;
   const item = (r: ListRow): HTMLElement[] => {
-    const out: HTMLElement[] = [sessionItem(r, rowTs(r))];
+    const v = nest ? versions.get(`${r.ref.hostId}|${r.ref.path}`) : undefined;
+    const out: HTMLElement[] = [sessionItem(r, rowTs(r), v)];
     if (nest) {
       const kids = sessionKids(r, rows, (k) => sessionItem(k, rowTs(k)));
       if (kids) out.push(kids);
+      if (v) out.push(versionKids(v, (k) => sessionItem(k, rowTs(k))));
     }
     return out;
   };
@@ -881,7 +888,7 @@ function arrangeRows(keys: string[], before: string) {
 }
 
 /** One row in the session list: colour, pin, "remind", "⋯" (context menu) and "close" on hover */
-function sessionItem(row: ListRow, ts: string) {
+function sessionItem(row: ListRow, ts: string, versions?: VersionNode) {
   const { ref } = row;
   const { hostId, path, cwd, tab } = ref;
   const key = refKey(ref);
@@ -921,6 +928,8 @@ function sessionItem(row: ListRow, ts: string) {
   // the spinner sits in the title (no dot in a gutter that steals room from long names)
   const mark = sessionMark(tab, row.running);
   if (mark) titleEl.prepend(mark);
+  // the fold triangle of the older versions sits leftmost, before pin and spinner
+  if (versions) titleEl.prepend(versionChevron(versions));
   const el = h(
     "div",
     {

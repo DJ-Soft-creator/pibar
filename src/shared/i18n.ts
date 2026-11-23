@@ -871,6 +871,9 @@ const de = {
   "Saved – applies when you switch to Build mode.": "Gespeichert – gilt beim Wechsel in den Build-Modus.",
   "Plan mode is on: Pi stays read-only for now; the selection applies in Build mode.":
     "Planmodus ist an: Pi bleibt vorerst nur lesend; die Auswahl gilt im Build-Modus.",
+  // versions of a session in the left column (src/main/sessionVersions.ts)
+  Versions: "Versionen",
+  "The version shown in the chat is in here": "Die im Chat gezeigte Version steckt hier drin",
   // subagents (src/main/subagents.ts, src-tauri/src/agents.rs)
   Subagents: "Subagents",
   "New subagent": "Neuer Subagent",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "./api";
-import { branchesAt, branchFamily, type SessionOutline } from "./branches";
+import { branchesAt, branchFamily, versionFamilies, type SessionOutline } from "./branches";
 
 const info = (path: string, parent: string | null = null): SessionInfo => ({
   path,
@@ -22,6 +22,49 @@ describe("branchFamily", () => {
 
   it("survives a parent loop", () => {
     expect(branchFamily([info("a", "b"), info("b", "a")], "a").sort()).toEqual(["a", "b"]);
+  });
+});
+
+describe("versionFamilies", () => {
+  const row = (key: string, modified: number, created = modified) => ({ key, modified, created });
+
+  it("keeps only the newest version as a main row, the older ones under it (newest first)", () => {
+    const [a, b, c] = [row("h|a", 100), row("h|b", 300), row("h|c", 200)];
+    const parents = new Map([
+      ["h|b", "h|a"],
+      ["h|c", "h|b"],
+    ]);
+    const m = versionFamilies([a, b, c], parents);
+    expect([...m.keys()]).toEqual(["h|b"]);
+    expect(m.get("h|b")).toEqual({ root: "h|a", older: [c, a] });
+  });
+
+  it("groups a family even when its root is not a row (filtered out)", () => {
+    const [b, c] = [row("h|b", 100), row("h|c", 200)];
+    const parents = new Map([
+      ["h|b", "h|a"],
+      ["h|c", "h|a"],
+    ]);
+    const m = versionFamilies([b, c], parents);
+    expect(m.get("h|c")).toEqual({ root: "h|a", older: [b] });
+  });
+
+  it("leaves sessions without branches alone and survives a parent loop", () => {
+    expect(versionFamilies([row("h|x", 1)], new Map()).size).toBe(0);
+    const m = versionFamilies(
+      [row("h|a", 1), row("h|b", 2)],
+      new Map([
+        ["h|a", "h|b"],
+        ["h|b", "h|a"],
+      ]),
+    );
+    expect([...m.keys()]).toEqual(["h|b"]);
+    expect(m.get("h|b")?.root).toBe("h|a");
+  });
+
+  it("falls back to the creation time when the last change is unknown", () => {
+    const m = versionFamilies([row("h|a", 0, 500), row("h|b", 0, 100)], new Map([["h|b", "h|a"]]));
+    expect([...m.keys()]).toEqual(["h|a"]);
   });
 });
 

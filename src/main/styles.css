@@ -1996,8 +1996,12 @@ body.resizing-v .term-split::after {
   color: var(--text);
 }
 .sess-kids-head .chev {
-  font-size: 9px;
-  width: 9px;
+  font-size: 10px;
+  width: 10px;
+  transition: transform 0.12s;
+}
+.sess-kids-head.collapsed .chev {
+  transform: rotate(-90deg);
 }
 .sess-kids-head .count {
   margin-left: auto;
@@ -2009,6 +2013,32 @@ body.resizing-v .term-split::after {
 }
 .sess-kid .sess {
   margin-left: 4px;
+}
+/* fold triangle in front of a session row with older versions (same language as the group heads) */
+.sess-title .sess-ver-chev {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  margin-right: 2px;
+  font-size: calc(10px * var(--fs));
+  color: var(--muted);
+  cursor: pointer;
+  vertical-align: 0;
+  transition: transform 0.12s;
+}
+.sess-title .sess-ver-chev:hover {
+  color: var(--text);
+}
+.sess-title .sess-ver-chev.collapsed {
+  transform: rotate(-90deg);
+}
+/* a folded "Versions" block still shows when the version in the chat is one of its children */
+.ver-active {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 .subagent-row {
   display: flex;

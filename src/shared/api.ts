@@ -231,6 +231,8 @@ export interface SessionMeta {
   agentPrompt?: string;
   /** The subagent rows under this session are folded away (src/main/subagents.ts) */
   kidsCollapsed?: boolean;
+  /** The older versions under this session are folded away; saved on the family root (src/main/sessionVersions.ts) */
+  versionsCollapsed?: boolean;
 }
 
 export interface SessionGroup {

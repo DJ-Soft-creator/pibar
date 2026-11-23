@@ -51,6 +51,55 @@ export function branchFamily(sessions: SessionInfo[], path: string): string[] {
   return family;
 }
 
+/** One list row in family terms: its settings key ("<hostId>|<path>") and its times in ms */
+export interface FamilyEntry {
+  key: string;
+  /** Last change of the file, ms; 0 = unknown */
+  modified: number;
+  /** Creation from the session header, ms; 0 = unknown */
+  created: number;
+}
+
+/**
+ * Branch families among the rows of the session list: per family only the newest version stays a row of its own,
+ * the older versions hang under it (newest first). `parentOf` maps a row key to its parent's key (Pi's fork header,
+ * same host); it may contain sessions that are not rows (filtered out), so the family root stays the same. Returns
+ * main row key → family root key and the older rows; families with one member are absent.
+ */
+export function versionFamilies<T extends FamilyEntry>(
+  rows: T[],
+  parentOf: Map<string, string>,
+): Map<string, { root: string; older: T[] }> {
+  const rootOf = (key: string): string => {
+    const chain: string[] = [];
+    const seen = new Set<string>();
+    let cur = key;
+    while (parentOf.has(cur) && !seen.has(cur)) {
+      seen.add(cur);
+      chain.push(cur);
+      cur = parentOf.get(cur)!;
+    }
+    // a parent loop (cannot happen with Pi's files): the smallest key of the loop keeps the family together
+    if (seen.has(cur)) return chain.slice(chain.indexOf(cur)).sort()[0];
+    return cur;
+  };
+  const families = new Map<string, T[]>();
+  for (const r of rows) {
+    const root = rootOf(r.key);
+    families.set(root, [...(families.get(root) ?? []), r]);
+  }
+  const newest = (r: T) => r.modified || r.created;
+  const out = new Map<string, { root: string; older: T[] }>();
+  for (const [root, members] of families) {
+    if (members.length < 2) continue;
+    const sorted = [...members].sort(
+      (a, b) => newest(b) - newest(a) || b.created - a.created || a.key.localeCompare(b.key),
+    );
+    out.set(sorted[0].key, { root, older: sorted.slice(1) });
+  }
+  return out;
+}
+
 /**
  * Versions per position of the current session's user messages (index into `currentIds`), only where there are at
  * least two. Files that share the same message at that position count as one version; the one to open is the most
