@@ -641,21 +641,23 @@ export class SessionTab {
   /**
    * Model and thinking level a detached run has to start with. A new Pi process takes the model of the device's default
    * (an extension sets it at start), not the one of the session – without these arguments the run in the background
-   * would answer with another model than the session on screen. Live values first, then the choice saved for the session.
+   * would answer with another model than the session on screen. The choice saved for the session wins: after a reload
+   * the live model can be the device default again, and the background run must still use the model the user picked.
+   * The live process only fills what the saved choice leaves open.
    */
   private async runChoice(): Promise<{ provider?: string; modelId?: string; thinking?: string }> {
-    if ((!this.model || !this.thinkingLevel) && this.alive && this.handle) {
+    const saved = resolveChoice(state.config.presets ?? [], state.config.sessionMeta?.[this.key] ?? {});
+    if ((!saved.model || !saved.thinking) && this.alive && this.handle) {
       try {
         await this.refreshState();
       } catch {
-        /* Pi may be gone already: the saved choice below still knows the model */
+        /* Pi may be gone already: the saved choice above still knows the model */
       }
     }
-    const saved = resolveChoice(state.config.presets ?? [], state.config.sessionMeta?.[this.key] ?? {});
     return {
-      provider: this.model?.provider || saved.model?.provider,
-      modelId: this.model?.id || saved.model?.id,
-      thinking: this.thinkingLevel || saved.thinking,
+      provider: saved.model?.provider || this.model?.provider,
+      modelId: saved.model?.id || this.model?.id,
+      thinking: saved.thinking || this.thinkingLevel,
     };
   }
 
