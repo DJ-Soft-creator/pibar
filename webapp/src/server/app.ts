@@ -1,11 +1,12 @@
-// Express app factory: auth, user management (admin), host management, config sync
-// (no auth — LAN/reverse-proxy internal, PiBar sends no token), sessions for the UI,
-// static client + SPA fallback.
+// Express app factory: health, auth, user management (admin), host management, the command router
+// (/api/cmd/<name>, see commands.ts), config sync (no auth — replaced by the token sync in task D2), sessions
+// for the UI, static client + SPA fallback.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { commandRouter, type CommandDeps } from "./commands.js";
 import { createStoreUserHelpers } from "./helpers.js";
 import { createToken, createUser, hashPassword, verifyPassword } from "./auth.js";
 import { createLoginRateLimiter } from "./rateLimit.js";
@@ -21,8 +22,10 @@ declare module "express-serve-static-core" {
 }
 
 export interface AppOptions {
-  /** Absolute path of the static client directory (webapp/src/client). */
+  /** Absolute path of the static client directory (the Vite build, webapp/dist/client). */
   clientDir: string;
+  /** Command router (/api/cmd/<name>); without it the route answers 404 for every command */
+  commands?: Omit<CommandDeps, "store" | "requireAuth">;
   /** Called after a config payload was persisted (WebSocket broadcast). */
   onConfigUpdated?: (receivedAt: string) => void;
 }
@@ -70,6 +73,14 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
 
   const { requireAuth, requireAdmin } = createStoreUserHelpers(store);
   const loginLimiter = createLoginRateLimiter();
+
+  // ---------------------------------------------------------------- health (no auth, Docker healthcheck)
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ status: "ok" });
+  });
+
+  // ---------------------------------------------------------------- commands
+  if (opts.commands) app.use("/api/cmd", commandRouter({ ...opts.commands, store, requireAuth }));
 
   // ---------------------------------------------------------------- auth
   app.post("/api/login", asyncRoute(async (req: Request, res: Response) => {

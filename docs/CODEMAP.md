@@ -175,26 +175,31 @@ flowchart LR
 
 ### Webapp (`webapp/`)
 
-Mobile-optimised webapp for the config exchange with PiBar ([`configExchange.ts`](../src/main/configExchange.ts)). Own Node package (`webapp/package.json`): Express + ws, strict TypeScript, tests via `node:test`/tsx (`cd webapp && npm test`). The desktop side POSTs/GETs `/api/config` without auth (CORS allow-list: Tauri WebView origins incl. the Vite dev origin); everything else needs a Bearer token.
+Mobile web version of PiBar (rebuild in progress, plan: [`WEBAPP_TASKS.md`](../WEBAPP_TASKS.md)). Own Node package (`webapp/package.json`): Express + ws, strict TypeScript, tests via `node:test`/tsx; `cd webapp && npm run check` (typecheck server + client, tests, build). The server reaches the Pi hosts itself over SSH: the Rust modules of `src-tauri/src/` are ported 1:1 to `webapp/src/server/host/` (same shell scripts) and exposed as commands with the Tauri names (`POST /api/cmd/<name>`). The client (Vite, `webapp/client/`) reuses `src/shared/` (alias `@shared`; Tauri APIs resolve to stubs). Still from the config-exchange version: `/api/config` without auth (replaced by task D2).
 
 | File | Purpose |
 | --- | --- |
-| [`webapp/server.ts`](../webapp/server.ts) | Entry: real `http.createServer` + `WebSocketServer` on `/ws`, config-update broadcast, ping/pong heartbeat, PORT validation |
-| [`webapp/src/server/app.ts`](../webapp/src/server/app.ts) | Express routes: login/logout (rate-limited), user management (admin only, last-admin guard), hosts (GET for all users; POST/PATCH/DELETE admin only, synced PiBar hosts read-only → 409), config sync (no auth, upserts payload hosts), sessions, static client + SPA fallback, CORS allow-list |
+| [`webapp/server.ts`](../webapp/server.ts) | Entry: real `http.createServer` + `WebSocketServer` on `/ws`, config-update broadcast, ping/pong heartbeat, PORT validation; builds the command registry and `HostExec` over SSH (`SSH_DIR`) |
+| [`webapp/src/server/app.ts`](../webapp/src/server/app.ts) | Express routes: health (no auth), command router on `/api/cmd`, login/logout (rate-limited), user management (admin only, last-admin guard), hosts (GET for all users; POST/PATCH/DELETE admin only, synced PiBar hosts read-only → 409), config sync (no auth, upserts payload hosts), sessions, static client + SPA fallback, CORS allow-list |
+| [`webapp/src/server/commands.ts`](../webapp/src/server/commands.ts) | Command router: registry, login, admin gate, `hostId` check + resolution into `ctx.host`, errors as `{ error }` (`CommandError` keeps its status, host errors carry stderr), argument helpers |
+| [`webapp/src/server/cmd/index.ts`](../webapp/src/server/cmd/index.ts) | Collects the command modules into one registry (`createRegistry`); built-in `ping` |
+| [`webapp/src/server/host/hostexec.ts`](../webapp/src/server/host/hostexec.ts) | Port of [`hostexec.rs`](../src-tauri/src/hostexec.rs): `sq`, `shellPath`, `PATH_PREAMBLE`, `sshArgs` (BatchMode, connection sharing, `--` before the target; with `SSH_DIR`: own key, `known_hosts`, `StrictHostKeyChecking=yes`, no user config), `HostExec.runShell`/`spawnPi`; runner exchangeable: `SshRunner` (production), `LocalRunner` (bash with a fake `$HOME`, tests) |
 | [`webapp/src/server/auth.ts`](../webapp/src/server/auth.ts) | Async scrypt hashing with per-user salt, `timingSafeEqual`, admin bootstrap (env or random password printed once) |
 | [`webapp/src/server/store.ts`](../webapp/src/server/store.ts) | JSON persistence under `DATA_DIR` (atomic tmp+rename, users/tokens mode 0600), token records with 30-day TTL + pruning, hosts store (`hosts.json`, source "pibar" upserted on sync / "manual" via admin, never deleted on sync), validated reload |
 | [`webapp/src/server/rateLimit.ts`](../webapp/src/server/rateLimit.ts) | Dependency-free sliding-window login limiter per IP (10/min → 429) |
 | [`webapp/src/server/validation.ts`](../webapp/src/server/validation.ts) | Runtime shape checks mirroring `ConfigPayload` from `configExchange.ts` at every JSON boundary |
-| [`webapp/src/server/helpers.ts`](../webapp/src/server/helpers.ts) | `requireAuth` (401) / `requireAdmin` (403) middleware |
+| [`webapp/src/server/helpers.ts`](../webapp/src/server/helpers.ts) | `requireAuth` (401) / `requireAdmin` (403) middleware, `canUseHost` (host access rule of the command router) |
 | [`webapp/src/server/types.ts`](../webapp/src/server/types.ts) | `ConfigPayload` (optional `hosts`), `HostInfo`/`HostRecord`, `PublicUser`, `Role` — contract with the desktop side |
-| [`webapp/src/client/index.html`](../webapp/src/client/index.html) | Mobile-first shell: login, sessions/projects/admin views (hosts section + user management with host selects), bottom sheets (session detail, user edit, host edit), pre-paint theme script, safe-area viewport |
-| [`webapp/src/client/app.js`](../webapp/src/client/app.js) | UI logic: session list (pinned first, collapsible groups, colour chips), filters, detail sheet, admin CRUD for users and hosts (synced hosts read-only, host selects with legacy fallback), host-name resolution, theme toggle, WS live refresh (full refresh on reconnect) |
-| [`webapp/src/client/api.js`](../webapp/src/client/api.js) | Fetch wrapper (Bearer, global 401→login), token persistence, hosts/user/config calls, WS with exponential backoff |
-| [`webapp/src/client/util.js`](../webapp/src/client/util.js) | DOM builder `el()` (XSS-safe, no `innerHTML` with data), colour names, relative time, session-id parsing |
-| [`webapp/src/client/style.css`](../webapp/src/client/style.css) | Light/dark tokens, colour name→hex map, safe-area insets, ≥44px touch targets, no overflow at 390px |
-| [`webapp/test/server.test.ts`](../webapp/test/server.test.ts) | 20 tests: auth, bootstrap, role enforcement, last-admin guard, token revocation/TTL, config roundtrip + validation, hosts upsert/CRUD/409s, persistence, WS, rate limit |
-| [`webapp/Dockerfile`](../webapp/Dockerfile) | Multi-stage node:20-alpine, tsc build, prod deps only, non-root, `VOLUME /data` |
-| [`webapp/docker-compose.yml`](../webapp/docker-compose.yml) | Port 8787, `DATA_DIR=/data` (environment beats env_file), optional `.env`, restart unless-stopped; HTTPS terminates at Nginx Proxy Manager |
+| [`webapp/vite.config.ts`](../webapp/vite.config.ts) | Client build `client/` → `dist/client`; aliases `@shared` → `src/shared`, `@tauri-apps/api/*` → stub, marked/dompurify/highlight.js from `webapp/node_modules`; dev proxy for `/api` and `/ws` |
+| [`webapp/client/src/main.ts`](../webapp/client/src/main.ts) | Client entry (placeholder until the app shell, task C2) |
+| [`webapp/client/src/stubs/tauri.ts`](../webapp/client/src/stubs/tauri.ts) | Stand-ins for the Tauri APIs shared code imports (`invoke` fails loudly, window calls do nothing) |
+| [`webapp/test/fakeHost.ts`](../webapp/test/fakeHost.ts) | Fake host for tests: temporary `$HOME` with Pi's folders, `LocalRunner`, [`fake-pi.mjs`](../dev/fake-pi.mjs) as Pi |
+| [`webapp/test/hostexec.test.ts`](../webapp/test/hostexec.test.ts) | Quoting (same cases as the Rust tests), ssh arguments, scripts and Pi on the fake host |
+| [`webapp/test/commands.test.ts`](../webapp/test/commands.test.ts) | Command router: login, unknown names, admin gate, host access, argument/host errors |
+| [`webapp/test/server.test.ts`](../webapp/test/server.test.ts) | Auth, bootstrap, role enforcement, last-admin guard, token revocation/TTL, config roundtrip + validation, hosts upsert/CRUD/409s, persistence, WS, rate limit |
+| [`webapp/Dockerfile`](../webapp/Dockerfile) | Multi-stage node:20-alpine, build context = repository root (`Dockerfile.dockerignore`: only `webapp/` and `src/shared/`), server + client build, prod deps only, `openssh-client`, healthcheck, `VOLUME /data` |
+| [`webapp/docker-entrypoint.sh`](../webapp/docker-entrypoint.sh) | Copies the read-only SSH mount to a folder of the `node` user with ssh's permissions (`SSH_DIR`), then drops root (`su-exec`) |
+| [`webapp/docker-compose.yml`](../webapp/docker-compose.yml) | Port 8787, `DATA_DIR=/data` (environment beats env_file), SSH folder (`SSH_KEY_DIR`, default `./ssh`) read-only at `/ssh`, optional `.env`, restart unless-stopped; HTTPS terminates at Nginx Proxy Manager |
 
 ## Flows
 

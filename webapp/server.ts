@@ -1,17 +1,21 @@
-// PiBar webapp backend entry point. Express + ws on a real http.Server,
-// JSON-file persistence under DATA_DIR, static client from src/client.
+// PiBar webapp backend entry point. Express + ws on a real http.Server, JSON-file persistence under DATA_DIR,
+// commands over SSH (SSH_DIR: key, known_hosts), static client from dist/client (Vite build).
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import dotenv from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { createApp } from "./src/server/app.js";
 import { bootstrapAdmin } from "./src/server/auth.js";
+import { createRegistry } from "./src/server/cmd/index.js";
+import { canUseHost } from "./src/server/helpers.js";
+import { HostExec, SshRunner } from "./src/server/host/hostexec.js";
 import { Store } from "./src/server/store.js";
 
 dotenv.config();
 
 const dataDir = resolve(process.env.DATA_DIR ?? "./data");
-const clientDir = resolve(process.env.CLIENT_DIR ?? "./src/client");
+const clientDir = resolve(process.env.CLIENT_DIR ?? "./dist/client");
+const sshDir = process.env.SSH_DIR?.trim() ? resolve(process.env.SSH_DIR.trim()) : null;
 
 // Validate PORT: integer 1-65535, otherwise fall back to 8787 with a warning.
 const rawPort = process.env.PORT ?? "8787";
@@ -32,6 +36,13 @@ let wss: WebSocketServer | null = null;
 
 const app = createApp(store, {
   clientDir,
+  commands: {
+    registry: createRegistry(),
+    exec: new HostExec(new SshRunner({ dir: sshDir })),
+    // hosts with SSH data arrive with task B2; until then no command can reach a host
+    resolveHost: () => null,
+    canUseHost,
+  },
   onConfigUpdated: (receivedAt) => {
     const message = JSON.stringify({ type: "config/updated", receivedAt });
     wss?.clients.forEach((client) => {

@@ -1,6 +1,6 @@
-// Auth middleware: Bearer token -> user; admin gate.
+// Auth middleware: Bearer token -> user; admin gate; host access rule of the command router.
 import type { NextFunction, Request, Response } from "express";
-import type { Store } from "./store.js";
+import type { Store, UserRecord } from "./store.js";
 
 export function createStoreUserHelpers(store: Store) {
   function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -26,4 +26,9 @@ export function createStoreUserHelpers(store: Store) {
   }
 
   return { requireAuth, requireAdmin };
+}
+
+/** Whether a user may work on a host: admins on every host, users on their assigned one (task A5: a list) */
+export function canUseHost(user: UserRecord, hostId: string): boolean {
+  return user.role === "admin" || user.host === hostId;
 }

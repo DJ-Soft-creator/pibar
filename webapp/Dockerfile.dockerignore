@@ -1,0 +1,14 @@
+# Docker build context is the repository root – only webapp/ and src/shared/ are needed.
+*
+!webapp/
+!src/shared/
+webapp/node_modules
+webapp/dist
+webapp/data
+webapp/.env
+webapp/.env.*
+!webapp/.env.example
+webapp/test
+webapp/ssh
+src/shared/*.test.ts
+**/*.log

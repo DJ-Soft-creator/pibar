@@ -60,6 +60,8 @@ notes/
 
 # Laufzeitdaten der Webapp (Users, Tokens, Config) — nie committen
 webapp/data/
+# SSH key of the webapp container (webapp/README.md) – never commit
+webapp/ssh/
 
 # ---------- KI-Assistenten (Anweisungen, Speicher, Einstellungen) ----------
 CLAUDE.md
