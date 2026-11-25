@@ -1,7 +1,8 @@
 // Vite build of the webapp client (webapp/client → webapp/dist/client). The client reuses the logic of the
 // desktop app from src/shared/ (alias @shared). Packages that shared code imports (marked, dompurify,
-// highlight.js) resolve from webapp/node_modules, Tauri APIs resolve to stubs (client/src/stubs/tauri.ts) –
-// the Docker build only has webapp/ and src/shared/, not the root node_modules.
+// highlight.js) resolve from webapp/node_modules – the Docker build only has webapp/ and src/shared/, not the
+// root node_modules. Tauri APIs resolve to the webapp bridge (client/src/tauri.ts → bridge.ts: invoke() becomes
+// POST /api/cmd/<command>), so src/shared/api.ts runs unchanged.
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
@@ -14,7 +15,7 @@ export default defineConfig({
   resolve: {
     alias: [
       { find: "@shared", replacement: here("../src/shared") },
-      { find: /^@tauri-apps\/api\/.*$/, replacement: here("./client/src/stubs/tauri.ts") },
+      { find: /^@tauri-apps\/api\/.*$/, replacement: here("./client/src/tauri.ts") },
       { find: /^(marked|dompurify|highlight\.js)(\/.*)?$/, replacement: `${modules}$1$2` },
     ],
   },

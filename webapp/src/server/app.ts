@@ -7,10 +7,10 @@ import express, { type NextFunction, type Request, type Response } from "express
 import cors from "cors";
 import helmet from "helmet";
 import { commandRouter, type CommandDeps } from "./commands.js";
-import { createStoreUserHelpers } from "./helpers.js";
+import { createStoreUserHelpers, isSameOrigin, SESSION_COOKIE } from "./helpers.js";
 import { createToken, createUser, hashPassword, verifyPassword } from "./auth.js";
 import { createLoginRateLimiter } from "./rateLimit.js";
-import type { Store, UserRecord } from "./store.js";
+import { TOKEN_TTL_MS, type Store, type UserRecord } from "./store.js";
 import type { HostRecord, PublicUser } from "./types.js";
 import { isConfigPayload, isHostKind, isRecord, isRole, isString } from "./validation.js";
 
@@ -24,6 +24,8 @@ declare module "express-serve-static-core" {
 export interface AppOptions {
   /** Absolute path of the static client directory (the Vite build, webapp/dist/client). */
   clientDir: string;
+  /** Secure flag of the session cookie: auto = when the request came over HTTPS (also behind the proxy) */
+  cookieSecure?: "auto" | "always" | "never";
   /** Command router (/api/cmd/<name>); without it the route answers 404 for every command */
   commands?: Omit<CommandDeps, "store" | "requireAuth">;
   /** Called after a config payload was persisted (WebSocket broadcast). */
@@ -31,7 +33,23 @@ export interface AppOptions {
 }
 
 function publicUser(u: UserRecord): PublicUser {
-  return { id: u.id, username: u.username, role: u.role, host: u.host };
+  return { id: u.id, username: u.username, role: u.role, hostIds: [...u.hostIds] };
+}
+
+/**
+ * Host list of a user request: `hostIds` (array of strings) or the older `host` (one id, "" = none).
+ * undefined = not given; null = invalid.
+ */
+function parseHostIds(body: Record<string, unknown>): string[] | undefined | null {
+  if (body.hostIds !== undefined) {
+    if (!Array.isArray(body.hostIds) || !body.hostIds.every(isString)) return null;
+    return [...new Set(body.hostIds.filter((h) => h.trim() !== ""))];
+  }
+  if (body.host !== undefined) {
+    if (!isString(body.host)) return null;
+    return body.host ? [body.host] : [];
+  }
+  return undefined;
 }
 
 function adminCount(store: Store): number {
@@ -60,8 +78,32 @@ const TAURI_ORIGINS = new Set([
 
 export function createApp(store: Store, opts: AppOptions): express.Express {
   const app = express();
-  // CSP disabled so the static client (inline scripts/styles) keeps working.
-  app.use(helmet({ contentSecurityPolicy: false }));
+  // Behind Nginx Proxy Manager: req.secure / req.ip from X-Forwarded-* of proxies in private networks only
+  app.set("trust proxy", "loopback, linklocal, uniquelocal");
+  // The client is a Vite bundle without inline scripts. Styles: 'unsafe-inline' for style attributes in
+  // rendered Markdown/highlighting. Images: data/blob URLs (read_image, previews). Frames: blob for HTML previews.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:"],
+          mediaSrc: ["'self'", "data:", "blob:"],
+          connectSrc: ["'self'"],
+          frameSrc: ["'self'", "blob:"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          frameAncestors: ["'none'"],
+          upgradeInsecureRequests: null,
+        },
+      },
+      // the HTTPS decision belongs to the proxy (LAN access over plain HTTP must keep working)
+      strictTransportSecurity: false,
+    }),
+  );
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -73,6 +115,21 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
 
   const { requireAuth, requireAdmin } = createStoreUserHelpers(store);
   const loginLimiter = createLoginRateLimiter();
+
+  function setSessionCookie(req: Request, res: Response, token: string) {
+    const mode = opts.cookieSecure ?? "auto";
+    res.cookie(SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: mode === "always" || (mode === "auto" && req.secure),
+      path: "/",
+      maxAge: TOKEN_TTL_MS,
+    });
+  }
+
+  function clearSessionCookie(res: Response) {
+    res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "strict", path: "/" });
+  }
 
   // ---------------------------------------------------------------- health (no auth, Docker healthcheck)
   app.get("/api/health", (_req: Request, res: Response) => {
@@ -88,6 +145,11 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       res.status(429).json({ error: "Too many login attempts, try again in a minute" });
       return;
     }
+    // login CSRF: a foreign page must not log the browser into another account
+    if (!isSameOrigin(req)) {
+      res.status(403).json({ error: "Cross-site request refused" });
+      return;
+    }
     const body: unknown = req.body;
     if (!isRecord(body) || !isString(body.username) || !isString(body.password)) {
       res.status(400).json({ error: "username and password required" });
@@ -100,13 +162,73 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     }
     const token = createToken();
     store.addToken(token, user.id);
+    // the browser uses the HttpOnly cookie; the token in the body is for non-browser clients
+    setSessionCookie(req, res, token);
     res.json({ token, username: user.username, role: user.role });
   }));
 
   app.post("/api/logout", requireAuth, (req: Request, res: Response) => {
     if (req.authToken !== undefined) store.removeToken(req.authToken);
+    clearSessionCookie(res);
     res.json({ status: "ok" });
   });
+
+  /** Log out everywhere: every token of the user dies (other phones, browsers) */
+  app.post("/api/logout-all", requireAuth, (req: Request, res: Response) => {
+    if (req.authUser) store.deleteUserTokens(req.authUser.id);
+    clearSessionCookie(res);
+    res.json({ status: "ok" });
+  });
+
+  // ------------------------------------------------------------ own account
+  app.get("/api/me", requireAuth, (req: Request, res: Response) => {
+    const user = req.authUser as UserRecord;
+    res.json({ user: publicUser(user), settings: user.settings });
+  });
+
+  /** Own UI settings, replaced as a whole (the client merges) */
+  app.put("/api/me/settings", requireAuth, (req: Request, res: Response) => {
+    const user = req.authUser as UserRecord;
+    const body: unknown = req.body;
+    if (!isRecord(body) || !isRecord(body.settings)) {
+      res.status(400).json({ error: "settings must be an object" });
+      return;
+    }
+    if (JSON.stringify(body.settings).length > 64 * 1024) {
+      res.status(413).json({ error: "settings too large" });
+      return;
+    }
+    user.settings = body.settings;
+    store.saveUser(user);
+    res.json({ settings: user.settings });
+  });
+
+  /** Change the own password: needs the current one, ends every session, logs this browser in again */
+  app.post("/api/me/password", requireAuth, asyncRoute(async (req: Request, res: Response) => {
+    const user = req.authUser as UserRecord;
+    const body: unknown = req.body;
+    if (!isRecord(body) || !isString(body.currentPassword) || !isString(body.newPassword)) {
+      res.status(400).json({ error: "currentPassword and newPassword required" });
+      return;
+    }
+    if (body.newPassword.length < 8) {
+      res.status(400).json({ error: "The new password needs at least 8 characters" });
+      return;
+    }
+    if (!(await verifyPassword(body.currentPassword, user.salt, user.hash))) {
+      res.status(403).json({ error: "Current password is wrong" });
+      return;
+    }
+    const { salt, hash } = await hashPassword(body.newPassword);
+    user.salt = salt;
+    user.hash = hash;
+    store.saveUser(user);
+    store.deleteUserTokens(user.id);
+    const token = createToken();
+    store.addToken(token, user.id);
+    setSessionCookie(req, res, token);
+    res.json({ token });
+  }));
 
   // ------------------------------------------------- user management (admin)
   app.get("/api/users", requireAuth, requireAdmin, (_req: Request, res: Response) => {
@@ -123,8 +245,9 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       res.status(400).json({ error: "role must be admin or user" });
       return;
     }
-    if (body.host !== undefined && !isString(body.host)) {
-      res.status(400).json({ error: "host must be a string" });
+    const hostIds = parseHostIds(body);
+    if (hostIds === null) {
+      res.status(400).json({ error: "hostIds must be an array of strings" });
       return;
     }
     const username = body.username.trim();
@@ -132,7 +255,7 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       res.status(409).json({ error: "Username already exists" });
       return;
     }
-    const user = await createUser(username, body.password, isRole(body.role) ? body.role : "user", isString(body.host) ? body.host : "");
+    const user = await createUser(username, body.password, isRole(body.role) ? body.role : "user", hostIds ?? []);
     store.saveUser(user);
     res.status(201).json(publicUser(user));
   }));
@@ -148,8 +271,9 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       res.status(400).json({ error: "Expected a JSON object" });
       return;
     }
-    if (body.host !== undefined && !isString(body.host)) {
-      res.status(400).json({ error: "host must be a string" });
+    const hostIds = parseHostIds(body);
+    if (hostIds === null) {
+      res.status(400).json({ error: "hostIds must be an array of strings" });
       return;
     }
     if (body.role !== undefined && !isRole(body.role)) {
@@ -164,7 +288,7 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       res.status(409).json({ error: "Cannot demote the last admin" });
       return;
     }
-    if (isString(body.host)) user.host = body.host;
+    if (hostIds !== undefined) user.hostIds = hostIds;
     if (isRole(body.role)) user.role = body.role;
     if (isString(body.password) && body.password) {
       const { salt, hash } = await hashPassword(body.password);

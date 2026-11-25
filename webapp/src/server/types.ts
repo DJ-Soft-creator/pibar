@@ -59,5 +59,6 @@ export interface PublicUser {
   id: string;
   username: string;
   role: Role;
-  host: string;
+  /** Hosts the user may work on (ignored for admins) */
+  hostIds: string[];
 }

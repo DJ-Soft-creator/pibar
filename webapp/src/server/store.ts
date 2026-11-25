@@ -13,7 +13,10 @@ export interface UserRecord {
   /** hex-encoded scrypt hash */
   hash: string;
   role: Role;
-  host: string;
+  /** Hosts the user may work on (admins: every host, the list is ignored) */
+  hostIds: string[];
+  /** Own UI settings (theme, language, chat mode, text size …), the same on every device */
+  settings: Record<string, unknown>;
 }
 
 export interface StoredConfig {
@@ -30,16 +33,37 @@ export interface TokenRecord {
 /** Tokens expire after 30 days; pruned on load and on every save. */
 export const TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-function isUserRecord(value: unknown): value is UserRecord {
-  return (
-    isRecord(value) &&
-    isString(value.id) &&
-    isString(value.username) &&
-    isString(value.salt) &&
-    isString(value.hash) &&
-    isRole(value.role) &&
-    isString(value.host)
-  );
+/**
+ * Check a persisted user and bring older formats up to date: `host: string` (one assigned host) becomes
+ * `hostIds`, missing `settings` become {}. Returns null for a broken entry.
+ */
+export function parseUserRecord(value: unknown): { user: UserRecord; migrated: boolean } | null {
+  if (
+    !isRecord(value) ||
+    !isString(value.id) ||
+    !isString(value.username) ||
+    !isString(value.salt) ||
+    !isString(value.hash) ||
+    !isRole(value.role)
+  ) {
+    return null;
+  }
+  let migrated = false;
+  let hostIds: string[];
+  if (Array.isArray(value.hostIds) && value.hostIds.every(isString)) {
+    hostIds = value.hostIds;
+  } else if (value.hostIds === undefined && (value.host === undefined || isString(value.host))) {
+    hostIds = isString(value.host) && value.host ? [value.host] : [];
+    migrated = true;
+  } else {
+    return null;
+  }
+  let settings: Record<string, unknown> = {};
+  if (isRecord(value.settings)) settings = value.settings;
+  else if (value.settings === undefined) migrated = true;
+  else return null;
+  const { id, username, salt, hash, role } = value;
+  return { user: { id, username, salt, hash, role, hostIds, settings }, migrated };
 }
 
 function readJson(file: string): unknown {
@@ -82,10 +106,15 @@ export class Store {
   private load(): void {
     const users = readJson(this.usersFile);
     if (users !== null) {
-      if (!Array.isArray(users) || !users.every(isUserRecord)) {
-        throw new Error(`Corrupt users file: ${this.usersFile}`);
+      if (!Array.isArray(users)) throw new Error(`Corrupt users file: ${this.usersFile}`);
+      let migrated = false;
+      for (const raw of users) {
+        const parsed = parseUserRecord(raw);
+        if (!parsed) throw new Error(`Corrupt users file: ${this.usersFile}`);
+        this.users.set(parsed.user.id, parsed.user);
+        migrated ||= parsed.migrated;
       }
-      for (const u of users) this.users.set(u.id, u);
+      if (migrated) this.persistUsers();
     }
     const tokens = readJson(this.tokensFile);
     if (tokens !== null) {

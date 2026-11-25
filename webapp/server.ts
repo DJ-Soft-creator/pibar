@@ -3,19 +3,21 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import dotenv from "dotenv";
-import { WebSocket, WebSocketServer } from "ws";
 import { createApp } from "./src/server/app.js";
 import { bootstrapAdmin } from "./src/server/auth.js";
 import { createRegistry } from "./src/server/cmd/index.js";
 import { canUseHost } from "./src/server/helpers.js";
 import { HostExec, SshRunner } from "./src/server/host/hostexec.js";
 import { Store } from "./src/server/store.js";
+import { createSocketHub, type SocketHub } from "./src/server/ws.js";
 
 dotenv.config();
 
 const dataDir = resolve(process.env.DATA_DIR ?? "./data");
 const clientDir = resolve(process.env.CLIENT_DIR ?? "./dist/client");
 const sshDir = process.env.SSH_DIR?.trim() ? resolve(process.env.SSH_DIR.trim()) : null;
+const rawSecure = process.env.COOKIE_SECURE ?? "auto";
+const cookieSecure = rawSecure === "always" || rawSecure === "never" ? rawSecure : "auto";
 
 // Validate PORT: integer 1-65535, otherwise fall back to 8787 with a warning.
 const rawPort = process.env.PORT ?? "8787";
@@ -32,10 +34,11 @@ await bootstrapAdmin(
   (msg) => console.log(msg),
 );
 
-let wss: WebSocketServer | null = null;
+let hub: SocketHub | null = null;
 
 const app = createApp(store, {
   clientDir,
+  cookieSecure,
   commands: {
     registry: createRegistry(),
     exec: new HostExec(new SshRunner({ dir: sshDir })),
@@ -43,46 +46,11 @@ const app = createApp(store, {
     resolveHost: () => null,
     canUseHost,
   },
-  onConfigUpdated: (receivedAt) => {
-    const message = JSON.stringify({ type: "config/updated", receivedAt });
-    wss?.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) client.send(message);
-    });
-  },
+  onConfigUpdated: (receivedAt) => hub?.broadcast({ type: "config/updated", receivedAt }),
 });
 
 const server = createServer(app);
-wss = new WebSocketServer({ server, path: "/ws" });
-
-// Heartbeat: ping every 30 s, terminate connections that missed a pong.
-const HEARTBEAT_MS = 30_000;
-const alive = new WeakMap<WebSocket, boolean>();
-wss.on("connection", (ws) => {
-  alive.set(ws, true);
-  ws.on("pong", () => alive.set(ws, true));
-  ws.on("error", () => {
-    /* socket errors must not crash the server */
-  });
-  ws.on("message", (raw) => {
-    // Chat messages are a later task — parse safely and ignore unknown types.
-    try {
-      JSON.parse(String(raw));
-    } catch {
-      /* not JSON: ignore */
-    }
-  });
-});
-const heartbeat = setInterval(() => {
-  wss?.clients.forEach((ws) => {
-    if (alive.get(ws) === false) {
-      ws.terminate();
-      return;
-    }
-    alive.set(ws, false);
-    ws.ping();
-  });
-}, HEARTBEAT_MS);
-heartbeat.unref();
+hub = createSocketHub(server, store);
 
 server.listen(port, () => {
   console.log(`[pibar-webapp] Listening on http://localhost:${port} (data: ${dataDir})`);

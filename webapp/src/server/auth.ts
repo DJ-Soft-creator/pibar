@@ -28,9 +28,14 @@ export async function verifyPassword(password: string, salt: string, hash: strin
   return candidate.length === expected.length && timingSafeEqual(candidate, expected);
 }
 
-export async function createUser(username: string, password: string, role: Role, host: string): Promise<UserRecord> {
+export async function createUser(
+  username: string,
+  password: string,
+  role: Role,
+  hostIds: string[] = [],
+): Promise<UserRecord> {
   const { salt, hash } = await hashPassword(password);
-  return { id: randomUUID(), username, salt, hash, role, host };
+  return { id: randomUUID(), username, salt, hash, role, hostIds, settings: {} };
 }
 
 export function createToken(): string {
@@ -56,7 +61,7 @@ export async function bootstrapAdmin(
   const username = env.ADMIN_USERNAME?.trim() || "admin";
   const generated = !env.ADMIN_PASSWORD;
   const password = env.ADMIN_PASSWORD || randomBytes(12).toString("base64url");
-  store.saveUser(await createUser(username, password, "admin", ""));
+  store.saveUser(await createUser(username, password, "admin"));
   if (generated) {
     log(`[pibar-webapp] Bootstrap admin "${username}" created. Generated password: ${password}`);
   } else {

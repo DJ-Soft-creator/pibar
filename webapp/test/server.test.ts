@@ -12,6 +12,7 @@ import { createApp } from "../src/server/app.js";
 import { bootstrapAdmin } from "../src/server/auth.js";
 import { createLoginRateLimiter } from "../src/server/rateLimit.js";
 import { Store, TOKEN_TTL_MS } from "../src/server/store.js";
+import { createSocketHub, type SocketHub } from "../src/server/ws.js";
 import type { ConfigPayload, HostInfo, HostRecord } from "../src/server/types.js";
 
 const ADMIN = { username: "admin", password: "admin-pass-123" };
@@ -50,25 +51,19 @@ async function start(
   const dataDir = mkdtempSync(join(tmpdir(), "pibar-webapp-test-"));
   const store = new Store(dataDir);
   await bootstrapAdmin(store, env, () => {});
-  let wssRef: WebSocketServer | null = null;
+  let hub: SocketHub | null = null;
   const app = createApp(store, {
     clientDir: join(dataDir, "client"),
-    onConfigUpdated: (receivedAt) => {
-      const msg = JSON.stringify({ type: "config/updated", receivedAt });
-      wssRef?.clients.forEach((c) => {
-        if (c.readyState === WebSocket.OPEN) c.send(msg);
-      });
-    },
+    onConfigUpdated: (receivedAt) => hub?.broadcast({ type: "config/updated", receivedAt }),
   });
   const server = createServer(app);
-  const wss = new WebSocketServer({ server, path: "/ws" });
-  wssRef = wss;
+  hub = createSocketHub(server, store);
+  const wss = hub.wss;
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as AddressInfo).port;
   const url = `http://127.0.0.1:${port}`;
   t.after(async () => {
-    for (const c of wss.clients) c.terminate();
-    await new Promise((r) => wss.close(r));
+    await hub?.close();
     server.closeAllConnections();
     await new Promise((r) => server.close(r));
     rmSync(dataDir, { recursive: true, force: true });
@@ -181,9 +176,9 @@ test("user CRUD, role enforcement and self-delete protection", async (t) => {
   // create a normal user
   const created = await api(ctx, "POST", "/api/users", { username: "alice", password: "alice-pass" }, ctx.adminToken);
   assert.equal(created.status, 201);
-  const alice = created.json as { id: string; username: string; role: string; host: string };
+  const alice = created.json as { id: string; username: string; role: string; hostIds: string[] };
   assert.equal(alice.role, "user");
-  assert.equal(alice.host, "");
+  assert.deepEqual(alice.hostIds, []);
   assert.ok(!("hash" in alice) && !("salt" in alice));
 
   // duplicate username -> 409
@@ -193,7 +188,7 @@ test("user CRUD, role enforcement and self-delete protection", async (t) => {
   const list = await api(ctx, "GET", "/api/users", undefined, ctx.adminToken);
   assert.equal(list.status, 200);
   for (const u of list.json as Array<Record<string, unknown>>) {
-    assert.deepEqual(Object.keys(u).sort(), ["host", "id", "role", "username"]);
+    assert.deepEqual(Object.keys(u).sort(), ["hostIds", "id", "role", "username"]);
   }
 
   // role user gets 403 on admin routes
@@ -210,7 +205,7 @@ test("user CRUD, role enforcement and self-delete protection", async (t) => {
   // PATCH host, role, password
   const patched = await api(ctx, "PATCH", `/api/users/${alice.id}`, { host: "host2", role: "admin", password: "new-pass" }, ctx.adminToken);
   assert.equal(patched.status, 200);
-  assert.deepEqual(patched.json, { id: alice.id, username: "alice", role: "admin", host: "host2" });
+  assert.deepEqual(patched.json, { id: alice.id, username: "alice", role: "admin", hostIds: ["host2"] });
   assert.equal((await api(ctx, "POST", "/api/login", { username: "alice", password: "alice-pass" })).status, 401);
   assert.equal((await api(ctx, "POST", "/api/login", { username: "alice", password: "new-pass" })).status, 200);
   assert.equal((await api(ctx, "PATCH", `/api/users/${alice.id}`, { role: "root" }, ctx.adminToken)).status, 400);
@@ -500,7 +495,7 @@ test("hosts CRUD, role enforcement, duplicate names and pibar protection", async
   const deleted = await api(ctx, "DELETE", `/api/hosts/${manual.id}`, undefined, ctx.adminToken);
   assert.equal(deleted.status, 200);
   assert.deepEqual(deleted.json, { status: "ok" });
-  assert.equal(ctx.store.users.get(bobId)?.host, manual.id);
+  assert.deepEqual(ctx.store.users.get(bobId)?.hostIds, [manual.id]);
   assert.equal(ctx.store.hosts.has(manual.id), false);
 });
 
@@ -572,7 +567,7 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
   assert.equal(reloaded.users.size, 2);
   const bob = reloaded.findUserByName("bob");
   assert.ok(bob);
-  assert.equal(bob.host, "host9");
+  assert.deepEqual(bob.hostIds, ["host9"]);
   assert.deepEqual(reloaded.config?.payload, { ...samplePayload, hosts: sampleHosts });
   // hosts survive: synced + manual, sorted by name
   assert.deepEqual(reloaded.sortedHosts(), [
@@ -602,7 +597,9 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
 
 test("WebSocket /ws receives config/updated and ignores unknown messages", async (t) => {
   const ctx = await start(t);
-  const ws = new WebSocket(`${ctx.url.replace("http://", "ws://")}/ws`);
+  const ws = new WebSocket(`${ctx.url.replace("http://", "ws://")}/ws`, {
+    headers: { Authorization: `Bearer ${ctx.adminToken}` },
+  });
   t.after(() => ws.terminate());
   await once(ws, "open");
 

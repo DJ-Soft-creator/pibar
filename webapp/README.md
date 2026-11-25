@@ -37,6 +37,7 @@ printed **once** to the server log — copy it from there.
 | `ADMIN_USERNAME` | `admin`      | bootstrap admin name (first start only)        |
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `SSH_DIR`        | *(own ~/.ssh)* | folder with the SSH key, `known_hosts`, optional `config` |
+| `COOKIE_SECURE`  | `auto`       | `Secure` on the session cookie: `auto` (HTTPS, also via the proxy), `always`, `never` |
 | `CLIENT_DIR`     | `./dist/client` | static client directory (Vite build)        |
 
 ## API overview
@@ -46,8 +47,13 @@ printed **once** to the server log — copy it from there.
   names and arguments; body = arguments as a JSON object, answer `{ "result": … }` or `{ "error": "…" }`.
   Login required; commands that work on a host take `hostId`, the server checks the user may use it.
 
-- `POST /api/login`, `POST /api/logout` — Bearer tokens (scrypt password hashes).
-- `/api/users*` — admin only (list/create/patch/delete).
+- `POST /api/login` — sets the HttpOnly session cookie (`SameSite=Strict`) for the browser and returns the token
+  for other clients (Bearer). Foreign origins are refused. `POST /api/logout`, `POST /api/logout-all`.
+- Cookie requests that change something must come from our own origin (Origin / Sec-Fetch-Site), so no foreign
+  page can act with the cookie. CSP without inline scripts.
+- `GET /api/me`, `PUT /api/me/settings` (own UI settings, ≤ 64 KB), `POST /api/me/password`
+  (needs the current password, ends all other sessions).
+- `/api/users*` — admin only (list/create/patch/delete); `hostIds` = hosts the user may work on (admins: all).
 - `GET /api/hosts` — any authenticated user; hosts sorted by name. `POST/PATCH/DELETE
   /api/hosts*` — admin only, manual hosts. Hosts synced from PiBar (`source: "pibar"`)
   are read-only here (409); they are managed in the desktop app. `user.host` is a plain
@@ -59,8 +65,9 @@ printed **once** to the server log — copy it from there.
   Run this only on the LAN or behind
   a reverse proxy that restricts access; do not expose `/api/config` publicly.
 - `GET /api/sessions` — auth required, returns the stored config's sessions.
-- `GET /ws` — WebSocket; broadcasts `{"type":"config/updated","receivedAt":…}` on
-  every config POST.
+- `GET /ws` — WebSocket, login required (cookie only from our own origin); broadcasts
+  `{"type":"config/updated","receivedAt":…}` on every config POST; Pi events follow as
+  `{"type":"event","event":"pi-event","payload":…}`.
 
 ## Docker
 

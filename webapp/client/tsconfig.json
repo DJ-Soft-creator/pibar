@@ -15,7 +15,7 @@
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["../../src/shared/*"],
-      "@tauri-apps/api/*": ["./src/stubs/tauri.ts"],
+      "@tauri-apps/api/*": ["./src/tauri.ts"],
       "marked": ["../node_modules/marked"],
       "dompurify": ["../node_modules/dompurify"],
       "highlight.js/*": ["../node_modules/highlight.js/*"]

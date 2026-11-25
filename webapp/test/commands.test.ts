@@ -29,7 +29,7 @@ async function start(t: TestContext): Promise<Ctx> {
   await bootstrapAdmin(store, { ADMIN_USERNAME: "admin", ADMIN_PASSWORD: "admin-pass-123" }, () => {});
   const admin = store.findUserByName("admin");
   assert.ok(admin);
-  const user = await createUser("anna", "anna-pass-123", "user", "fake");
+  const user = await createUser("anna", "anna-pass-123", "user", ["fake"]);
   store.saveUser(user);
   const adminToken = createToken();
   store.addToken(adminToken, admin.id);

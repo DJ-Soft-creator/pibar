@@ -16,7 +16,7 @@
 | Wo läuft Pi? | Auf den Hosts, wie bisher. Der Container startet `ssh <host> pi --mode rpc` – genau wie `src-tauri/src/pi.rs` + `hostexec.rs`. Lokale Hosts gibt es in der Webapp nicht (nur SSH). |
 | Gleiche Sessions | Ergibt sich automatisch: Sessions sind die JSONL-Dateien auf dem Host (`~/.pi/agent/sessions`). Die Webapp liest sie mit **denselben Shell-Skripten** wie `src-tauri/src/sessions.rs`. |
 | Rust → Node | Jedes Rust-Modul wird 1:1 nach `webapp/src/server/host/*.ts` portiert. Shell-Skripte (`LIST_SCRIPT` usw.) **wörtlich übernehmen**, nicht neu erfinden. Rust bleibt die Referenz. |
-| API-Form | Server-Endpunkte heißen wie die Tauri-Commands (`POST /api/cmd/<command>`, Body = dieselben Argumente). Der Client bekommt ein `webApi.ts` mit **denselben Funktionssignaturen** wie `src/shared/api.ts`. Pi-Events laufen per WebSocket. |
+| API-Form | Server-Endpunkte heißen wie die Tauri-Commands (`POST /api/cmd/<command>`, Body = dieselben Argumente). Im Client zeigt jeder Import von `@tauri-apps/api/*` auf `webapp/client/src/bridge.ts`: `invoke()` ruft den Server. Damit läuft `src/shared/api.ts` **unverändert**. Pi-Events kommen per WebSocket (`{"type":"event","event":"pi-event","payload":{handle,event}}`, wie Tauris `pi-event`/`pi-exit`). |
 | Client | Neu in TypeScript + Vite (`webapp/client/`), Mobile-first, ohne UI-Framework (ADR 0003). Importiert die Logik aus `src/shared/` (piProtocol, chatViews, diff, tree, branches, questions, planMode, presets, sessionColors, i18n, format, search, …). `src/main/` ist Desktop-Layout und wird **nicht** übernommen, dient aber als Verhaltensreferenz. |
 | Pi-Prozesse | Gehören dem **Server**, nicht dem Handy. Handy weg (Sperrbildschirm, Funkloch) → Pi läuft weiter, Client holt beim Wiederverbinden die verpassten Events nach (Event-Puffer pro Session). |
 | Parallel Desktop + Webapp | Dieselbe Session darf nicht von zwei Pi-Prozessen gleichzeitig beschrieben werden. Lösung: Lock-Datei auf dem Host (siehe Task B9 + D1). |
@@ -37,14 +37,21 @@
 
 ---
 
+## Stand
+
+| Task | Status |
+|---|---|
+| A1–A6, B1, C1 | ✅ erledigt (Branch `webapp-rebuild`) |
+| alle anderen | offen |
+
 ## Wellen (Reihenfolge für Subagents)
 
 Tasks innerhalb einer Welle sind unabhängig und können **parallel** laufen.
 
 | Welle | Tasks |
 |---|---|
-| 1 | A1, A2, A3, A4 |
-| 2 | A5, A6, B1, C1 |
+| 1 | A1, A2, A3, A4 ✅ |
+| 2 | A5, A6, B1, C1 ✅ |
 | 3 | B2, B3, B4, B5, B6, B7, B8, C2, C3 |
 | 4 | B9, B10, B11, B12, B13, B14, C4, C5, C6 |
 | 5 | E1–E8 (Sessions/Chat-UI) |
@@ -57,30 +64,30 @@ Tasks innerhalb einer Welle sind unabhängig und können **parallel** laufen.
 
 ## A. Fundament
 
-### A1 – Projektstruktur Client (Vite + TS)
+### A1 – Projektstruktur Client (Vite + TS) ✅
 - **Was:** `webapp/client/` mit Vite + strict TypeScript anlegen; Build nach `webapp/dist/client`. Alias `@shared` → `../src/shared`. Server liefert `dist/client` statisch aus. Alten `webapp/src/client/` löschen.
 - **Achtung:** `src/shared/theme.ts` importiert `@tauri-apps/api/window` → im Client per Vite-Alias auf einen Stub umleiten oder `theme.ts` in Tauri-freien Teil + Adapter aufteilen.
 - **Fertig wenn:** `npm run build` erzeugt Server + Client; eine leere Seite lädt im Container; `src/shared/format.ts` lässt sich im Client importieren.
 
-### A2 – Server-Struktur & Command-Router
+### A2 – Server-Struktur & Command-Router ✅
 - **Was:** Ordner `webapp/src/server/host/` (Rust-Ports), `webapp/src/server/routes/`. Generischer Router `POST /api/cmd/:name` → registrierte Handler mit Argument-Validierung, Auth und Host-Berechtigung (A5). Fehler als `{ error }` wie Tauri-Strings.
 - **Referenz:** `src-tauri/src/lib.rs` (Liste aller Commands), `src/shared/api.ts`.
 - **Fertig wenn:** Ein Dummy-Command ist per Test aufrufbar; unbekannte Commands → 404; ohne Token → 401.
 
-### A3 – Docker: SSH-fähig
+### A3 – Docker: SSH-fähig ✅
 - **Was:** Runtime-Image bekommt `openssh-client` + `git`. Volumes: `/data` (wie bisher), `/ssh` read-only (Key + `known_hosts`). SSH-Optionen zentral: `BatchMode=yes`, `UserKnownHostsFile=/ssh/known_hosts`, `ControlMaster=auto`, `ControlPersist=60s`, `ControlPath=/tmp/ssh-%C` (schnelle Folgeaufrufe). Healthcheck `GET /api/health`.
 - **Fertig wenn:** `docker compose up` startet; im Container funktioniert `ssh -F /dev/null …` mit gemountetem Key; README beschreibt Key-Erzeugung und `ssh-keyscan` für `known_hosts`.
 
-### A4 – Test-Infrastruktur mit Fake-Host
+### A4 – Test-Infrastruktur mit Fake-Host ✅
 - **Was:** Austauschbare `HostExec`-Schnittstelle (`runShell`, `spawn`). In Tests ein Fake, der Skripte gegen ein temporäres Verzeichnis lokal per `bash` ausführt (statt SSH) und `dev/fake-pi.mjs` als Pi startet.
 - **Referenz:** `dev/fake-pi.mjs`.
 - **Fertig wenn:** Ein Test listet Sessions aus einem Temp-Ordner über den Fake; ein Test startet `fake-pi` und bekommt eine RPC-Antwort.
 
-### A5 – Benutzer, Rollen, Host-Rechte
+### A5 – Benutzer, Rollen, Host-Rechte ✅
 - **Was:** `user.host: string` → `user.hostIds: string[]` (Migration bestehender Daten). Admin sieht alle Hosts. Jeder Command mit `hostId` prüft die Berechtigung zentral im Router (A2). Pro Benutzer eigene UI-Einstellungen (Theme, Sprache, Chat-Modus, Textgröße).
 - **Fertig wenn:** Tests: Benutzer ohne Recht auf Host X bekommt 403 bei jedem Command mit `hostId: X`; Migration alter `users.json` funktioniert.
 
-### A6 – Login-Härtung
+### A6 – Login-Härtung ✅
 - **Was:** Token als `HttpOnly; Secure; SameSite=Strict`-Cookie statt `localStorage` (Bearer bleibt für den Desktop-Sync). CSP aktivieren (geht, weil kein Inline-Code mehr). Logout aller Geräte. Passwort ändern für sich selbst.
 - **Fertig wenn:** Tests für Cookie-Login, CSP-Header gesetzt, eigenes Passwort änderbar.
 
@@ -90,7 +97,7 @@ Tasks innerhalb einer Welle sind unabhängig und können **parallel** laufen.
 
 Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich aus Rust übernehmen, Parser mit denselben Testfällen wie die Rust-Tests (`#[cfg(test)]` in der jeweiligen Datei).
 
-### B1 – hostexec
+### B1 – hostexec ✅
 - **Referenz:** `src-tauri/src/hostexec.rs` (`ssh_args`, `shell_command`, `run_shell`, `spawn_pi`, `sq`, `shell_path`).
 - **Was:** SSH-Aufruf mit Login-Shell auf dem Host, Quoting, stdin, Timeouts, `piCommand` und `useHerdr` beachten.
 - **Fertig wenn:** Quoting-Tests identisch zu Rust; `runShell` und `spawnPi` laufen gegen den Fake (A4).
@@ -163,9 +170,10 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 
 ## C. Client-Fundament
 
-### C1 – `webApi.ts` (Adapter zu `src/shared/api.ts`)
-- **Was:** Gleiche exportierte Funktionen/Typen wie `src/shared/api.ts`, aber über `fetch('/api/cmd/…')` und WebSocket statt `invoke()`/`listen()`. Ziel: Code aus `src/shared/` und portierte Logik aus `src/main/` kann unverändert gegen `webApi` laufen. Typen aus `api.ts` importieren, nicht kopieren (ggf. `api.ts` in `apiTypes.ts` + `api.ts` aufteilen).
-- **Fertig wenn:** Typecheck: jede Funktion aus `api.ts`, die in der Webapp vorkommt, hat dieselbe Signatur in `webApi.ts`; Desktop-Funktionen ohne Web-Gegenstück werfen „not available in webapp“.
+### C1 – Bridge statt Tauri ✅
+- **Umgesetzt:** `client/src/bridge.ts` ersetzt Tauris `invoke`/`listen`/`emit` (Vite-Alias). `invoke(cmd, args)` = `POST /api/cmd/<cmd>`, Fehler kommen wie bei Tauri als String, 401 ruft einen Handler (→ Login-Screen). `client/src/socket.ts` liefert Server-Events an `listen()` und verbindet sich neu (Backoff, beim Entsperren sofort).
+- **Folge für alle B-Tasks:** Ein Command ist im Client sofort über `api.<funktion>()` aus `src/shared/api.ts` nutzbar, sobald der Server ihn mit dem Tauri-Namen registriert. Nicht portierte Commands antworten „Unknown command: …“.
+- **Achtung bei Downloads/Uploads:** `download_file` öffnet am Desktop einen Speichern-Dialog – im Web liefert der Server die Datei, der Client löst den Browser-Download aus (Task B6/G4).
 
 ### C2 – App-Shell mobil
 - **Was:** Login-Screen, Navigation (unten: Sessions · Chat · Dateien · Mehr), Safe Areas (Notch/Home-Bar), Dark/Light/System, Textgröße (`src/shared/textScale.ts`), i18n (`src/shared/i18n.ts`), Toasts, Bottom-Sheets, Offline-/Verbindungsbanner, „Zum Home-Bildschirm“ (Manifest + Icons, PWA ohne Offline-Cache).
