@@ -2,8 +2,8 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ConfigPayload, Role } from "./types.js";
-import { isConfigPayload, isRecord, isRole, isString } from "./validation.js";
+import type { ConfigPayload, HostInfo, HostRecord, Role } from "./types.js";
+import { isConfigPayload, isHostRecord, isRecord, isRole, isString } from "./validation.js";
 
 export interface UserRecord {
   id: string;
@@ -62,17 +62,20 @@ export class Store {
   readonly users = new Map<string, UserRecord>();
   /** token -> { userId, createdAt } */
   readonly tokens = new Map<string, TokenRecord>();
+  readonly hosts = new Map<string, HostRecord>();
   config: StoredConfig | null = null;
 
   private readonly usersFile: string;
   private readonly tokensFile: string;
   private readonly configFile: string;
+  private readonly hostsFile: string;
 
   constructor(dataDir: string) {
     mkdirSync(dataDir, { recursive: true });
     this.usersFile = join(dataDir, "users.json");
     this.tokensFile = join(dataDir, "tokens.json");
     this.configFile = join(dataDir, "config.json");
+    this.hostsFile = join(dataDir, "hosts.json");
     this.load();
   }
 
@@ -114,6 +117,13 @@ export class Store {
         throw new Error(`Corrupt config file: ${this.configFile}`);
       }
       this.config = { payload: config.payload, receivedAt: config.receivedAt };
+    }
+    const hosts = readJson(this.hostsFile);
+    if (hosts !== null) {
+      if (!Array.isArray(hosts) || !hosts.every(isHostRecord)) {
+        throw new Error(`Corrupt hosts file: ${this.hostsFile}`);
+      }
+      for (const h of hosts) this.hosts.set(h.id, h);
     }
   }
 
@@ -182,5 +192,43 @@ export class Store {
     this.config = { payload, receivedAt };
     // Config is not secret — keep the default 0644.
     writeJsonAtomic(this.configFile, this.config, 0o644);
+  }
+
+  // ---------------------------------------------------------------- hosts
+
+  sortedHosts(): HostRecord[] {
+    return [...this.hosts.values()].sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
+
+  /** Case-insensitive name lookup (host names are unique). */
+  findHostByName(name: string): HostRecord | undefined {
+    const needle = name.toLowerCase();
+    for (const h of this.hosts.values()) if (h.name.toLowerCase() === needle) return h;
+    return undefined;
+  }
+
+  /** Upsert synced hosts by id. Manual hosts are never touched, nothing is deleted. */
+  upsertPibarHosts(hosts: HostInfo[]): void {
+    for (const h of hosts) {
+      if (this.hosts.get(h.id)?.source === "manual") continue;
+      this.hosts.set(h.id, { ...h, source: "pibar" });
+    }
+    this.persistHosts();
+  }
+
+  saveHost(host: HostRecord): void {
+    this.hosts.set(host.id, host);
+    this.persistHosts();
+  }
+
+  /** Delete a host. Users referencing it keep the string (legacy) — no cascade. */
+  deleteHost(id: string): void {
+    this.hosts.delete(id);
+    this.persistHosts();
+  }
+
+  private persistHosts(): void {
+    // Host metadata is not secret — same mode as config.json.
+    writeJsonAtomic(this.hostsFile, [...this.hosts.values()], 0o644);
   }
 }

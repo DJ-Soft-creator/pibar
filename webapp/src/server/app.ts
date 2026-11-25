@@ -1,5 +1,7 @@
-// Express app factory: auth, user management (admin), config sync (no auth — LAN/reverse-proxy
-// internal, PiBar sends no token), sessions for the UI, static client + SPA fallback.
+// Express app factory: auth, user management (admin), host management, config sync
+// (no auth — LAN/reverse-proxy internal, PiBar sends no token), sessions for the UI,
+// static client + SPA fallback.
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
@@ -8,8 +10,8 @@ import { createStoreUserHelpers } from "./helpers.js";
 import { createToken, createUser, hashPassword, verifyPassword } from "./auth.js";
 import { createLoginRateLimiter } from "./rateLimit.js";
 import type { Store, UserRecord } from "./store.js";
-import type { PublicUser } from "./types.js";
-import { isConfigPayload, isRecord, isRole, isString } from "./validation.js";
+import type { HostRecord, PublicUser } from "./types.js";
+import { isConfigPayload, isHostKind, isRecord, isRole, isString } from "./validation.js";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -182,6 +184,98 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     res.json({ status: "ok" });
   });
 
+  // ------------------------------------------- host management (admin CRUD)
+  app.get("/api/hosts", requireAuth, (_req: Request, res: Response) => {
+    res.json(store.sortedHosts());
+  });
+
+  app.post("/api/hosts", requireAuth, requireAdmin, (req: Request, res: Response) => {
+    const body: unknown = req.body;
+    if (!isRecord(body) || !isString(body.name) || !body.name.trim()) {
+      res.status(400).json({ error: "name required" });
+      return;
+    }
+    if (body.kind !== undefined && !isHostKind(body.kind)) {
+      res.status(400).json({ error: "kind must be local or ssh" });
+      return;
+    }
+    if (body.address !== undefined && !isString(body.address)) {
+      res.status(400).json({ error: "address must be a string" });
+      return;
+    }
+    const name = body.name.trim();
+    if (store.findHostByName(name)) {
+      res.status(409).json({ error: "Host name already exists" });
+      return;
+    }
+    const host: HostRecord = {
+      id: randomUUID(),
+      name,
+      kind: isHostKind(body.kind) ? body.kind : "local",
+      address: isString(body.address) ? body.address : "",
+      source: "manual",
+    };
+    store.saveHost(host);
+    res.status(201).json(host);
+  });
+
+  app.patch("/api/hosts/:id", requireAuth, requireAdmin, (req: Request, res: Response) => {
+    const host = store.hosts.get(req.params.id ?? "");
+    if (!host) {
+      res.status(404).json({ error: "Host not found" });
+      return;
+    }
+    if (host.source === "pibar") {
+      res.status(409).json({ error: "Synced hosts are managed in PiBar" });
+      return;
+    }
+    const body: unknown = req.body;
+    if (!isRecord(body)) {
+      res.status(400).json({ error: "Expected a JSON object" });
+      return;
+    }
+    if (body.name !== undefined && (!isString(body.name) || !body.name.trim())) {
+      res.status(400).json({ error: "name must be a non-empty string" });
+      return;
+    }
+    if (body.kind !== undefined && !isHostKind(body.kind)) {
+      res.status(400).json({ error: "kind must be local or ssh" });
+      return;
+    }
+    if (body.address !== undefined && !isString(body.address)) {
+      res.status(400).json({ error: "address must be a string" });
+      return;
+    }
+    if (isString(body.name)) {
+      const name = body.name.trim();
+      const other = store.findHostByName(name);
+      if (other && other.id !== host.id) {
+        res.status(409).json({ error: "Host name already exists" });
+        return;
+      }
+      host.name = name;
+    }
+    if (isHostKind(body.kind)) host.kind = body.kind;
+    if (isString(body.address)) host.address = body.address;
+    store.saveHost(host);
+    res.json(host);
+  });
+
+  app.delete("/api/hosts/:id", requireAuth, requireAdmin, (req: Request, res: Response) => {
+    const host = store.hosts.get(req.params.id ?? "");
+    if (!host) {
+      res.status(404).json({ error: "Host not found" });
+      return;
+    }
+    if (host.source === "pibar") {
+      res.status(409).json({ error: "Synced hosts are managed in PiBar" });
+      return;
+    }
+    // No cascade: users referencing the host keep the string (shown as legacy).
+    store.deleteHost(host.id);
+    res.json({ status: "ok" });
+  });
+
   // --------------------------------------- config sync (NO auth, see README)
   app.post("/api/config", (req: Request, res: Response) => {
     const body: unknown = req.body;
@@ -191,6 +285,8 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     }
     const receivedAt = new Date().toISOString();
     store.setConfig(body, receivedAt);
+    // Synced hosts: upsert by id, manual hosts untouched, nothing deleted.
+    if (body.hosts !== undefined) store.upsertPibarHosts(body.hosts);
     opts.onConfigUpdated?.(receivedAt);
     res.json({ status: "ok" });
   });

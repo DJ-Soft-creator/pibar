@@ -23,6 +23,7 @@ const $ = (id) => document.getElementById(id);
 const state = {
   user: auth.getUser(),
   sessions: [],
+  hosts: [], // [{id, name, kind, address, source}] – Cache für Namensauflösung
   config: null, // {sessions, projects, groups, meta} oder null (404 / noch nichts)
   status: null, // {hasConfig, receivedAt, counts}
   serverOnline: true,
@@ -36,6 +37,7 @@ let socket = null;
 let toastTimer = null;
 let lastFocus = null;
 let editingUser = null;
+let editingHost = null;
 let collapsedInitialized = false;
 
 /* ----------------------------- Theme ------------------------------ */
@@ -101,8 +103,10 @@ function closeSheets() {
   $("sheet-backdrop").hidden = true;
   $("detail-sheet").hidden = true;
   $("user-sheet").hidden = true;
+  $("host-sheet").hidden = true;
   document.body.classList.remove("sheet-open");
   editingUser = null;
+  editingHost = null;
   if (lastFocus && typeof lastFocus.focus === "function") lastFocus.focus();
   lastFocus = null;
 }
@@ -145,7 +149,7 @@ function setTab(tab) {
   $("view-sessions").hidden = tab !== "sessions";
   $("view-projects").hidden = tab !== "projects";
   $("view-admin").hidden = tab !== "admin";
-  if (tab === "admin") loadUsers();
+  if (tab === "admin") loadAdmin();
 }
 
 function toggleMenu(force) {
@@ -164,6 +168,11 @@ async function loadStatus() {
 async function loadSessions() {
   const data = await api.sessions();
   state.sessions = Array.isArray(data) ? data : [];
+}
+
+async function loadHosts() {
+  const data = await api.hosts();
+  state.hosts = Array.isArray(data) ? data : [];
 }
 
 async function loadConfig() {
@@ -188,7 +197,7 @@ async function loadConfig() {
 }
 
 async function refreshAll() {
-  const results = await Promise.allSettled([loadStatus(), loadSessions(), loadConfig()]);
+  const results = await Promise.allSettled([loadStatus(), loadSessions(), loadConfig(), loadHosts()]);
   const failed = results.filter((r) => r.status === "rejected");
   // Online, wenn mindestens ein Call durchkam oder ein echter HTTP-Fehler kam.
   state.serverOnline =
@@ -210,6 +219,173 @@ function renderAll() {
   renderGroupFilter();
   renderSessions();
   renderProjects();
+  renderHosts();
+}
+
+/* ------------------------------ Hosts ----------------------------- */
+
+function hostById(id) {
+  return state.hosts.find((h) => h && h.id === id) || null;
+}
+
+function hostKindLabel(kind) {
+  return kind === "ssh" ? "SSH" : "Lokal";
+}
+
+/** Host-ID -> Anzeigename; unbekannte IDs (Legacy) bleiben roh stehen. */
+function hostDisplayName(id) {
+  const h = hostById(id);
+  return h ? h.name : id;
+}
+
+/** Host-<select> füllen: "Kein Host", alle Hosts, ggf. Legacy-Wert als Option. */
+function fillHostSelect(select, current) {
+  const value = current || "";
+  clear(select);
+  select.append(el("option", { value: "", text: "Kein Host" }));
+  for (const h of state.hosts) {
+    if (!h) continue;
+    select.append(el("option", { value: h.id, text: `${h.name} (${hostKindLabel(h.kind)})` }));
+  }
+  if (value && !hostById(value)) {
+    select.append(el("option", { value, text: `${value} (Legacy)` }));
+  }
+  select.value = value;
+}
+
+function renderHosts() {
+  const list = $("host-list");
+  clear(list);
+  // Auswahl im Anlege-Formular aktualisieren, aktuelle Auswahl beibehalten.
+  fillHostSelect($("create-host"), $("create-host").value);
+  if (state.hosts.length === 0) {
+    list.append(
+      el("p", {
+        class: "hint",
+        text: "Noch keine Hosts – PiBar sendet Hosts beim nächsten Sync, oder lege manuell einen an.",
+      })
+    );
+    return;
+  }
+  for (const h of state.hosts) {
+    if (!h) continue;
+    const synced = h.source === "pibar";
+    list.append(
+      el(
+        "article",
+        { class: "card user-card" },
+        el(
+          "div",
+          { class: "user-info" },
+          el("span", { class: "user-name", text: h.name }),
+          el("span", { class: "badge", text: hostKindLabel(h.kind) }),
+          el("span", { class: synced ? "badge badge-admin" : "badge", text: synced ? "PiBar" : "manuell" }),
+          h.address ? el("span", { class: "user-host mono", text: h.address }) : null
+        ),
+        synced
+          ? el("span", { class: "host-sync-hint", text: "wird von PiBar synchronisiert" })
+          : el(
+              "div",
+              { class: "user-actions" },
+              el("button", {
+                class: "btn btn-small",
+                type: "button",
+                onclick: () => openHostEdit(h),
+                text: "Bearbeiten",
+              }),
+              el("button", {
+                class: "btn btn-small btn-danger",
+                type: "button",
+                onclick: () => deleteHost(h),
+                text: "Löschen",
+              })
+            )
+      )
+    );
+  }
+}
+
+/** Admin-Ansicht: Hosts zuerst laden (Namensauflösung), dann Benutzer. */
+async function loadAdmin() {
+  try {
+    await loadHosts();
+  } catch (err) {
+    if (err.status !== 401) showToast(err.message || "Hosts konnten nicht geladen werden", "error");
+  }
+  renderHosts();
+  renderProjects();
+  await loadUsers();
+}
+
+async function handleCreateHost(ev) {
+  ev.preventDefault();
+  const name = $("create-host-name").value.trim();
+  if (!name) {
+    showToast("Bitte einen Host-Namen angeben", "error");
+    return;
+  }
+  const body = { name, kind: $("create-host-kind").value };
+  const address = $("create-host-address").value.trim();
+  if (address) body.address = address;
+  const btn = $("host-create-submit");
+  btn.disabled = true;
+  try {
+    await api.createHost(body);
+    showToast(`Host „${name}“ angelegt`);
+    $("host-create-form").reset();
+    await loadAdmin();
+  } catch (err) {
+    if (err.status !== 401) showToast(err.message || "Anlegen fehlgeschlagen", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function openHostEdit(h) {
+  editingHost = h;
+  $("host-sheet-title").textContent = `„${h.name}“ bearbeiten`;
+  $("edit-host-name").value = h.name || "";
+  $("edit-host-kind").value = h.kind === "ssh" ? "ssh" : "local";
+  $("edit-host-address").value = h.address || "";
+  openSheet("host-sheet");
+}
+
+async function handleEditHost(ev) {
+  ev.preventDefault();
+  if (!editingHost) return;
+  const name = $("edit-host-name").value.trim();
+  if (!name) {
+    showToast("Bitte einen Host-Namen angeben", "error");
+    return;
+  }
+  const patch = {
+    name,
+    kind: $("edit-host-kind").value,
+    address: $("edit-host-address").value.trim(),
+  };
+  const btn = $("host-edit-submit");
+  btn.disabled = true;
+  try {
+    await api.updateHost(editingHost.id, patch);
+    showToast("Host aktualisiert");
+    closeSheets();
+    await loadAdmin();
+  } catch (err) {
+    if (err.status !== 401) showToast(err.message || "Speichern fehlgeschlagen", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function deleteHost(h) {
+  if (!window.confirm(`Host „${h.name}“ wirklich löschen? Zugewiesene Benutzer behalten den Wert als Legacy-Eintrag.`)) return;
+  try {
+    await api.deleteHost(h.id);
+    showToast(`Host „${h.name}“ gelöscht`);
+    await loadAdmin();
+  } catch (err) {
+    if (err.status !== 401) showToast(err.message || "Löschen fehlgeschlagen", "error");
+  }
 }
 
 /* ----------------------------- Sync-Status ------------------------ */
@@ -501,7 +677,7 @@ function openDetail(s) {
     ),
     detailRow("Gruppe", info.name),
     detailRow("Angepinnt", s.pinned ? "Ja" : "Nein"),
-    detailRow("Host", parts.hostId || "–"),
+    detailRow("Host", parts.hostId ? hostDisplayName(parts.hostId) : "–"),
     project ? detailRow("Projekt", project.name || project.id) : null,
     detailRow("Verzeichnis", el("span", { class: "mono", text: parts.dir || "–" })),
     detailRow("Datei", el("span", { class: "mono", text: parts.file || "–" })),
@@ -558,7 +734,7 @@ function renderProjects() {
           "div",
           { class: "project-head" },
           el("h3", { class: "project-name", text: p.name || p.id || "Unbenannt" }),
-          el("span", { class: "badge", text: p.hostId || "?" })
+          el("span", { class: "badge", text: p.hostId ? hostDisplayName(p.hostId) : "?" })
         ),
         el("p", { class: "mono project-dir", text: p.dir || "" })
       )
@@ -593,7 +769,10 @@ async function loadUsers() {
               class: u.role === "admin" ? "badge badge-admin" : "badge",
               text: u.role === "admin" ? "Admin" : "Benutzer",
             }),
-            el("span", { class: "user-host", text: u.host || "–" })
+            el("span", {
+              class: "user-host",
+              text: u.host ? (hostById(u.host) ? hostDisplayName(u.host) : `${u.host} (Legacy)`) : "–",
+            })
           ),
           el(
             "div",
@@ -627,7 +806,7 @@ async function handleCreateUser(ev) {
   const username = $("create-username").value.trim();
   const password = $("create-password").value;
   const role = $("create-role").value;
-  const host = $("create-host").value.trim();
+  const host = $("create-host").value;
   if (!username || !password) {
     showToast("Bitte Benutzername und Passwort angeben", "error");
     return;
@@ -651,7 +830,7 @@ async function handleCreateUser(ev) {
 function openUserEdit(u) {
   editingUser = u;
   $("user-sheet-title").textContent = `„${u.username}“ bearbeiten`;
-  $("edit-host").value = u.host || "";
+  fillHostSelect($("edit-host"), u.host || "");
   $("edit-role").value = u.role === "admin" ? "admin" : "user";
   $("edit-password").value = "";
   openSheet("user-sheet");
@@ -661,7 +840,7 @@ async function handleEditUser(ev) {
   ev.preventDefault();
   if (!editingUser) return;
   const patch = {
-    host: $("edit-host").value.trim(),
+    host: $("edit-host").value,
     role: $("edit-role").value,
   };
   const pw = $("edit-password").value;
@@ -735,6 +914,7 @@ function leaveApp(message) {
   }
   state.user = null;
   state.sessions = [];
+  state.hosts = [];
   state.config = null;
   state.status = null;
   state.wsLive = false;
@@ -810,9 +990,12 @@ function bindEvents() {
   $("sheet-backdrop").addEventListener("click", closeSheets);
   $("detail-close").addEventListener("click", closeSheets);
   $("user-edit-close").addEventListener("click", closeSheets);
+  $("host-edit-close").addEventListener("click", closeSheets);
 
   $("user-create-form").addEventListener("submit", handleCreateUser);
   $("user-edit-form").addEventListener("submit", handleEditUser);
+  $("host-create-form").addEventListener("submit", handleCreateHost);
+  $("host-edit-form").addEventListener("submit", handleEditHost);
 
   document.addEventListener("click", (ev) => {
     if (!$("user-menu").hidden && !ev.target.closest(".menu-wrap")) toggleMenu(false);

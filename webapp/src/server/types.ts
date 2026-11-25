@@ -27,10 +27,30 @@ export interface GroupConfig {
   collapsed: boolean;
 }
 
+export type HostKind = "local" | "ssh";
+
+/** Host entry of the sync contract (PiBar -> webapp). address is a display string. */
+export interface HostInfo {
+  id: string;
+  name: string;
+  kind: HostKind;
+  /** ssh: "user@target[:port]", local: "" */
+  address: string;
+}
+
+export type HostSource = "pibar" | "manual";
+
+/** Host as stored and exposed by the webapp API (hosts.json). */
+export interface HostRecord extends HostInfo {
+  source: HostSource;
+}
+
 export interface ConfigPayload {
   sessions: SessionConfig[];
   projects: ProjectConfig[];
   groups: GroupConfig[];
+  /** Optional since the hosts contract — payloads without hosts stay valid. */
+  hosts?: HostInfo[];
   meta: { generatedAt: string };
 }
 

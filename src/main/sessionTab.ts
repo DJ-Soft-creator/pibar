@@ -1103,6 +1103,8 @@ export class SessionTab {
     const list = data.messages ?? [];
     for (const m of list) this.renderStored(m);
     this.flush();
+    // subagent rows of the list come from the stored calls too, not only from live events
+    if (this.subagentCalls.size > 0) this.cb.onStateChange(this);
     // an open choice question only if the session ends with that answer
     this.questions = list[list.length - 1]?.role === "assistant" ? findQuestions(this.lastText) : [];
   }
@@ -1121,6 +1123,11 @@ export class SessionTab {
             this.toolStart(i, c.id, c.name);
             this.toolArgs(c.id, c.arguments);
             this.setToolStatus(c.id, "ok", t("done"));
+            // subagent calls of the history appear as rows under the session again (live: tool_execution_start)
+            if (c.name === "subagent") {
+              const call = subagentFromArgs(c.arguments);
+              if (call) this.subagentCalls.set(c.id, call);
+            }
           }
         });
         this.endAssistant(m);
@@ -1128,6 +1135,7 @@ export class SessionTab {
       }
       case "toolResult":
         this.toolResult(m.toolCallId, m.content, !!m.isError);
+        this.trackSubagent(m.toolCallId, m.details, true, !!m.isError);
         break;
       default:
         break;

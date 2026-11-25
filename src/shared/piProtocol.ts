@@ -61,6 +61,8 @@ export interface ToolResultMessage {
   toolCallId: string;
   content?: Content;
   isError?: boolean;
+  /** Structured result of a tool (e.g. the subagent extension's runs); kept in the session file */
+  details?: unknown;
   timestamp?: number | string;
 }
 export type PiMessage = UserMessage | AssistantMessage | ToolResultMessage;

@@ -373,6 +373,7 @@ const de = {
   Export: "Exportieren",
   "Export session": "Session exportieren",
   // config exchange (webapp)
+  Webapp: "Webapp",
   "Webapp URL": "Webapp-URL",
   "Webapp URL…": "Webapp-URL …",
   "Address of the mobile webapp; empty = config exchange off.":
@@ -380,6 +381,8 @@ const de = {
   "Send config to webapp": "Konfig an Webapp senden",
   "Sessions, projects and groups to the mobile webapp": "Sessions, Projekte und Gruppen an die mobile Webapp",
   "Import config from webapp": "Konfig von Webapp importieren",
+  "Auto-sync to webapp": "Auto-Sync zur Webapp",
+  "Send the config automatically after every change": "Konfig nach jeder Änderung automatisch senden",
   "No webapp URL configured.": "Keine Webapp-URL konfiguriert.",
   "Config sent to the webapp.": "Konfig an die Webapp gesendet.",
   "Sending failed": "Senden fehlgeschlagen",

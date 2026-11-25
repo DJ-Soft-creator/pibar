@@ -570,6 +570,7 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 .user-name { font-weight: 700; overflow-wrap: anywhere; }
 .user-host { color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
 .user-actions { display: flex; gap: 8px; flex: none; }
+.host-sync-hint { color: var(--text-2); font-size: 12px; flex: none; }
 
 /* ---------- Empty States ---------- */
 .empty {
@@ -725,5 +726,5 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 @media (min-width: 700px) {
   .chip-row { justify-content: flex-start; gap: 4px; margin: 0 0 4px; }
   .card-list { display: grid; grid-template-columns: 1fr 1fr; }
-  #user-list.card-list { grid-template-columns: 1fr; }
+  #user-list.card-list, #host-list.card-list { grid-template-columns: 1fr; }
 }

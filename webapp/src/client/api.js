@@ -114,6 +114,12 @@ export const api = {
     request(`/api/users/${encodeURIComponent(id)}`, { method: "PATCH", body: patch }),
   deleteUser: (id) =>
     request(`/api/users/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  hosts: () => request("/api/hosts"),
+  createHost: (host) => request("/api/hosts", { method: "POST", body: host }),
+  updateHost: (id, patch) =>
+    request(`/api/hosts/${encodeURIComponent(id)}`, { method: "PATCH", body: patch }),
+  deleteHost: (id) =>
+    request(`/api/hosts/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };
 
 /**

@@ -102,6 +102,34 @@
 
       <!-- ---------- Verwaltung (nur Admin) ---------- -->
       <div id="view-admin" class="view" hidden>
+        <h2 class="section-title">Hosts</h2>
+        <div id="host-list" class="list card-list"></div>
+        <section class="card">
+          <h2 class="card-title">Neuen Host anlegen</h2>
+          <form id="host-create-form" novalidate>
+            <label class="field">
+              <span class="field-label">Name</span>
+              <input id="create-host-name" type="text" autocomplete="off"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" required>
+            </label>
+            <div class="field-pair">
+              <label class="field">
+                <span class="field-label">Typ</span>
+                <select id="create-host-kind" class="select">
+                  <option value="local">Lokal</option>
+                  <option value="ssh">SSH</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Adresse (optional)</span>
+                <input id="create-host-address" type="text" autocomplete="off"
+                       autocapitalize="none" autocorrect="off" spellcheck="false"
+                       placeholder="user@target[:port]">
+              </label>
+            </div>
+            <button id="host-create-submit" class="btn btn-primary btn-block" type="submit">Host anlegen</button>
+          </form>
+        </section>
         <section class="card">
           <h2 class="card-title">Neuen Benutzer anlegen</h2>
           <form id="user-create-form" novalidate>
@@ -124,8 +152,9 @@
               </label>
               <label class="field">
                 <span class="field-label">Host (optional)</span>
-                <input id="create-host" type="text" autocomplete="off"
-                       autocapitalize="none" autocorrect="off" spellcheck="false">
+                <select id="create-host" class="select">
+                  <option value="">Kein Host</option>
+                </select>
               </label>
             </div>
             <button id="create-submit" class="btn btn-primary btn-block" type="submit">Benutzer anlegen</button>
@@ -189,8 +218,9 @@
       <form id="user-edit-form" novalidate>
         <label class="field">
           <span class="field-label">Host</span>
-          <input id="edit-host" type="text" autocomplete="off"
-                 autocapitalize="none" autocorrect="off" spellcheck="false">
+          <select id="edit-host" class="select">
+            <option value="">Kein Host</option>
+          </select>
         </label>
         <label class="field">
           <span class="field-label">Rolle</span>
@@ -205,6 +235,38 @@
                  placeholder="Leer lassen, um es nicht zu ändern">
         </label>
         <button id="user-edit-submit" class="btn btn-primary btn-block" type="submit">Speichern</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="host-sheet" class="sheet" role="dialog" aria-modal="true"
+           aria-labelledby="host-sheet-title" hidden>
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="host-sheet-title" class="sheet-title">Host bearbeiten</h2>
+      <button id="host-edit-close" class="icon-btn" type="button" aria-label="Schließen">✕</button>
+    </header>
+    <div class="sheet-body">
+      <form id="host-edit-form" novalidate>
+        <label class="field">
+          <span class="field-label">Name</span>
+          <input id="edit-host-name" type="text" autocomplete="off"
+                 autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Typ</span>
+          <select id="edit-host-kind" class="select">
+            <option value="local">Lokal</option>
+            <option value="ssh">SSH</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Adresse</span>
+          <input id="edit-host-address" type="text" autocomplete="off"
+                 autocapitalize="none" autocorrect="off" spellcheck="false"
+                 placeholder="user@target[:port]">
+        </label>
+        <button id="host-edit-submit" class="btn btn-primary btn-block" type="submit">Speichern</button>
       </form>
     </div>
   </section>

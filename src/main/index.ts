@@ -19,6 +19,7 @@ import { wireSearch } from "./search";
 import { loadAllSessions, renderHosts, restoreLastSession } from "./sessions";
 import { updateBadge, wireActivity } from "./activity";
 import { renderQuickActions } from "./quickActions";
+import { wireConfigAutoSync } from "./configExchange";
 import { state } from "./state";
 
 async function init() {
@@ -43,6 +44,7 @@ async function init() {
   renderHosts();
   wireFiles();
   wireTerminal();
+  wireConfigAutoSync();
 
   // Pi events (from src-tauri/src/pi.rs) go to the session with that process handle
   await listen<{ handle: number; event: PiEvent }>("pi-event", (e) => {

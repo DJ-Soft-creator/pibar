@@ -1,4 +1,4 @@
-// Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets, quick action buttons and hosts.
+// Settings dialog (gear icon): language, colour scheme, quick launcher, voice (double tap, shortcut, position), model presets, quick action buttons, hosts and the webapp config exchange.
 import { getVersion } from "@tauri-apps/api/app";
 import { emit } from "@tauri-apps/api/event";
 import { api, ChatMode, DoubleTapStatus, HostCfg, ModelPreset, SessionPreset, Theme } from "../shared/api";
@@ -23,6 +23,8 @@ import { quickActionsEditor, renderQuickActions } from "./quickActions";
 import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
 import { diagnoseDialog } from "./diagnose";
+import { autoSyncEnabled, setAutoSyncEnabled, setWebappUrl, webappUrl } from "./configExchange";
+import { exportConfig, importConfig } from "./configExchangeTool";
 
 function tapOptions(): [string, string][] {
   return [
@@ -482,6 +484,27 @@ export function settingsDialog() {
     })
     .catch(() => {});
 
+  // Config exchange with the mobile webapp (same controls as the session list's view menu);
+  // URL and toggle live in localStorage (configExchange.ts), not in state.config
+  const webappUrlInput = h("input", {
+    type: "url",
+    value: webappUrl(),
+    placeholder: "http://192.168.1.20:8787",
+  }) as HTMLInputElement;
+  // send/import/auto-sync use the field's current value right away, even before Save
+  const applyWebappUrl = () => setWebappUrl(webappUrlInput.value);
+  const webappSync = h("input", {
+    type: "checkbox",
+    checked: autoSyncEnabled(),
+    style: "width:auto",
+  }) as HTMLInputElement;
+  // like the menu toggle: persists at once, turning it on sends once immediately (with the usual feedback)
+  webappSync.addEventListener("change", () => {
+    applyWebappUrl();
+    setAutoSyncEnabled(webappSync.checked);
+    if (webappSync.checked) void exportConfig();
+  });
+
   const version = h("p", { class: "app-version" }, "PiBar");
   getVersion()
     .then((v) => (version.textContent = `PiBar ${v}`))
@@ -552,6 +575,7 @@ export function settingsDialog() {
     state.config.ui.notifyDone = notifyDone.checked;
     state.config.ui.background = background.checked;
     state.config.ui.subagentMode = subagentMode.value === "parallel" ? "parallel" : "sequential";
+    setWebappUrl(webappUrlInput.value);
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -752,6 +776,32 @@ export function settingsDialog() {
   section("Voice", voice.el);
   section("Chat colours", colors.el);
   section("Session colours", sessColors.el);
+
+  section(
+    "Webapp",
+    h("div", { class: "row" }, h("label", {}, t("Webapp URL")), webappUrlInput),
+    h("p", { class: "hint" }, t("Address of the mobile webapp; empty = config exchange off.")),
+    h(
+      "div",
+      { class: "row" },
+      h("label", {}, t("Auto-sync to webapp")),
+      h("label", { class: "check" }, webappSync, ` ${t("Send the config automatically after every change")}`),
+    ),
+    h(
+      "div",
+      { class: "preset-actions" },
+      h(
+        "button",
+        { class: "ghost", onclick: () => (applyWebappUrl(), void exportConfig()) },
+        t("Send config to webapp"),
+      ),
+      h(
+        "button",
+        { class: "ghost", onclick: () => (applyWebappUrl(), void importConfig(renderHosts)) },
+        t("Import config from webapp"),
+      ),
+    ),
+  );
 
   section(
     "Hosts",

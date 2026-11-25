@@ -3,10 +3,12 @@
 import { errMsg, h, openModal, toast } from "../shared/dom";
 import { t } from "../shared/i18n";
 import {
+  autoSyncEnabled,
   fetchFromWebapp,
   importSessionConfig,
   loadConfig,
   sendToWebapp,
+  setAutoSyncEnabled,
   setWebappUrl,
   webappUrl,
 } from "./configExchange";
@@ -37,6 +39,13 @@ export function webappUrlDialog() {
     ],
   );
   input.focus();
+}
+
+/** Flip the auto-sync toggle; enabling sends the config once right away (with the usual manual feedback) */
+export function toggleAutoSync() {
+  const on = !autoSyncEnabled();
+  setAutoSyncEnabled(on);
+  if (on) void exportConfig();
 }
 
 /** Send sessions, projects and groups to the webapp */

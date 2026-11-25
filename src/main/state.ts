@@ -3,6 +3,7 @@ import { api, AppConfig, SearchHit, SessionInfo } from "../shared/api";
 import { errMsg, toast } from "../shared/dom";
 import { t } from "../shared/i18n";
 import type { SessionTab } from "./sessionTab";
+import { notifyConfigSaved } from "./configSync";
 
 export interface HostStatus {
   state: "ok" | "err" | "busy";
@@ -38,6 +39,9 @@ export const state = {
 export async function saveConfig() {
   try {
     await api.saveConfig(state.config);
+    // Listeners (e.g. the webapp auto-sync in configExchange.ts) follow every save; the registry in
+    // configSync.ts keeps state.ts free of a circular import back to configExchange.ts.
+    notifyConfigSaved();
   } catch (e) {
     toast(`${t("Settings not saved")}: ${errMsg(e)}`, "err");
   }

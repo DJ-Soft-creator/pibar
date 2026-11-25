@@ -1,7 +1,10 @@
-// Config exchange with the mobile webapp (webapp/): sends sessions, projects and groups there and imports them
-// back. Data comes from state.config (no file access in the WebView); the webapp URL lives in localStorage.
+// Config exchange with the mobile webapp (webapp/): sends sessions, projects, groups and hosts there and
+// imports sessions/projects/groups back (hosts stay managed in PiBar). Data comes from state.config (no file
+// access in the WebView); the webapp URL and the auto-sync toggle live in localStorage. Auto-sync: a silent,
+// debounced send after every config save, registered on the listener registry in src/main/configSync.ts.
 // Menu entries: src/main/configExchangeMenu.ts, actions and dialogs: src/main/configExchangeTool.ts.
-import type { SessionGroup } from "../shared/api";
+import type { HostCfg, SessionGroup } from "../shared/api";
+import { onConfigSaved, shouldAutoSync, trailingDebounce } from "./configSync";
 import { saveConfig, state } from "./state";
 
 export interface SessionConfig {
@@ -21,14 +24,28 @@ export interface ProjectConfig {
   dir: string;
 }
 
+/** A host as the webapp sees it: only id, name, kind and a display address (no commands or folders) */
+export interface HostInfo {
+  id: string;
+  name: string;
+  kind: "local" | "ssh";
+  /** ssh: "[user@]target[:port]"; local: "" */
+  address: string;
+}
+
 export interface ConfigPayload {
   sessions: SessionConfig[];
   projects: ProjectConfig[];
   groups: SessionGroup[];
+  /** Optional: older webapps and payloads without hosts stay valid */
+  hosts?: HostInfo[];
   meta: { generatedAt: string };
 }
 
 const URL_KEY = "pibar.webappUrl";
+const AUTO_SYNC_KEY = "pibar.webappAutoSync";
+/** Quiet period after the last config save before the auto-sync sends */
+const AUTO_SYNC_DELAY = 2000;
 
 /** Base URL of the webapp, e.g. "http://192.168.1.20:8787"; "" = not configured */
 export function webappUrl(): string {
@@ -42,7 +59,25 @@ export function setWebappUrl(url: string) {
   else localStorage.removeItem(URL_KEY);
 }
 
-/** Sessions, projects and groups of the current config as an exchange payload */
+/** Whether the config is sent to the webapp automatically after every save */
+export function autoSyncEnabled(): boolean {
+  return localStorage.getItem(AUTO_SYNC_KEY) === "1";
+}
+
+/** Save the auto-sync toggle (off removes the key) */
+export function setAutoSyncEnabled(on: boolean) {
+  if (on) localStorage.setItem(AUTO_SYNC_KEY, "1");
+  else localStorage.removeItem(AUTO_SYNC_KEY);
+}
+
+/** Map a host of the settings to the exchange shape: ssh gets "[user@]target[:port]", local an empty address */
+export function hostInfo(h: Pick<HostCfg, "id" | "name" | "kind" | "sshTarget" | "sshUser" | "sshPort">): HostInfo {
+  const address =
+    h.kind === "ssh" ? (h.sshUser ? `${h.sshUser}@` : "") + h.sshTarget + (h.sshPort ? `:${h.sshPort}` : "") : "";
+  return { id: h.id, name: h.name, kind: h.kind, address };
+}
+
+/** Sessions, projects, groups and hosts of the current config as an exchange payload */
 export function loadConfig(): ConfigPayload {
   const cfg = state.config;
   const sessions: SessionConfig[] = Object.entries(cfg.sessionMeta).map(([id, m]) => ({
@@ -66,7 +101,24 @@ export function loadConfig(): ConfigPayload {
     hostId: p.hostId,
     dir: p.dir,
   }));
-  return { sessions, projects, groups: cfg.groups, meta: { generatedAt: new Date().toISOString() } };
+  const hosts: HostInfo[] = cfg.hosts.map(hostInfo);
+  return { sessions, projects, groups: cfg.groups, hosts, meta: { generatedAt: new Date().toISOString() } };
+}
+
+/**
+ * Register the auto-sync (called once from index.ts): every config save resets a trailing-edge debounce;
+ * after AUTO_SYNC_DELAY of quiet the payload is sent silently (failures only reach the console, no toasts).
+ * The decision is checked again when the timer fires, so a toggle/URL change during the wait stops the send.
+ */
+export function wireConfigAutoSync() {
+  const send = trailingDebounce(() => {
+    if (!shouldAutoSync(autoSyncEnabled(), webappUrl())) return;
+    sendToWebapp(loadConfig()).catch((e) => console.warn("Webapp auto-sync failed:", e));
+  }, AUTO_SYNC_DELAY);
+  onConfigSaved(() => {
+    if (shouldAutoSync(autoSyncEnabled(), webappUrl())) send.trigger();
+    else send.cancel();
+  });
 }
 
 /** POST the payload to the webapp; throws when no URL is set or the webapp refuses */
@@ -96,7 +148,12 @@ export async function fetchFromWebapp(): Promise<ConfigPayload> {
 function isPayload(data: unknown): data is ConfigPayload {
   if (typeof data !== "object" || data === null) return false;
   const p = data as Partial<ConfigPayload>;
-  return Array.isArray(p.sessions) && Array.isArray(p.projects) && Array.isArray(p.groups);
+  return (
+    Array.isArray(p.sessions) &&
+    Array.isArray(p.projects) &&
+    Array.isArray(p.groups) &&
+    (p.hosts === undefined || Array.isArray(p.hosts))
+  );
 }
 
 /**

@@ -29,7 +29,7 @@ printed **once** to the server log — copy it from there.
 | Variable         | Default      | Meaning                                        |
 | ---------------- | ------------ | ---------------------------------------------- |
 | `PORT`           | `8787`       | HTTP + WebSocket port                          |
-| `DATA_DIR`       | `./data`     | users/tokens/config JSON files (atomic writes) |
+| `DATA_DIR`       | `./data`     | users/tokens/config/hosts JSON files (atomic writes) |
 | `ADMIN_USERNAME` | `admin`      | bootstrap admin name (first start only)        |
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `CLIENT_DIR`     | `./src/client` | static client directory                      |
@@ -38,8 +38,15 @@ printed **once** to the server log — copy it from there.
 
 - `POST /api/login`, `POST /api/logout` — Bearer tokens (scrypt password hashes).
 - `/api/users*` — admin only (list/create/patch/delete).
+- `GET /api/hosts` — any authenticated user; hosts sorted by name. `POST/PATCH/DELETE
+  /api/hosts*` — admin only, manual hosts. Hosts synced from PiBar (`source: "pibar"`)
+  are read-only here (409); they are managed in the desktop app. `user.host` is a plain
+  string (normally a host id); unknown/legacy values keep working.
 - `POST/GET /api/config`, `GET /api/config/status` — **no auth**: the PiBar desktop
-  (`src/main/configExchange.ts`) sends no token. Run this only on the LAN or behind
+  (`src/main/configExchange.ts`) sends no token. The payload may include an optional
+  `hosts` array (`{id, name, kind: "local"|"ssh", address}`); entries are upserted into
+  `hosts.json` with `source: "pibar"` (manual hosts untouched, nothing deleted).
+  Run this only on the LAN or behind
   a reverse proxy that restricts access; do not expose `/api/config` publicly.
 - `GET /api/sessions` — auth required, returns the stored config's sessions.
 - `GET /ws` — WebSocket; broadcasts `{"type":"config/updated","receivedAt":…}` on
