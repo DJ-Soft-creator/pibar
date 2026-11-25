@@ -1,0 +1,19 @@
+services:
+  webapp:
+    build: .
+    ports:
+      - "8787:8787"
+    # Compose >= 2.24: works without a .env file.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Persistence: the named volume is mounted at /data. `environment` beats
+      # `env_file`, so a DATA_DIR in .env can never bypass the volume.
+      DATA_DIR: /data
+    volumes:
+      - webapp-data:/data
+    restart: unless-stopped
+
+volumes:
+  webapp-data:

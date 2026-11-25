@@ -58,6 +58,9 @@ config.local.json
 sessions/
 notes/
 
+# Laufzeitdaten der Webapp (Users, Tokens, Config) — nie committen
+webapp/data/
+
 # ---------- KI-Assistenten (Anweisungen, Speicher, Einstellungen) ----------
 CLAUDE.md
 CLAUDE.local.md

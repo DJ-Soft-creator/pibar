@@ -2,107 +2,215 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Pibar Webapp</title>
-  <link rel="stylesheet" href="/style.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f5f7">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0f1115">
+  <title>PiBar</title>
+  <link rel="icon" href="data:,">
+  <script>
+    // Theme vor dem ersten Paint setzen (System / Hell / Dunkel aus localStorage).
+    (function () {
+      try {
+        var t = localStorage.getItem("pibar.theme");
+        if (t !== "light" && t !== "dark") {
+          t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) { /* ignorieren */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <!-- Login Screen -->
-  <div id="login-screen" class="screen">
-    <div class="card">
-      <h1>Pibar Webapp</h1>
-      <p>Anmelden</p>
-      <input type="text" id="username" placeholder="Benutzername" autofocus>
-      <input type="password" id="password" placeholder="Passwort">
-      <button id="login-btn">Anmelden</button>
-      <p id="login-error" class="error"></p>
-    </div>
-  </div>
 
-  <!-- Main App -->
-  <div id="app-screen" class="screen hidden">
+  <!-- ======================= Login ======================= -->
+  <section id="screen-login" class="screen login-screen" hidden>
+    <form id="login-form" class="login-card" novalidate>
+      <div class="login-logo" aria-hidden="true">π</div>
+      <h1 class="login-title">PiBar</h1>
+      <p class="login-sub">Melde dich an, um deine Sessions zu sehen.</p>
+      <label class="field">
+        <span class="field-label">Benutzername</span>
+        <input id="login-username" type="text" autocomplete="username"
+               autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Passwort</span>
+        <input id="login-password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="login-error" class="error-text" role="alert" hidden></p>
+      <button id="login-submit" class="btn btn-primary btn-block" type="submit">Anmelden</button>
+    </form>
+  </section>
+
+  <!-- ======================= App ======================= -->
+  <section id="screen-app" class="screen app-screen" hidden>
     <header class="topbar">
-      <h2>Pibar</h2>
-      <div class="topbar-actions">
-        <button id="view-btn" title="View-Menü">📋</button>
-        <button id="config-btn" title="Config Exchange">⚙️</button>
-        <button id="logout-btn" class="danger" title="Abmelden">✕</button>
+      <h1 class="topbar-title">PiBar</h1>
+      <div id="sync-status" class="sync-status">
+        <span id="sync-dot" class="sync-dot is-none" aria-hidden="true"></span>
+        <span id="sync-text">…</span>
+      </div>
+      <div class="menu-wrap">
+        <button id="menu-btn" class="icon-btn avatar" type="button"
+                aria-haspopup="true" aria-expanded="false" aria-label="Benutzermenü">?</button>
+        <div id="user-menu" class="menu" hidden>
+          <div class="menu-head">
+            <span id="menu-username" class="menu-username"></span>
+            <span id="menu-role" class="badge"></span>
+          </div>
+          <button id="menu-theme" class="menu-item" type="button">Design: System</button>
+          <button id="menu-admin" class="menu-item" type="button" hidden>Benutzerverwaltung</button>
+          <button id="menu-logout" class="menu-item danger" type="button">Abmelden</button>
+        </div>
       </div>
     </header>
 
-    <main class="content">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <h3>Projekte & Sessions</h3>
-        </div>
-        <ul id="session-list" class="session-list"></ul>
-        <div class="sidebar-footer">
-          <button id="new-session-btn">Neue Session</button>
-        </div>
-      </aside>
-
-      <!-- Content -->
-      <section class="content-area">
-        <!-- Chat -->
-        <div id="chat-panel" class="panel">
-          <div id="chat-header">
-            <h3>Chat</h3>
-            <div class="view-tabs">
-              <button class="view-tab active" data-view="natural">Natural</button>
-              <button class="view-tab" data-view="technical">Technical</button>
-              <button class="view-tab" data-view="active">Nur aktive</button>
-            </div>
-          </div>
-          <div id="chat-messages" class="messages"></div>
-          <div id="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Nachricht... (Strg+Enter senden)">
-            <button id="send-btn">Senden</button>
-          </div>
-        </div>
-
-        <!-- View -->
-        <div id="view-panel" class="panel hidden">
-          <h3>View</h3>
-          <div class="view-options">
-            <button class="view-option active" data-view="natural">Natural</button>
-            <button class="view-option" data-view="technical">Technical</button>
-            <button class="view-option" data-view="active">Nur aktive</button>
-          </div>
-          <div id="view-content"></div>
-        </div>
-
-        <!-- Project Editor -->
-        <div id="project-editor" class="panel hidden">
-          <h3>Projekt-Editor</h3>
-          <textarea id="project-text" placeholder="Projektinhalt..."></textarea>
-          <button id="save-project-btn">Speichern</button>
-        </div>
-
-        <!-- MD Editor -->
-        <div id="md-editor" class="panel hidden">
-          <h3>Markdown-Editor</h3>
-          <textarea id="md-text" placeholder="Markdown-Inhalt..."></textarea>
-          <div class="editor-actions">
-            <button id="md-preview-btn">Vorschau</button>
-            <button id="md-download-btn">Download</button>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <!-- Config Exchange Modal -->
-  <div id="config-modal" class="modal hidden">
-    <div class="modal-content">
-      <h3>Config Exchange</h3>
-      <p>Exportiere die Session-Konfiguration an den PiBar-Host:</p>
-      <button id="config-export-btn">Exportieren</button>
-      <button id="config-import-btn" class="danger">Importieren</button>
-      <div id="config-status"></div>
+    <div id="offline-banner" class="banner" hidden>
+      Server nicht erreichbar – bitte Netzwerk prüfen.
     </div>
-  </div>
 
-  <script type="module" src="/client/app.js"></script>
+    <main class="content">
+
+      <!-- ---------- Sessions ---------- -->
+      <div id="view-sessions" class="view">
+        <div class="filterbar">
+          <input id="search-input" class="search-input" type="search"
+                 placeholder="Sessions durchsuchen …" aria-label="Sessions durchsuchen"
+                 autocapitalize="none" autocorrect="off" spellcheck="false">
+          <div id="color-filters" class="chip-row" role="group" aria-label="Nach Farbe filtern"></div>
+          <div class="filter-row">
+            <select id="group-filter" class="select" aria-label="Nach Gruppe filtern">
+              <option value="all">Alle Gruppen</option>
+            </select>
+            <button id="pinned-filter" class="toggle-chip" type="button" aria-pressed="false">
+              📌 Nur angepinnt
+            </button>
+          </div>
+        </div>
+        <div id="session-list" class="list"></div>
+        <div id="sessions-empty" class="empty" hidden></div>
+      </div>
+
+      <!-- ---------- Projekte ---------- -->
+      <div id="view-projects" class="view" hidden>
+        <h2 class="section-title">Projekte</h2>
+        <div id="project-list" class="list card-list"></div>
+        <div id="projects-empty" class="empty" hidden></div>
+      </div>
+
+      <!-- ---------- Verwaltung (nur Admin) ---------- -->
+      <div id="view-admin" class="view" hidden>
+        <section class="card">
+          <h2 class="card-title">Neuen Benutzer anlegen</h2>
+          <form id="user-create-form" novalidate>
+            <label class="field">
+              <span class="field-label">Benutzername</span>
+              <input id="create-username" type="text" autocomplete="off"
+                     autocapitalize="none" autocorrect="off" spellcheck="false" required>
+            </label>
+            <label class="field">
+              <span class="field-label">Passwort</span>
+              <input id="create-password" type="password" autocomplete="new-password" required>
+            </label>
+            <div class="field-pair">
+              <label class="field">
+                <span class="field-label">Rolle</span>
+                <select id="create-role" class="select">
+                  <option value="user">Benutzer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </label>
+              <label class="field">
+                <span class="field-label">Host (optional)</span>
+                <input id="create-host" type="text" autocomplete="off"
+                       autocapitalize="none" autocorrect="off" spellcheck="false">
+              </label>
+            </div>
+            <button id="create-submit" class="btn btn-primary btn-block" type="submit">Benutzer anlegen</button>
+          </form>
+        </section>
+        <h2 class="section-title">Benutzer</h2>
+        <div id="user-list" class="list card-list"></div>
+      </div>
+
+    </main>
+
+    <nav class="tabbar" role="tablist" aria-label="Bereiche">
+      <button id="tab-sessions" class="tab active" type="button" role="tab"
+              data-tab="sessions" aria-selected="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M4 6h16M4 12h16M4 18h10"/>
+        </svg>
+        <span>Sessions</span>
+      </button>
+      <button id="tab-projects" class="tab" type="button" role="tab"
+              data-tab="projects" aria-selected="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+        </svg>
+        <span>Projekte</span>
+      </button>
+      <button id="tab-admin" class="tab" type="button" role="tab"
+              data-tab="admin" aria-selected="false" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none"
+             stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z"/>
+        </svg>
+        <span>Verwaltung</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ======================= Sheets ======================= -->
+  <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+
+  <section id="detail-sheet" class="sheet" role="dialog" aria-modal="true"
+           aria-labelledby="detail-title" hidden>
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="detail-title" class="sheet-title"></h2>
+      <button id="detail-close" class="icon-btn" type="button" aria-label="Schließen">✕</button>
+    </header>
+    <div id="detail-body" class="sheet-body"></div>
+  </section>
+
+  <section id="user-sheet" class="sheet" role="dialog" aria-modal="true"
+           aria-labelledby="user-sheet-title" hidden>
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="user-sheet-title" class="sheet-title">Benutzer bearbeiten</h2>
+      <button id="user-edit-close" class="icon-btn" type="button" aria-label="Schließen">✕</button>
+    </header>
+    <div class="sheet-body">
+      <form id="user-edit-form" novalidate>
+        <label class="field">
+          <span class="field-label">Host</span>
+          <input id="edit-host" type="text" autocomplete="off"
+                 autocapitalize="none" autocorrect="off" spellcheck="false">
+        </label>
+        <label class="field">
+          <span class="field-label">Rolle</span>
+          <select id="edit-role" class="select">
+            <option value="user">Benutzer</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="field-label">Neues Passwort</span>
+          <input id="edit-password" type="password" autocomplete="new-password"
+                 placeholder="Leer lassen, um es nicht zu ändern">
+        </label>
+        <button id="user-edit-submit" class="btn btn-primary btn-block" type="submit">Speichern</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

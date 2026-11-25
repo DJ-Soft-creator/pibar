@@ -47,6 +47,7 @@ flowchart LR
 | `src-tauri/capabilities/` | Tauri permissions of the windows |
 | `src-tauri/extensions/` | Pi extensions PiBar installs on a host (`pibar-temperature.ts`, see [`temp.rs`](../src-tauri/src/temp.rs)) |
 | `dev/` | Development helpers, e.g. a fake Pi without an API key |
+| `webapp/` | Mobile webapp (iPhone): config exchange server + client, Docker deployment (own `package.json`, not part of the Tauri build) |
 | `scripts/` | Check scripts for CI |
 | `docs/` | This codemap and architecture decisions ([`adr/`](adr/)) |
 
@@ -170,6 +171,29 @@ flowchart LR
 | [`scripts/check-codemap.mjs`](../scripts/check-codemap.mjs) | Checks all code references in the docs |
 | [`scripts/check-version.mjs`](../scripts/check-version.mjs) | Same version in package files, Tauri, Cargo and both READMEs |
 | [`scripts/install-mac.sh`](../scripts/install-mac.sh) | `npm run app:install`: build the release app and install it to `/Applications` |
+
+### Webapp (`webapp/`)
+
+Mobile-optimised webapp for the config exchange with PiBar ([`configExchange.ts`](../src/main/configExchange.ts)). Own Node package (`webapp/package.json`): Express + ws, strict TypeScript, tests via `node:test`/tsx (`cd webapp && npm test`). The desktop side POSTs/GETs `/api/config` without auth (CORS allow-list: Tauri WebView origins incl. the Vite dev origin); everything else needs a Bearer token.
+
+| File | Purpose |
+| --- | --- |
+| [`webapp/server.ts`](../webapp/server.ts) | Entry: real `http.createServer` + `WebSocketServer` on `/ws`, config-update broadcast, ping/pong heartbeat, PORT validation |
+| [`webapp/src/server/app.ts`](../webapp/src/server/app.ts) | Express routes: login/logout (rate-limited), user management (admin only, last-admin guard), config sync (no auth), sessions, static client + SPA fallback, CORS allow-list |
+| [`webapp/src/server/auth.ts`](../webapp/src/server/auth.ts) | Async scrypt hashing with per-user salt, `timingSafeEqual`, admin bootstrap (env or random password printed once) |
+| [`webapp/src/server/store.ts`](../webapp/src/server/store.ts) | JSON persistence under `DATA_DIR` (atomic tmp+rename, users/tokens mode 0600), token records with 30-day TTL + pruning, validated reload |
+| [`webapp/src/server/rateLimit.ts`](../webapp/src/server/rateLimit.ts) | Dependency-free sliding-window login limiter per IP (10/min → 429) |
+| [`webapp/src/server/validation.ts`](../webapp/src/server/validation.ts) | Runtime shape checks mirroring `ConfigPayload` from `configExchange.ts` at every JSON boundary |
+| [`webapp/src/server/helpers.ts`](../webapp/src/server/helpers.ts) | `requireAuth` (401) / `requireAdmin` (403) middleware |
+| [`webapp/src/server/types.ts`](../webapp/src/server/types.ts) | `ConfigPayload`, `PublicUser`, `Role` — contract with the desktop side |
+| [`webapp/src/client/index.html`](../webapp/src/client/index.html) | Mobile-first shell: login, sessions/projects/admin views, bottom sheets, pre-paint theme script, safe-area viewport |
+| [`webapp/src/client/app.js`](../webapp/src/client/app.js) | UI logic: session list (pinned first, collapsible groups, colour chips), filters, detail sheet, admin CRUD, theme toggle, WS live refresh (full refresh on reconnect) |
+| [`webapp/src/client/api.js`](../webapp/src/client/api.js) | Fetch wrapper (Bearer, global 401→login), token persistence, WS with exponential backoff |
+| [`webapp/src/client/util.js`](../webapp/src/client/util.js) | DOM builder `el()` (XSS-safe, no `innerHTML` with data), colour names, relative time, session-id parsing |
+| [`webapp/src/client/style.css`](../webapp/src/client/style.css) | Light/dark tokens, colour name→hex map, safe-area insets, ≥44px touch targets, no overflow at 390px |
+| [`webapp/test/server.test.ts`](../webapp/test/server.test.ts) | 16 tests: auth, bootstrap, role enforcement, last-admin guard, token revocation/TTL, config roundtrip + validation, persistence, WS, rate limit |
+| [`webapp/Dockerfile`](../webapp/Dockerfile) | Multi-stage node:20-alpine, tsc build, prod deps only, non-root, `VOLUME /data` |
+| [`webapp/docker-compose.yml`](../webapp/docker-compose.yml) | Port 8787, `DATA_DIR=/data` (environment beats env_file), optional `.env`, restart unless-stopped; HTTPS terminates at Nginx Proxy Manager |
 
 ## Flows
 
