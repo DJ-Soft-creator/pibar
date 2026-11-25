@@ -5,7 +5,8 @@ services:
       context: ..
       dockerfile: webapp/Dockerfile
     ports:
-      - "8787:8787"
+      # host port from .env (HOST_PORT), inside the container always 8787
+      - "${HOST_PORT:-8787}:8787"
     # Compose >= 2.24: works without a .env file.
     env_file:
       - path: .env

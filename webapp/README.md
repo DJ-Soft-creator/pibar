@@ -75,6 +75,8 @@ printed **once** to the server log — copy it from there.
 docker compose up -d --build   # .env is optional (Compose >= 2.24)
 ```
 
+Port on the Docker host: `HOST_PORT` in `.env` (default 8787).
+
 The build context is the repository root (the client bundles `src/shared/`); only `webapp/` and
 `src/shared/` get into the image (`Dockerfile.dockerignore`).
 
@@ -86,13 +88,19 @@ printed once to `docker compose logs webapp` unless `ADMIN_PASSWORD` is set in `
 ## SSH access to the Pi hosts
 
 The container connects to every host with its own key. Prepare a folder on the Docker host (default
-`webapp/ssh/`, ignored by Git; other place: `SSH_KEY_DIR` in `.env`):
+`webapp/ssh/`, ignored by Git; other place: `SSH_KEY_DIR` in `.env`) **before the first `docker compose up`** —
+otherwise Docker creates it owned by root (fix: `sudo chown -R "$USER" ssh`). Run the commands as your normal
+user, not with sudo (`sudo cmd >> file` still writes the file as you):
 
 ```sh
 mkdir -p ssh && chmod 700 ssh
 ssh-keygen -t ed25519 -N "" -C pibar-webapp -f ssh/id_ed25519
 # on every Pi host: append ssh/id_ed25519.pub to ~/.ssh/authorized_keys
-ssh-keyscan -H <pi-host> >> ssh/known_hosts      # once per host; check the fingerprint
+ssh-copy-id -i ssh/id_ed25519.pub <user>@<pi-host> # or append the .pub line to ~/.ssh/authorized_keys there
+ssh-keyscan -H <pi-host> >> ssh/known_hosts      # host only, no user@; once per host; check the fingerprint
+# test with the container's settings:
+ssh -i ssh/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=ssh/known_hosts \
+    -o StrictHostKeyChecking=yes <user>@<pi-host> 'bash -lc "pi --version"'
 ```
 
 Optional `ssh/config` (aliases, jump hosts); without it the container ignores any ssh config.
