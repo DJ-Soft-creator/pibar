@@ -37,6 +37,7 @@ printed **once** to the server log — copy it from there.
 | `ADMIN_USERNAME` | `admin`      | bootstrap admin name (first start only)        |
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `SSH_DIR`        | *(own ~/.ssh)* | folder with the SSH key, `known_hosts`, optional `config` |
+| `DEV_LOCAL_HOME` | *(unset)*    | **development only**: host commands run with bash on this machine against this `$HOME` instead of SSH (e.g. with `node ../dev/fake-pi.mjs` as the host's Pi command) |
 | `COOKIE_SECURE`  | `auto`       | `Secure` on the session cookie: `auto` (HTTPS, also via the proxy), `always`, `never` |
 | `CLIENT_DIR`     | `./dist/client` | static client directory (Vite build)        |
 

@@ -41,7 +41,7 @@
 
 | Task | Status |
 |---|---|
-| A1–A6, B1, C1 | ✅ erledigt (Branch `webapp-rebuild`) |
+| A1–A6, B1–B3, C1–C3, C6 | ✅ erledigt (Branch `webapp-rebuild`) |
 | alle anderen | offen |
 
 ## Wellen (Reihenfolge für Subagents)
@@ -102,12 +102,12 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Was:** SSH-Aufruf mit Login-Shell auf dem Host, Quoting, stdin, Timeouts, `piCommand` und `useHerdr` beachten.
 - **Fertig wenn:** Quoting-Tests identisch zu Rust; `runShell` und `spawnPi` laufen gegen den Fake (A4).
 
-### B2 – Hosts verwalten + Verbindungstest
+### B2 – Hosts verwalten + Verbindungstest ✅
 - **Referenz:** `config.rs` (`HostCfg`), `lib.rs::test_host`.
 - **Was:** Host-CRUD (Admin) mit Feldern aus `HostCfg` (ohne `kind: local`), `test_host`-Command.
 - **Fertig wenn:** Admin legt Host an, „Verbindung testen“ liefert Pi-Version oder verständlichen Fehler.
 
-### B3 – Sessions auflisten, löschen, Outlines
+### B3 – Sessions auflisten, löschen, Outlines ✅
 - **Referenz:** `sessions.rs` (`list`, `delete`, `outlines`, `parse_outlines`, `is_session_file`).
 - **Commands:** `list_sessions`, `delete_sessions`, `session_outlines`.
 - **Fertig wenn:** Gleiche Ausgabe wie Desktop für denselben Host (Titel, Name, cwd, parent, modified).
@@ -175,11 +175,11 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Folge für alle B-Tasks:** Ein Command ist im Client sofort über `api.<funktion>()` aus `src/shared/api.ts` nutzbar, sobald der Server ihn mit dem Tauri-Namen registriert. Nicht portierte Commands antworten „Unknown command: …“.
 - **Achtung bei Downloads/Uploads:** `download_file` öffnet am Desktop einen Speichern-Dialog – im Web liefert der Server die Datei, der Client löst den Browser-Download aus (Task B6/G4).
 
-### C2 – App-Shell mobil
+### C2 – App-Shell mobil ✅
 - **Was:** Login-Screen, Navigation (unten: Sessions · Chat · Dateien · Mehr), Safe Areas (Notch/Home-Bar), Dark/Light/System, Textgröße (`src/shared/textScale.ts`), i18n (`src/shared/i18n.ts`), Toasts, Bottom-Sheets, Offline-/Verbindungsbanner, „Zum Home-Bildschirm“ (Manifest + Icons, PWA ohne Offline-Cache).
 - **Fertig wenn:** Auf iPhone (Safari) sauber bedienbar, Tasten ≥ 44 px, kein horizontales Scrollen.
 
-### C3 – Client-State & Routing
+### C3 – Client-State & Routing ✅
 - **Was:** Zentraler State (Hosts, Sessions, offene Session, Config, Benutzer), Hash-Routing (`#/s/<host>/<session>`), damit Zurück-Taste und Links funktionieren.
 - **Fertig wenn:** Reload auf einer Session-URL öffnet dieselbe Session.
 
@@ -191,7 +191,7 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Referenz:** `src/shared/piErrors.ts`, `src/main/diagnose.ts`.
 - **Fertig wenn:** Pi-Fehler erscheinen als Box im Chat mit „Diagnose“-Button (B12).
 
-### C6 – Benutzer-Einstellungen synchronisieren
+### C6 – Benutzer-Einstellungen synchronisieren ✅
 - **Was:** UI-Einstellungen pro Benutzer serverseitig speichern (A5), damit sie auf allen Geräten gleich sind.
 - **Fertig wenn:** Theme auf Handy ändern → am Tablet nach Reload gleich.
 

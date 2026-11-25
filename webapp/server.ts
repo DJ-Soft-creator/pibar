@@ -7,7 +7,7 @@ import { createApp } from "./src/server/app.js";
 import { bootstrapAdmin } from "./src/server/auth.js";
 import { createRegistry } from "./src/server/cmd/index.js";
 import { canUseHost } from "./src/server/helpers.js";
-import { HostExec, SshRunner } from "./src/server/host/hostexec.js";
+import { HostExec, LocalRunner, SshRunner } from "./src/server/host/hostexec.js";
 import { toTarget } from "./src/server/hosts.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
@@ -17,6 +17,9 @@ dotenv.config();
 const dataDir = resolve(process.env.DATA_DIR ?? "./data");
 const clientDir = resolve(process.env.CLIENT_DIR ?? "./dist/client");
 const sshDir = process.env.SSH_DIR?.trim() ? resolve(process.env.SSH_DIR.trim()) : null;
+// Development only: run host commands with bash on this machine against this $HOME instead of SSH (with
+// dev/fake-pi.mjs as the host's Pi command there is no need for a real Pi host). Never set it in production.
+const devLocalHome = process.env.DEV_LOCAL_HOME?.trim() ? resolve(process.env.DEV_LOCAL_HOME.trim()) : null;
 const rawSecure = process.env.COOKIE_SECURE ?? "auto";
 const cookieSecure = rawSecure === "always" || rawSecure === "never" ? rawSecure : "auto";
 
@@ -42,7 +45,7 @@ const app = createApp(store, {
   cookieSecure,
   commands: {
     registry: createRegistry(),
-    exec: new HostExec(new SshRunner({ dir: sshDir })),
+    exec: new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new SshRunner({ dir: sshDir })),
     resolveHost: (id) => {
       const h = store.hosts.get(id);
       return h ? toTarget(h) : null;
@@ -54,6 +57,8 @@ const app = createApp(store, {
 
 const server = createServer(app);
 hub = createSocketHub(server, store);
+
+if (devLocalHome) console.warn(`[pibar-webapp] DEV_LOCAL_HOME set: host commands run locally in ${devLocalHome} (no SSH)`);
 
 server.listen(port, () => {
   console.log(`[pibar-webapp] Listening on http://localhost:${port} (data: ${dataDir})`);
