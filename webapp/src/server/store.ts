@@ -2,8 +2,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { ConfigPayload, HostInfo, HostRecord, Role } from "./types.js";
-import { isConfigPayload, isHostRecord, isRecord, isRole, isString } from "./validation.js";
+import { parseHostRecord, type HostRecord } from "./hosts.js";
+import type { ConfigPayload, Role } from "./types.js";
+import { isConfigPayload, isRecord, isRole, isString } from "./validation.js";
 
 export interface UserRecord {
   id: string;
@@ -149,10 +150,15 @@ export class Store {
     }
     const hosts = readJson(this.hostsFile);
     if (hosts !== null) {
-      if (!Array.isArray(hosts) || !hosts.every(isHostRecord)) {
-        throw new Error(`Corrupt hosts file: ${this.hostsFile}`);
+      if (!Array.isArray(hosts)) throw new Error(`Corrupt hosts file: ${this.hostsFile}`);
+      let migrated = false;
+      for (const raw of hosts) {
+        const parsed = parseHostRecord(raw);
+        if (!parsed) throw new Error(`Corrupt hosts file: ${this.hostsFile}`);
+        this.hosts.set(parsed.host.id, parsed.host);
+        migrated ||= parsed.migrated;
       }
-      for (const h of hosts) this.hosts.set(h.id, h);
+      if (migrated) this.persistHosts();
     }
   }
 
@@ -236,24 +242,24 @@ export class Store {
     return undefined;
   }
 
-  /** Upsert synced hosts by id. Manual hosts are never touched, nothing is deleted. */
-  upsertPibarHosts(hosts: HostInfo[]): void {
-    for (const h of hosts) {
-      if (this.hosts.get(h.id)?.source === "manual") continue;
-      this.hosts.set(h.id, { ...h, source: "pibar" });
-    }
-    this.persistHosts();
-  }
-
   saveHost(host: HostRecord): void {
     this.hosts.set(host.id, host);
     this.persistHosts();
   }
 
-  /** Delete a host. Users referencing it keep the string (legacy) — no cascade. */
+  /** Delete a host and take it out of every user's host list. */
   deleteHost(id: string): void {
     this.hosts.delete(id);
     this.persistHosts();
+    // nobody keeps a right on a host that is gone
+    let changed = false;
+    for (const u of this.users.values()) {
+      if (u.hostIds.includes(id)) {
+        u.hostIds = u.hostIds.filter((h) => h !== id);
+        changed = true;
+      }
+    }
+    if (changed) this.persistUsers();
   }
 
   private persistHosts(): void {

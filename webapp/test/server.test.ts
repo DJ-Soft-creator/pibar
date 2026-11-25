@@ -13,7 +13,8 @@ import { bootstrapAdmin } from "../src/server/auth.js";
 import { createLoginRateLimiter } from "../src/server/rateLimit.js";
 import { Store, TOKEN_TTL_MS } from "../src/server/store.js";
 import { createSocketHub, type SocketHub } from "../src/server/ws.js";
-import type { ConfigPayload, HostInfo, HostRecord } from "../src/server/types.js";
+import type { HostRecord } from "../src/server/hosts.js";
+import type { ConfigPayload, HostInfo } from "../src/server/types.js";
 
 const ADMIN = { username: "admin", password: "admin-pass-123" };
 
@@ -369,136 +370,6 @@ test("GET /api/sessions requires auth and mirrors the config", async (t) => {
 
 // ------------------------------------------------------------ hosts
 
-test("config POST with optional hosts: validation and roundtrip", async (t) => {
-  const ctx = await start(t);
-  // absent hosts stays valid (old PiBar versions)
-  assert.equal((await api(ctx, "POST", "/api/config", samplePayload)).status, 200);
-  assert.deepEqual((await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json, []);
-
-  const withHosts = { ...samplePayload, hosts: sampleHosts };
-  assert.equal((await api(ctx, "POST", "/api/config", withHosts)).status, 200);
-  assert.deepEqual((await api(ctx, "GET", "/api/config")).json, withHosts);
-
-  const list = await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken);
-  assert.equal(list.status, 200);
-  const hosts = list.json as HostRecord[];
-  // sorted by name, source pibar
-  assert.deepEqual(hosts.map((h) => h.name), ["Arbeitsrechner", "Zuhause"]);
-  for (const h of hosts) assert.equal(h.source, "pibar");
-  assert.deepEqual(hosts.find((h) => h.id === "host2"), { ...sampleHosts[1], source: "pibar" });
-
-  // invalid hosts shapes -> 400 and hosts store untouched
-  const bad: unknown[] = [
-    { ...samplePayload, hosts: {} },
-    { ...samplePayload, hosts: [{ id: "h", name: "n", kind: "local" }] },
-    { ...samplePayload, hosts: [{ id: "h", name: "n", kind: 1, address: "" }] },
-  ];
-  for (const payload of bad) {
-    assert.equal((await api(ctx, "POST", "/api/config", payload)).status, 400, JSON.stringify(payload));
-  }
-  assert.equal((await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json instanceof Array, true);
-  assert.equal(((await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json as unknown[]).length, 2);
-});
-
-test("config upsert: updates pibar hosts, never touches manual hosts, never deletes", async (t) => {
-  const ctx = await start(t);
-  const created = await api(ctx, "POST", "/api/hosts", { name: "Manuell", kind: "ssh", address: "user@manual" }, ctx.adminToken);
-  assert.equal(created.status, 201);
-  const manual = created.json as HostRecord;
-
-  await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: sampleHosts });
-  // rename host1 via a second sync -> upsert by id
-  const renamed: HostInfo[] = [{ id: "host1", name: "Zuhause Neu", kind: "local", address: "" }];
-  await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: renamed });
-  const hosts = (await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json as HostRecord[];
-  assert.equal(hosts.length, 3); // host2 kept although absent from the last sync
-  assert.equal(hosts.find((h) => h.id === "host1")?.name, "Zuhause Neu");
-  assert.deepEqual(hosts.find((h) => h.id === manual.id), manual); // untouched
-
-  // a synced id colliding with a manual host must not overwrite the manual host
-  const collide: HostInfo[] = [{ id: manual.id, name: "Kaputt", kind: "local", address: "" }];
-  await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: collide });
-  const after = (await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json as HostRecord[];
-  assert.deepEqual(after.find((h) => h.id === manual.id), manual);
-
-  // sync without hosts field leaves the hosts store alone
-  await api(ctx, "POST", "/api/config", samplePayload);
-  assert.equal(((await api(ctx, "GET", "/api/hosts", undefined, ctx.adminToken)).json as unknown[]).length, 3);
-});
-
-test("hosts CRUD, role enforcement, duplicate names and pibar protection", async (t) => {
-  const ctx = await start(t);
-  await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: sampleHosts });
-
-  // unauthenticated -> 401 on every route
-  assert.equal((await api(ctx, "GET", "/api/hosts")).status, 401);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "x" })).status, 401);
-  assert.equal((await api(ctx, "PATCH", "/api/hosts/host1", { name: "x" })).status, 401);
-  assert.equal((await api(ctx, "DELETE", "/api/hosts/host1")).status, 401);
-
-  // role user: GET allowed, mutations 403
-  await api(ctx, "POST", "/api/users", { username: "alice", password: "alice-pass" }, ctx.adminToken);
-  const aliceLogin = await api(ctx, "POST", "/api/login", { username: "alice", password: "alice-pass" });
-  const aliceToken = (aliceLogin.json as { token: string }).token;
-  assert.equal((await api(ctx, "GET", "/api/hosts", undefined, aliceToken)).status, 200);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "x" }, aliceToken)).status, 403);
-  assert.equal((await api(ctx, "PATCH", "/api/hosts/host1", { name: "x" }, aliceToken)).status, 403);
-  assert.equal((await api(ctx, "DELETE", "/api/hosts/host1", undefined, aliceToken)).status, 403);
-
-  // validation
-  assert.equal((await api(ctx, "POST", "/api/hosts", {}, ctx.adminToken)).status, 400);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "   " }, ctx.adminToken)).status, 400);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "x", kind: "remote" }, ctx.adminToken)).status, 400);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "x", address: 5 }, ctx.adminToken)).status, 400);
-
-  // create manual host (defaults kind local, address "")
-  const created = await api(ctx, "POST", "/api/hosts", { name: "  Manuell  " }, ctx.adminToken);
-  assert.equal(created.status, 201);
-  const manual = created.json as HostRecord;
-  assert.equal(manual.name, "Manuell");
-  assert.equal(manual.kind, "local");
-  assert.equal(manual.address, "");
-  assert.equal(manual.source, "manual");
-  assert.match(manual.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-
-  // duplicate name (case-insensitive) -> 409, also against synced hosts
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "MANUELL" }, ctx.adminToken)).status, 409);
-  assert.equal((await api(ctx, "POST", "/api/hosts", { name: "zuhause" }, ctx.adminToken)).status, 409);
-
-  // PATCH manual host
-  const patched = await api(ctx, "PATCH", `/api/hosts/${manual.id}`, { name: "Anders", kind: "ssh", address: "user@other" }, ctx.adminToken);
-  assert.equal(patched.status, 200);
-  assert.deepEqual(patched.json, { id: manual.id, name: "Anders", kind: "ssh", address: "user@other", source: "manual" });
-  // rename to its own name is fine, to another host's name -> 409
-  assert.equal((await api(ctx, "PATCH", `/api/hosts/${manual.id}`, { name: "anders" }, ctx.adminToken)).status, 200);
-  assert.equal((await api(ctx, "PATCH", `/api/hosts/${manual.id}`, { name: "Zuhause" }, ctx.adminToken)).status, 409);
-  assert.equal((await api(ctx, "PATCH", `/api/hosts/${manual.id}`, { name: "" }, ctx.adminToken)).status, 400);
-  assert.equal((await api(ctx, "PATCH", `/api/hosts/${manual.id}`, { kind: "nope" }, ctx.adminToken)).status, 400);
-
-  // unknown id -> 404
-  assert.equal((await api(ctx, "PATCH", "/api/hosts/does-not-exist", { name: "x" }, ctx.adminToken)).status, 404);
-  assert.equal((await api(ctx, "DELETE", "/api/hosts/does-not-exist", undefined, ctx.adminToken)).status, 404);
-
-  // pibar hosts are read-only here -> 409 {error}
-  const edit = await api(ctx, "PATCH", "/api/hosts/host1", { name: "x" }, ctx.adminToken);
-  assert.equal(edit.status, 409);
-  assert.equal(typeof (edit.json as { error: unknown }).error, "string");
-  const del = await api(ctx, "DELETE", "/api/hosts/host1", undefined, ctx.adminToken);
-  assert.equal(del.status, 409);
-  assert.equal(typeof (del.json as { error: unknown }).error, "string");
-  assert.equal(ctx.store.hosts.get("host1")?.name, "Zuhause");
-
-  // delete manual host: users referencing it keep the string (no cascade)
-  const bob = await api(ctx, "POST", "/api/users", { username: "bob", password: "bob-pass", host: manual.id }, ctx.adminToken);
-  assert.equal(bob.status, 201);
-  const bobId = (bob.json as { id: string }).id;
-  const deleted = await api(ctx, "DELETE", `/api/hosts/${manual.id}`, undefined, ctx.adminToken);
-  assert.equal(deleted.status, 200);
-  assert.deepEqual(deleted.json, { status: "ok" });
-  assert.deepEqual(ctx.store.users.get(bobId)?.hostIds, [manual.id]);
-  assert.equal(ctx.store.hosts.has(manual.id), false);
-});
-
 // ------------------------------------------------------------ persistence
 
 test("corrupt JSON error names the file", (t) => {
@@ -513,7 +384,7 @@ test("corrupt or misshapen hosts.json error names the file", (t) => {
   t.after(() => rmSync(dataDir, { recursive: true, force: true }));
   writeFileSync(join(dataDir, "hosts.json"), "{definitely not json");
   assert.throws(() => new Store(dataDir), /hosts\.json/);
-  writeFileSync(join(dataDir, "hosts.json"), JSON.stringify([{ id: "h", name: "n", kind: "local", address: "" }])); // source missing
+  writeFileSync(join(dataDir, "hosts.json"), JSON.stringify([{ id: "h", name: "n" }])); // neither format
   assert.throws(() => new Store(dataDir), /hosts\.json/);
   writeFileSync(join(dataDir, "hosts.json"), JSON.stringify({ hosts: [] })); // not an array
   assert.throws(() => new Store(dataDir), /hosts\.json/);
@@ -526,7 +397,7 @@ test("secret files are mode 0600, config stays 0644", async (t) => {
   assert.equal(mode("users.json"), 0o600);
   assert.equal(mode("tokens.json"), 0o600);
   assert.equal(mode("config.json"), 0o644);
-  await api(ctx, "POST", "/api/hosts", { name: "Manuell" }, ctx.adminToken);
+  await api(ctx, "POST", "/api/hosts", { name: "Manuell", sshTarget: "manual" }, ctx.adminToken);
   assert.equal(mode("hosts.json"), 0o644);
 });
 
@@ -559,7 +430,7 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
   const ctx = await start(t);
   await api(ctx, "POST", "/api/users", { username: "bob", password: "bob-pass", host: "host9" }, ctx.adminToken);
   await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: sampleHosts });
-  const created = await api(ctx, "POST", "/api/hosts", { name: "Manuell", kind: "ssh", address: "user@manual" }, ctx.adminToken);
+  const created = await api(ctx, "POST", "/api/hosts", { name: "Manuell", sshTarget: "manual", sshUser: "user" }, ctx.adminToken);
   const manual = created.json as HostRecord;
 
   // simulate restart: brand-new Store over the same directory
@@ -569,12 +440,8 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
   assert.ok(bob);
   assert.deepEqual(bob.hostIds, ["host9"]);
   assert.deepEqual(reloaded.config?.payload, { ...samplePayload, hosts: sampleHosts });
-  // hosts survive: synced + manual, sorted by name
-  assert.deepEqual(reloaded.sortedHosts(), [
-    { ...sampleHosts[1], source: "pibar" },
-    manual,
-    { ...sampleHosts[0], source: "pibar" },
-  ]);
+  // hosts survive; hosts in the desktop payload are ignored (the webapp manages its own)
+  assert.deepEqual(reloaded.sortedHosts(), [manual]);
   // old token still valid after reload
   assert.equal(reloaded.userForToken(ctx.adminToken)?.username, "admin");
   // and through a fresh app instance

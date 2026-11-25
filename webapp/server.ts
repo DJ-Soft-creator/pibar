@@ -8,6 +8,7 @@ import { bootstrapAdmin } from "./src/server/auth.js";
 import { createRegistry } from "./src/server/cmd/index.js";
 import { canUseHost } from "./src/server/helpers.js";
 import { HostExec, SshRunner } from "./src/server/host/hostexec.js";
+import { toTarget } from "./src/server/hosts.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
 
@@ -42,8 +43,10 @@ const app = createApp(store, {
   commands: {
     registry: createRegistry(),
     exec: new HostExec(new SshRunner({ dir: sshDir })),
-    // hosts with SSH data arrive with task B2; until then no command can reach a host
-    resolveHost: () => null,
+    resolveHost: (id) => {
+      const h = store.hosts.get(id);
+      return h ? toTarget(h) : null;
+    },
     canUseHost,
   },
   onConfigUpdated: (receivedAt) => hub?.broadcast({ type: "config/updated", receivedAt }),

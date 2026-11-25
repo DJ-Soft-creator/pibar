@@ -56,7 +56,7 @@ test("invoke: result, arguments as the body, errors as strings", async (t) => {
   assert.deepEqual(await invoke("ping"), { pong: true, username: "admin", role: "admin" });
   assert.deepEqual(await invoke("echo_args", { hostId: "h", paths: ["a"] }), { hostId: "h", paths: ["a"] });
   await assert.rejects(invoke("fails"), (e: unknown) => e === "Session is open elsewhere");
-  await assert.rejects(invoke("list_sessions", { hostId: "h" }), (e: unknown) => e === "Unknown command: list_sessions");
+  await assert.rejects(invoke("term_open", { hostId: "h" }), (e: unknown) => e === "Unknown command: term_open");
 });
 
 test("invoke: 401 calls the unauthorized handler; unreachable server rejects", async (t) => {

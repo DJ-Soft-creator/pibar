@@ -1,5 +1,5 @@
 // Runtime validation at the JSON boundaries (request bodies, persisted files).
-import type { ConfigPayload, HostInfo, HostKind, HostRecord } from "./types.js";
+import type { ConfigPayload, HostInfo, HostKind } from "./types.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -47,13 +47,6 @@ export function isHostInfo(value: unknown): value is HostInfo {
   return isRecord(value) && hasStrings(value, ["id", "name", "address"]) && isHostKind(value.kind);
 }
 
-export function isHostRecord(value: unknown): value is HostRecord {
-  return (
-    isRecord(value) &&
-    (value.source === "pibar" || value.source === "manual") &&
-    isHostInfo(value)
-  );
-}
 
 export function isRole(value: unknown): value is "admin" | "user" {
   return value === "admin" || value === "user";

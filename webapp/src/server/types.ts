@@ -29,7 +29,7 @@ export interface GroupConfig {
 
 export type HostKind = "local" | "ssh";
 
-/** Host entry of the sync contract (PiBar -> webapp). address is a display string. */
+/** Host entry the desktop still sends in its config payload; validated, but ignored (the webapp manages its own hosts, src/server/hosts.ts). */
 export interface HostInfo {
   id: string;
   name: string;
@@ -38,12 +38,6 @@ export interface HostInfo {
   address: string;
 }
 
-export type HostSource = "pibar" | "manual";
-
-/** Host as stored and exposed by the webapp API (hosts.json). */
-export interface HostRecord extends HostInfo {
-  source: HostSource;
-}
 
 export interface ConfigPayload {
   sessions: SessionConfig[];
