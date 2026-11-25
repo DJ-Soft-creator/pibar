@@ -1,7 +1,9 @@
 // All commands of the webapp, registered on one CommandRegistry (see ../commands.ts). Each area of the Rust core
 // gets its own module here (sessions, files, git, pi, …) with a register function; this file only collects them.
 import { CommandRegistry } from "../commands.js";
+import type { PiManager } from "../host/pi.js";
 import { registerHostCommands } from "./hosts.js";
+import { registerPiCommands } from "./pi.js";
 import { registerSessionCommands } from "./sessions.js";
 
 /** Commands every build has: `ping` (login and router check of the client) */
@@ -11,10 +13,16 @@ function registerCore(registry: CommandRegistry) {
   });
 }
 
-export function createRegistry(): CommandRegistry {
+export interface RegistryDeps {
+  /** Running Pi processes; without it the pi_* commands are missing (tests of other areas) */
+  pi?: PiManager;
+}
+
+export function createRegistry(deps: RegistryDeps = {}): CommandRegistry {
   const registry = new CommandRegistry();
   registerCore(registry);
   registerHostCommands(registry);
   registerSessionCommands(registry);
+  if (deps.pi) registerPiCommands(registry, deps.pi);
   return registry;
 }

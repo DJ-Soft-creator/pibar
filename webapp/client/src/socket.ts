@@ -50,7 +50,12 @@ export function connectSocket(opts: SocketOptions = {}): SocketHandle {
       }
       if (typeof msg !== "object" || msg === null) return;
       const m = msg as Record<string, unknown>;
-      if (m.type === "event" && typeof m.event === "string") dispatchEvent(m.event, m.payload);
+      if (m.type === "event" && typeof m.event === "string") {
+        // the sequence number of a Pi event travels in the payload, so listeners can skip what they already have
+        const payload =
+          typeof m.seq === "number" && typeof m.payload === "object" && m.payload !== null ? { ...m.payload, seq: m.seq } : m.payload;
+        dispatchEvent(m.event, payload);
+      }
       opts.onMessage?.(m);
     };
     sock.onclose = () => {

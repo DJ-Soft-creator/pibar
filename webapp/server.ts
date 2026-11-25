@@ -9,6 +9,7 @@ import { createRegistry } from "./src/server/cmd/index.js";
 import { canUseHost } from "./src/server/helpers.js";
 import { HostExec, LocalRunner, SshRunner } from "./src/server/host/hostexec.js";
 import { toTarget } from "./src/server/hosts.js";
+import { PiManager } from "./src/server/host/pi.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
 
@@ -39,13 +40,16 @@ await bootstrapAdmin(
 );
 
 let hub: SocketHub | null = null;
+const exec = new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new SshRunner({ dir: sshDir }));
+// Pi processes belong to the server: they keep running while a phone is locked or offline
+const pi = new PiManager(exec);
 
 const app = createApp(store, {
   clientDir,
   cookieSecure,
   commands: {
-    registry: createRegistry(),
-    exec: new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new SshRunner({ dir: sshDir })),
+    registry: createRegistry({ pi }),
+    exec,
     resolveHost: (id) => {
       const h = store.hosts.get(id);
       return h ? toTarget(h) : null;
@@ -56,7 +60,17 @@ const app = createApp(store, {
 });
 
 const server = createServer(app);
-hub = createSocketHub(server, store);
+hub = createSocketHub(server, store, pi);
+const watched = hub;
+pi.startSweeper((handle) => watched.isWatched(handle));
+
+// stop the Pi processes with the container (docker stop sends SIGTERM)
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.on(sig, () => {
+    pi.closeAll();
+    process.exit(0);
+  });
+}
 
 if (devLocalHome) console.warn(`[pibar-webapp] DEV_LOCAL_HOME set: host commands run locally in ${devLocalHome} (no SSH)`);
 

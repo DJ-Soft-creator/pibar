@@ -41,7 +41,9 @@
 
 | Task | Status |
 |---|---|
-| A1–A6, B1–B3, C1–C3, C6 | ✅ erledigt (Branch `webapp-rebuild`) |
+| A1–A6, B1–B3, B10, C1–C4, C6, E3, E4 | ✅ erledigt (Branch `webapp-rebuild`) |
+| B9 | ◐ Pi-Prozesse laufen; dieselbe Session wird in der Webapp geteilt statt doppelt gestartet. Lock gegenüber der Desktop-App fehlt noch (mit D1) |
+| E5, F1 | ◐ neue Session im Standardordner des Hosts (Ordnerauswahl fehlt); Pi-Dialoge confirm/select/input/editor/notify |
 | alle anderen | offen |
 
 ## Wellen (Reihenfolge für Subagents)
@@ -144,7 +146,7 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Lock:** Vor dem Öffnen `~/.pibar/<hash>.lock` auf dem Host anlegen (Inhalt: `webapp:<user>:<pid>`; `hash` = FNV-1a wie `bg.rs::hash`). Ist die Session schon offen (Lock oder laufender Hintergrund-Run), Client fragt: „Nur lesen“ oder „übernehmen“.
 - **Fertig wenn:** Test mit `fake-pi`: Prompt senden, Events kommen an, Abbruch funktioniert; zweites Öffnen derselben Session meldet den Lock.
 
-### B10 – Event-Streaming per WebSocket
+### B10 – Event-Streaming per WebSocket ✅
 - **Was:** `/ws` mit Auth (Cookie). Client abonniert Pi-Handles. Ringpuffer pro Handle (z. B. letzte 2000 Events, fortlaufende `seq`). Beim Wiederverbinden schickt der Client die letzte `seq` und bekommt den Rest. Pi-Dialoge (extension UI: select/confirm/input/editor) gehen an alle Abonnenten, Antwort über `pi_reply`.
 - **Fertig wenn:** Test: Verbindung während einer Antwort trennen, neu verbinden → keine Events fehlen, keine doppelt.
 
@@ -183,7 +185,7 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Was:** Zentraler State (Hosts, Sessions, offene Session, Config, Benutzer), Hash-Routing (`#/s/<host>/<session>`), damit Zurück-Taste und Links funktionieren.
 - **Fertig wenn:** Reload auf einer Session-URL öffnet dieselbe Session.
 
-### C4 – WebSocket-Client mit Wiederverbinden
+### C4 – WebSocket-Client mit Wiederverbinden ✅
 - **Was:** Auto-Reconnect mit Backoff, Nachholen per `seq` (B10), Wiederverbinden bei `visibilitychange` (Handy wird entsperrt).
 - **Fertig wenn:** Handy 2 min sperren während Pi arbeitet → beim Entsperren ist der Chat vollständig.
 
@@ -208,12 +210,12 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 - **Referenz:** `src/main/search.ts`, `src/shared/search.ts`.
 - **Fertig wenn:** Sofortfilter der Liste + Volltexttreffer (B4) über der Liste.
 
-### E3 – Chat-Ansicht (lesen)
+### E3 – Chat-Ansicht (lesen) ✅
 - **Referenz:** `src/main/chatView.ts`, `src/shared/chatViews.ts`, `piProtocol.ts`, `colors.ts`.
 - **Was:** Verlauf rendern (Markdown, Code, Thinking, Tool-Calls einklappbar, Diffs via `src/shared/diff.ts`), Ansichtsmodi (natural/technical/…), Farbprofile des Hosts.
 - **Fertig wenn:** Eine lange Session (> 500 Nachrichten) scrollt flüssig auf dem iPhone (virtuell oder stückweise rendern).
 
-### E4 – Chat schreiben & streamen
+### E4 – Chat schreiben & streamen ✅
 - **Referenz:** `src/main/sessionTab.ts`.
 - **Was:** Eingabe (wächst mit, Senden-Taste), Streaming, Abbrechen, Nachricht während Pi arbeitet (Steer/Follow-up wie Desktop), Auto-Scroll-Modi (`autoScroll.ts`).
 - **Fertig wenn:** Prompt senden, Antwort streamt, Abbrechen stoppt Pi.

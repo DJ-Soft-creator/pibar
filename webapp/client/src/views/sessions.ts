@@ -1,13 +1,13 @@
 // Session list of one host (mobile): host switcher, search, sections by date like the desktop
-// (src/shared/sessionOrder.ts), pull the list again with the reload button. Tapping a session shows its details;
-// opening the chat follows with tasks E3/E4.
+// (src/shared/sessionOrder.ts), reload button. Tapping a session opens its chat, "+" starts a new session in the
+// host's default folder.
 import { api, type SessionInfo } from "@shared/api";
-import { copyText, errMsg, h, openModal, toast } from "@shared/dom";
+import { errMsg, h } from "@shared/dom";
 import { cleanTitle, relTime, shortPath } from "@shared/format";
 import { getLang, t } from "@shared/i18n";
 import { matchesQuery } from "@shared/search";
 import { sectionRows } from "@shared/sessionOrder";
-import { currentHost, isAdmin, saveSettings, state, go } from "../state";
+import { currentHost, go, isAdmin, openChat, saveSettings, state } from "../state";
 import { button, empty, header } from "../ui";
 
 let query = "";
@@ -25,27 +25,6 @@ function sectionLabel(key: string): string {
 }
 
 export const displayTitle = (s: SessionInfo) => s.name || cleanTitle(s.title);
-
-function openDetail(s: SessionInfo) {
-  const row = (label: string, value: string) =>
-    h("div", { class: "detail-row" }, h("span", {}, label), h("code", {}, value || "–"));
-  const body = h(
-    "div",
-    { class: "detail" },
-    row(t("Folder"), s.cwd),
-    row(t("Last activity"), s.modified ? new Date(s.modified * 1000).toLocaleString(getLang()) : ""),
-    row(t("Session ID"), s.id),
-    h("p", { class: "hint" }, t("Opening the chat follows with the next step of the webapp.")),
-  );
-  const close = openModal(displayTitle(s), body, [
-    button(t("Copy session ID"), () => {
-      copyText(s.id)
-        .then(() => toast(t("Copied")))
-        .catch((e: unknown) => toast(errMsg(e), "err"));
-    }),
-    button(t("Close"), () => close(), "primary"),
-  ]);
-}
 
 async function load(hostId: string, render: () => void) {
   try {
@@ -70,6 +49,7 @@ export function renderSessions(root: HTMLElement) {
   }
   const render = () => renderSessions(root);
   const hostId = host.id;
+  const hostName = host.name;
   const list = state.sessions.get(hostId);
   const error = state.sessionErrors.get(host.id);
 
@@ -142,7 +122,11 @@ export function renderSessions(root: HTMLElement) {
         ...sec.rows.map((r) =>
           h(
             "button",
-            { class: "row", onclick: () => openDetail(r.s) },
+            {
+              class: "row",
+              onclick: () =>
+                openChat({ hostId, hostName, path: r.s.path, cwd: r.s.cwd, title: r.title }),
+            },
             h("span", { class: "row-title" }, r.title),
             h(
               "span",
@@ -157,7 +141,17 @@ export function renderSessions(root: HTMLElement) {
   }
 
   const banner = error && list ? [h("p", { class: "error banner" }, error)] : [];
-  root.replaceChildren(header(t("Sessions"), [reload]), h("div", { class: "toolbar" }, picker, search), ...banner, listEl);
+  const add = h(
+    "button",
+    {
+      class: "icon-btn",
+      title: t("New session"),
+      "aria-label": t("New session"),
+      onclick: () => openChat({ hostId, hostName: host.name, path: null, cwd: host.defaultDir || "~", title: "" }),
+    },
+    "+",
+  );
+  root.replaceChildren(header(t("Sessions"), [add, reload]), h("div", { class: "toolbar" }, picker, search), ...banner, listEl);
   fillList();
   if (!list && !error) void load(host.id, render);
 }

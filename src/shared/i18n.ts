@@ -958,12 +958,8 @@ const de = {
   "No hosts yet.": "Noch keine Hosts.",
   "No session matches.": "Keine Session passt.",
   "No sessions on this host yet.": "Auf diesem Host gibt es noch keine Sessions.",
-  "Opening the chat follows with the next step of the webapp.":
-    "Den Chat öffnen kommt mit dem nächsten Schritt der Webapp.",
   Password: "Passwort",
   "Password changed": "Passwort geändert",
-  "Pick a session in the list. The chat follows with the next step of the webapp.":
-    "Wähle eine Session in der Liste. Der Chat kommt mit dem nächsten Schritt der Webapp.",
   Role: "Rolle",
   "SSH target": "SSH-Ziel",
   "SSH user": "SSH-Benutzer",
@@ -977,6 +973,17 @@ const de = {
   "Wrong username or password": "Benutzername oder Passwort falsch",
   "all hosts": "alle Hosts",
   "no host": "kein Host",
+  "Message to Pi": "Nachricht an Pi",
+  Details: "Details",
+  "Starting Pi on {host} …": "Starte Pi auf {host} …",
+  "New session in {folder}": "Neue Session in {folder}",
+  failed: "fehlgeschlagen",
+  "Pi reported an error.": "Pi hat einen Fehler gemeldet.",
+  "Stopped.": "Gestoppt.",
+  OK: "OK",
+  "Queued – Pi reads it after the current answer.": "Vorgemerkt – Pi liest es nach der aktuellen Antwort.",
+  "Session file": "Session-Datei",
+  "Pick a session in the list or start a new one.": "Wähle eine Session in der Liste oder starte eine neue.",
 } as const;
 
 export type Msg = keyof typeof de;

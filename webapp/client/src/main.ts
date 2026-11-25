@@ -5,9 +5,11 @@ import { h } from "@shared/dom";
 import { t } from "@shared/i18n";
 import { account, hosts, onUnauthorized } from "./rest";
 import { connectSocket, type SocketHandle } from "./socket";
-import { applySettings, currentRoute, go, isAdmin, state, type Route } from "./state";
+import { notifySocketMessage, notifySocketOpen, setSocket } from "./socketBus";
+import { applySettings, currentRoute, go, isAdmin, restoreChat, state, type Route } from "./state";
 import { empty, header } from "./ui";
 import { renderHostsAdmin, renderUsersAdmin } from "./views/admin";
+import { renderChat } from "./views/chat";
 import { renderLogin } from "./views/login";
 import { renderMore } from "./views/more";
 import { renderSessions } from "./views/sessions";
@@ -28,7 +30,9 @@ const TABS: { route: Route; label: () => string; icon: string }[] = [
 function showLogin() {
   socket?.close();
   socket = null;
+  setSocket(null);
   state.me = null;
+  state.chat = null;
   state.sessions.clear();
   renderLogin(app, () => void boot());
 }
@@ -58,12 +62,15 @@ function renderPage() {
   page.scrollTop = 0;
   const route = currentRoute();
   renderTabs();
+  // the chat brings its own scrolling area and input at the bottom
+  page.classList.toggle("chat-page", route === "chat");
+  document.body.classList.toggle("in-chat", route === "chat");
   switch (route) {
     case "sessions":
       renderSessions(page);
       break;
     case "chat":
-      page.replaceChildren(header(t("Chat")), empty(t("Pick a session in the list. The chat follows with the next step of the webapp.")));
+      renderChat(page);
       break;
     case "files":
       page.replaceChildren(header(t("Files")), empty(t("The files of a session follow with a later step of the webapp.")));
@@ -103,14 +110,18 @@ async function boot() {
   } catch {
     state.hosts = [];
   }
-  shell();
+  restoreChat();
   socket?.close();
   socket = connectSocket({
     onState: (open) => {
       state.online = open;
       if (offline) offline.hidden = open;
+      if (open) notifySocketOpen();
     },
+    onMessage: notifySocketMessage,
   });
+  setSocket(socket);
+  shell();
 }
 
 onUnauthorized(showLogin);
