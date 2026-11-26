@@ -59,13 +59,13 @@ urls=$( (echo "$found" | sed -E 's/^[^ ]+: //' | sed -E 's#^(https?://[^/]+)(/v[
       for (const pr of Object.values(m.providers ?? {})) if (pr.baseUrl) console.log(pr.baseUrl); } catch {}' "$d" 2>/dev/null
   env | grep -E '_BASE_URL=' | cut -d= -f2-
   case "$PIBAR_PROVIDER" in
-    anthropic) echo https://api.anthropic.com ;;
-    openai) echo https://api.openai.com/v1 ;;
-    google) echo https://generativelanguage.googleapis.com ;;
-    openrouter) echo https://openrouter.ai/api/v1 ;;
-    groq) echo https://api.groq.com/openai/v1 ;;
-    mistral) echo https://api.mistral.ai/v1 ;;
-    xai) echo https://api.x.ai/v1 ;;
+    (anthropic) echo https://api.anthropic.com ;;
+    (openai) echo https://api.openai.com/v1 ;;
+    (google) echo https://generativelanguage.googleapis.com ;;
+    (openrouter) echo https://openrouter.ai/api/v1 ;;
+    (groq) echo https://api.groq.com/openai/v1 ;;
+    (mistral) echo https://api.mistral.ai/v1 ;;
+    (xai) echo https://api.x.ai/v1 ;;
   esac) | grep -oE 'https?://[^" ]+' | sort -u)
 if [ -z "$urls" ]; then echo "no server addresses found"; fi
 # line by line: zsh (the default shell on macOS) does not split $urls into words

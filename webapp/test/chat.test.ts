@@ -4,7 +4,7 @@
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -309,7 +309,7 @@ test("snapshot commands on the fake host: take, preview, restore, undo; no repos
   });
   const taken = await snapshotTake(f.exec, f.host, root, "sess-1", "entry1");
   assert.ok(taken);
-  assert.equal(taken.repo, root);
+  assert.equal(realpathSync(taken.repo), realpathSync(root)); // macOS: /var → /private/var
   writeFileSync(join(root, "src/a.ts"), "changed\n");
   const prev = await rewindPreview(f.exec, f.host, root, ["sess-0", "sess-1"], "entry1", ["src/a.ts", "/etc/passwd"]);
   assert.equal(prev.commit, taken.commit);
