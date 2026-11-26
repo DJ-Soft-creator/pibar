@@ -44,7 +44,8 @@ async function init() {
   renderHosts();
   wireFiles();
   wireTerminal();
-  wireConfigAutoSync();
+  // two-way sync of names, colours, groups and projects with the webapp; redraws the list when it brings changes
+  wireConfigAutoSync(renderHosts);
 
   // Pi events (from src-tauri/src/pi.rs) go to the session with that process handle
   await listen<{ handle: number; event: PiEvent }>("pi-event", (e) => {

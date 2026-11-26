@@ -169,11 +169,16 @@ pub fn run_shell(h: &HostCfg, script: &str, stdin: Option<&[u8]>) -> Result<Stri
     Ok(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// Start Pi in RPC mode in the given folder.
-pub fn spawn_pi(h: &HostCfg, cwd: &str, extra_args: &[String]) -> Result<Child, String> {
+/// Script that starts Pi in RPC mode in the given folder; `pre` runs first (the session lock, src-tauri/src/lock.rs)
+pub fn pi_script(h: &HostCfg, cwd: &str, extra_args: &[String], pre: &str) -> String {
     let pi = if h.pi_command.trim().is_empty() { "pi" } else { h.pi_command.trim() };
     let args: Vec<String> = extra_args.iter().map(|a| sq(a)).collect();
-    let script = format!("cd {} && exec {} --mode rpc {}", shell_path(cwd), pi, args.join(" "));
+    format!("{pre}cd {} && exec {} --mode rpc {}", shell_path(cwd), pi, args.join(" "))
+}
+
+/// Start Pi in RPC mode in the given folder.
+pub fn spawn_pi(h: &HostCfg, cwd: &str, extra_args: &[String], pre: &str) -> Result<Child, String> {
+    let script = pi_script(h, cwd, extra_args, pre);
     let mut cmd = shell_command(h, &script);
     cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     cmd.spawn().map_err(|e| spawn_error(h, e))
@@ -218,6 +223,27 @@ mod tests {
         assert!(env.contains(&("MULTI".into(), "a\nb".into())));
         assert!(!env.iter().any(|(k, _)| k == "_"));
         assert!(parse_env(b"no marker").is_empty());
+    }
+
+    #[test]
+    fn pi_script_puts_the_lock_first_and_execs_pi() {
+        let h = HostCfg {
+            id: "h".into(),
+            name: "H".into(),
+            kind: "local".into(),
+            ssh_target: String::new(),
+            ssh_user: String::new(),
+            ssh_port: None,
+            pi_command: "pi".into(),
+            default_dir: "~".into(),
+            use_herdr: false,
+            color_profile: String::new(),
+        };
+        let pre = crate::lock::write_prefix("desktop:1", "/s/a.jsonl");
+        let s = pi_script(&h, "~/w", &["--session".into(), "/s/a.jsonl".into()], &pre);
+        assert!(s.starts_with("mkdir -p \"$HOME\"/.pibar && echo 'desktop:1' \"$$\""));
+        assert!(s.ends_with("cd \"$HOME\"/'w' && exec pi --mode rpc '--session' '/s/a.jsonl'"));
+        assert_eq!(pi_script(&h, "/w", &[], ""), "cd '/w' && exec pi --mode rpc ");
     }
 
     #[test]

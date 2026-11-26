@@ -233,6 +233,8 @@ export interface SessionMeta {
   kidsCollapsed?: boolean;
   /** The older versions under this session are folded away; saved on the family root (src/main/sessionVersions.ts) */
   versionsCollapsed?: boolean;
+  /** Last change of this entry (ms), for the webapp sync (src/shared/metaSync.ts); 0/absent = not stamped yet */
+  updatedAt?: number;
 }
 
 export interface SessionGroup {
@@ -241,6 +243,8 @@ export interface SessionGroup {
   color: string;
   /** Closed when a block of the list shows it for the first time; then each block keeps its own state */
   collapsed: boolean;
+  /** Last change (ms), for the webapp sync (src/shared/metaSync.ts) */
+  updatedAt?: number;
 }
 
 /**
@@ -267,6 +271,18 @@ export interface Project {
    * settings. A session switched in the header keeps its own.
    */
   contextMode?: "private" | "public";
+  /** Last change (ms), for the webapp sync (src/shared/metaSync.ts) */
+  updatedAt?: number;
+}
+
+/**
+ * Deleted session entries, groups and projects with the time of the deletion (ms), so the webapp sync can tell
+ * "deleted here" from "never seen" (src/shared/metaSync.ts). Keys: session key, group id, project id.
+ */
+export interface SyncTombstones {
+  sessions: Record<string, number>;
+  groups: Record<string, number>;
+  projects: Record<string, number>;
 }
 
 /** Quick start preset of the new-session dialog: name and fixed working folder */
@@ -290,6 +306,8 @@ export interface AppConfig {
   colorProfiles?: ColorProfile[];
   /** Quick action buttons under the input, on the right (src/main/quickActions.ts) */
   quickActions?: QuickAction[];
+  /** Deletions not to be undone by the webapp sync (src/shared/metaSync.ts) */
+  syncDeleted?: SyncTombstones;
   ui: {
     /** "auto", "de" or "en" */
     language?: string;
@@ -515,14 +533,25 @@ export const api = {
   listSessions: (hostId: string) => invoke<SessionInfo[]>("list_sessions", { hostId }),
   /** Delete session files (only paths inside Pi's sessions folder) */
   deleteSessions: (hostId: string, paths: string[]) => invoke<number>("delete_sessions", { hostId, paths }),
-  /** tools: null = Pi's default, [] = no tools, otherwise an allowlist */
-  piOpen: (hostId: string, cwd: string, sessionPath?: string, tools?: string[] | null, appendPrompt?: string | null) =>
+  /**
+   * tools: null = Pi's default, [] = no tools, otherwise an allowlist. A session another Pi holds (the webapp, lock
+   * file on the host) fails with "session-locked:…" (src/shared/sessionLock.ts) unless `force` takes it over.
+   */
+  piOpen: (
+    hostId: string,
+    cwd: string,
+    sessionPath?: string,
+    tools?: string[] | null,
+    appendPrompt?: string | null,
+    force = false,
+  ) =>
     invoke<number>("pi_open", {
       hostId,
       cwd,
       sessionPath: sessionPath ?? null,
       tools: tools ?? null,
       appendPrompt: appendPrompt ?? null,
+      force,
     }),
   piClose: (handle: number) => invoke<void>("pi_close", { handle }),
   /** What a Pi process wrote to stderr (tail) */

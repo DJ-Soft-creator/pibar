@@ -33,7 +33,7 @@ printed **once** to the server log — copy it from there.
 | Variable         | Default      | Meaning                                        |
 | ---------------- | ------------ | ---------------------------------------------- |
 | `PORT`           | `8787`       | HTTP + WebSocket port                          |
-| `DATA_DIR`       | `./data`     | users/tokens/config/hosts JSON files (atomic writes) |
+| `DATA_DIR`       | `./data`     | users/tokens/hosts/meta/api-tokens JSON files (atomic writes) |
 | `ADMIN_USERNAME` | `admin`      | bootstrap admin name (first start only)        |
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `SSH_DIR`        | *(own ~/.ssh)* | folder with the SSH key, `known_hosts`, optional `config` |
@@ -59,16 +59,48 @@ printed **once** to the server log — copy it from there.
   /api/hosts*` — admin only, manual hosts. Hosts synced from PiBar (`source: "pibar"`)
   are read-only here (409); they are managed in the desktop app. `user.host` is a plain
   string (normally a host id); unknown/legacy values keep working.
-- `POST/GET /api/config`, `GET /api/config/status` — **no auth**: the PiBar desktop
-  (`src/main/configExchange.ts`) sends no token. The payload may include an optional
-  `hosts` array (`{id, name, kind: "local"|"ssh", address}`); entries are upserted into
-  `hosts.json` with `source: "pibar"` (manual hosts untouched, nothing deleted).
-  Run this only on the LAN or behind
-  a reverse proxy that restricts access; do not expose `/api/config` publicly.
-- `GET /api/sessions` — auth required, returns the stored config's sessions.
-- `GET /ws` — WebSocket, login required (cookie only from our own origin); broadcasts
-  `{"type":"config/updated","receivedAt":…}` on every config POST; Pi events follow as
+- `/api/tokens*` — admin only: API tokens for PiBar desktop apps. `POST /api/tokens {name}` answers
+  `{token, secret}`; the secret (`pbt_…`) is shown **once**, only its SHA-256 hash is stored (`api-tokens.json`,
+  mode 0600). `GET /api/tokens` (name, hint, created, last use), `PATCH /api/tokens/:id {name}`,
+  `DELETE /api/tokens/:id` (revoke). An API token is no login: it only works for the sync below.
+- `POST /api/sync/meta` — two-way sync of the session organisation with a desktop (`src/main/configExchange.ts`).
+  **Only** `Authorization: Bearer <API token>` (no cookie, no login token); 60 requests per minute per client.
+  See "Desktop sync" below.
+- `GET /ws` — WebSocket, login required (cookie only from our own origin); broadcasts `{"type":"meta/updated"}`
+  after organisation changes (also from a desktop sync); Pi events follow as
   `{"type":"event","event":"pi-event","payload":…}`.
+
+## Desktop sync
+
+The desktop (Settings → Webapp: URL + API token) sends its state at start, debounced after every change, every
+60 s and on "Sync now". Body of `POST /api/sync/meta` (ids are the desktop's):
+
+```json
+{
+  "hosts": [{ "id": "vm", "name": "Server", "kind": "ssh", "address": "user@host.example:22" }],
+  "sessionMeta": { "vm|/home/user/.pi/agent/sessions/x.jsonl": { "name": "…", "color": "blue", "updatedAt": 1700000000000 } },
+  "groups": [{ "id": "g1", "name": "Work", "color": "teal", "collapsed": false, "updatedAt": 1700000000000 }],
+  "projects": [{ "id": "p1", "name": "PiBar", "hostId": "vm", "dir": "~/pibar", "collapsed": false, "updatedAt": 1700000000000 }],
+  "deleted": { "sessions": [{ "key": "vm|/…/old.jsonl", "updatedAt": 1700000000000 }], "groups": [{ "id": "g0", "updatedAt": 1 }], "projects": [] }
+}
+```
+
+- Desktop hosts are matched to webapp hosts by name (case-insensitive) or SSH address (`mapDesktopHost`); entries
+  of unmatched hosts are neither stored nor answered. Groups are global.
+- Merge per entry: the newer `updatedAt` wins (ties keep the webapp's), a deletion (tombstone) competes with its
+  time. Timestamps more than 5 minutes in the future count as "now". Empty defaults of the desktop ("", false, 0,
+  []) are not stored (`tools: []` and `temperature` are kept); unknown fields travel unchanged in both directions.
+- Answer: the merged state in the desktop's ids with the same keys, plus `hosts: [{id, webappHost}]` (matched
+  webapp host name or null) and `serverTime`.
+
+## Session lock (desktop ↔ webapp)
+
+A session must never run in two Pi processes. The script that starts Pi (webapp and desktop alike) writes
+`~/.pibar/<FNV-1a of the session path>.lock` on the host (`<owner> <pid> <unix seconds>`) and then `exec`s Pi.
+`pi_open` / `pi_attach` check it first: a live pid whose command line names the session file holds the session
+(stale locks are ignored, the server's own locks are free) and the command fails with 409
+`session-locked:<desktop|webapp>:<since> …` (recognise it with `parseSessionLock` from `src/shared/sessionLock.ts`).
+`force: true` takes the session over: the other Pi process is stopped.
 
 ## Docker
 
@@ -119,5 +151,4 @@ HTTPS terminates at Nginx Proxy Manager (external to this repo):
 - Proxy host → forward to `http://<docker-host>:8787`, scheme `http`.
 - Enable **Websockets Support** so `/ws` upgrades pass through.
 - Enable "Block Common Exploits"; force SSL as desired.
-- Keep the service LAN/internal-only (the config-sync endpoints are unauthenticated
-  by design). No hostnames, IPs or secrets live in this repository.
+- Keep the service LAN/internal-only. No hostnames, IPs or secrets live in this repository.

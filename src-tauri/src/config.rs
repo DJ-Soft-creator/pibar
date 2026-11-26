@@ -368,6 +368,12 @@ pub struct SessionMeta {
     pub agent_prompt: String,
     /// The subagent rows under this session are folded away (src/main/subagents.ts)
     pub kids_collapsed: bool,
+    /// Last change (ms) for the webapp sync (src/shared/metaSync.ts), 0 = not stamped yet
+    pub updated_at: u64,
+    /// Fields the UI or the webapp add that this struct does not know (e.g. reminders set on the phone): kept as
+    /// they are, so a save here does not drop them
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 /// User-defined group of sessions with a colour
@@ -380,6 +386,11 @@ pub struct SessionGroup {
     /// Closed when a block of the list shows it for the first time; then each block keeps its own state
     /// (`UiPrefs::group_collapsed`)
     pub collapsed: bool,
+    /// Last change (ms) for the webapp sync (src/shared/metaSync.ts)
+    pub updated_at: u64,
+    /// Unknown fields (newer UI, webapp) are kept
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 /// Named project folder in the left column (managed by the UI, src/main/projects.ts): sessions whose working folder
@@ -403,6 +414,21 @@ pub struct Project {
     /// Context mode its sessions start with (Pi extension mode-guard): "private", "public"; empty = the default of
     /// the settings (UiPrefs::default_mode). A session switched in the header keeps its own (SessionMeta::context_mode)
     pub context_mode: String,
+    /// Last change (ms) for the webapp sync (src/shared/metaSync.ts)
+    pub updated_at: u64,
+    /// Unknown fields (newer UI, webapp) are kept
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Deleted session entries, groups and projects with the time of the deletion (ms), so the webapp sync can tell
+/// "deleted here" from "never seen" (src/shared/metaSync.ts)
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(default)]
+pub struct SyncTombstones {
+    pub sessions: HashMap<String, u64>,
+    pub groups: HashMap<String, u64>,
+    pub projects: HashMap<String, u64>,
 }
 
 /// Speech to text (dictation). Used by src-tauri/src/voice.rs.
@@ -560,6 +586,9 @@ pub struct AppConfig {
     /// Quick action buttons under the input, on the right (managed in the settings)
     #[serde(default)]
     pub quick_actions: Vec<QuickActionCfg>,
+    /// Deletions the webapp sync must not undo
+    #[serde(default)]
+    pub sync_deleted: SyncTombstones,
 }
 
 impl Default for AppConfig {
@@ -587,6 +616,7 @@ impl Default for AppConfig {
             projects: vec![],
             color_profiles: vec![],
             quick_actions: vec![],
+            sync_deleted: SyncTombstones::default(),
         }
     }
 }
@@ -729,6 +759,31 @@ mod tests {
         assert!(m.chat_mode.is_empty()); // no own view: the setting decides
         assert!(m.context_mode.is_empty() && m.context_stripped.is_empty());
         assert_eq!(cfg.groups[0].color, "");
+    }
+
+    #[test]
+    fn sync_fields_and_unknown_fields_survive_a_save() {
+        let json = r#"{"hosts":[],"sessionMeta":{"h|/s.jsonl":{"color":"red","order":3,"updatedAt":1700000000000,
+            "remindAt":1800000000000,"remindNote":"call","versionsCollapsed":true}},
+            "groups":[{"id":"g","name":"W","updatedAt":5,"future":{"a":1}}],
+            "projects":[{"id":"p","name":"P","hostId":"h","dir":"~","updatedAt":6}],
+            "syncDeleted":{"sessions":{"h|/old.jsonl":7},"groups":{},"projects":{"q":8}}}"#;
+        let cfg: AppConfig = serde_json::from_str(json).unwrap();
+        let m = &cfg.session_meta["h|/s.jsonl"];
+        assert_eq!((m.updated_at, m.order, m.color.as_str()), (1700000000000, 3.0, "red"));
+        assert_eq!(cfg.sync_deleted.projects["q"], 8);
+        let back: serde_json::Value = serde_json::to_value(&cfg).unwrap();
+        let s = &back["sessionMeta"]["h|/s.jsonl"];
+        assert_eq!(s["remindAt"], 1800000000000u64);
+        assert_eq!(s["remindNote"], "call");
+        assert_eq!(s["versionsCollapsed"], true);
+        assert_eq!(s["updatedAt"], 1700000000000u64);
+        assert_eq!(back["groups"][0]["future"]["a"], 1);
+        assert_eq!(back["projects"][0]["updatedAt"], 6);
+        assert_eq!(back["syncDeleted"]["sessions"]["h|/old.jsonl"], 7);
+        // older files without the sync fields still load
+        let old: AppConfig = serde_json::from_str(r#"{"hosts":[]}"#).unwrap();
+        assert!(old.sync_deleted.sessions.is_empty());
     }
 
     #[test]

@@ -108,9 +108,9 @@ impl PiManager {
         append_prompt: Option<String>,
     ) -> Result<u32, String> {
         let mut args = Vec::new();
-        if let Some(p) = session_path {
+        if let Some(p) = &session_path {
             args.push("--session".to_string());
-            args.push(p);
+            args.push(p.clone());
         }
         args.extend(tool_args(tools.as_deref()));
         // agent definition of a subagent session (src-tauri/src/agents.rs): its body as an extra system prompt
@@ -118,7 +118,10 @@ impl PiManager {
             args.push("--append-system-prompt".to_string());
             args.push(p);
         }
-        let child = hostexec::spawn_pi(host, cwd, &args)?;
+        // the start script writes the session lock with Pi's pid (src-tauri/src/lock.rs); lib.rs::pi_open checked it
+        let pre =
+            session_path.as_deref().map(|p| crate::lock::write_prefix(crate::lock::owner(), p)).unwrap_or_default();
+        let child = hostexec::spawn_pi(host, cwd, &args, &pre)?;
         self.register(app, child)
     }
 
