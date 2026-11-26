@@ -1,0 +1,250 @@
+/* Admin pages for the shared settings (adminConfig.ts, adminPresets.ts, adminColors.ts, adminVoice.ts). */
+
+.cfg-page {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cfg-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cfg-none {
+  text-align: center;
+  padding: 16px 0;
+}
+
+.cfg-row .field:last-of-type {
+  margin-bottom: 8px;
+}
+
+.cfg-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.cfg-icon {
+  border: 1px solid var(--border);
+  font-size: 1.1rem;
+}
+
+.cfg-icon:disabled {
+  opacity: 0.35;
+}
+
+.cfg-disabled h2,
+.cfg-disabled .mono {
+  color: var(--muted);
+}
+
+.cfg-disabled .mono {
+  white-space: pre-wrap;
+}
+
+.cfg-model-pick {
+  color: var(--muted);
+}
+
+.cfg-save {
+  position: sticky;
+  bottom: 0;
+  padding: 8px 0 4px;
+  background: linear-gradient(transparent, var(--bg) 30%);
+  z-index: 1;
+}
+
+.cfg-secret {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cfg-secret input[type="password"] {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: max(16px, 1rem);
+}
+
+.cfg-secret input:disabled {
+  opacity: 0.5;
+}
+
+.cfg-test {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 4px;
+}
+
+.cfg-test p {
+  margin: 0;
+  flex: 1 1 160px;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- colours */
+
+.cfg-color-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cfg-theme {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.cfg-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.cfg-seg-btn {
+  min-height: 44px;
+  min-width: 72px;
+  padding: 0 12px;
+  border: 0;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.cfg-seg-btn.active {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.cfg-color-row {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.cfg-role {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.cfg-color-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cfg-color-field {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cfg-color-field .cfg-hex {
+  min-width: 0;
+  flex: 1;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.cfg-hex.bad {
+  border-color: var(--danger);
+}
+
+.cfg-swatch {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.cfg-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #f6f6f4;
+  color: #1d1d1f;
+}
+
+.cfg-preview.dark {
+  background: #1b1c1e;
+  color: #ececee;
+}
+
+.cfg-prev {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.cfg-prev-own {
+  align-self: flex-end;
+  background: #3b6fd8;
+  color: #fff;
+}
+
+.cfg-prev-thinking,
+.cfg-prev-tools {
+  font-size: 0.8rem;
+  opacity: 0.85;
+  border: 1px dashed currentColor;
+}
+
+.cfg-label-row {
+  display: grid;
+  grid-template-columns: 16px minmax(64px, auto) 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cfg-label-name {
+  font-size: 0.9rem;
+}
+
+.cfg-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.cfg-c-red {
+  background: #e5484d;
+}
+.cfg-c-orange {
+  background: #f0883e;
+}
+.cfg-c-yellow {
+  background: #e2b714;
+}
+.cfg-c-green {
+  background: #3fa66b;
+}
+.cfg-c-teal {
+  background: #23a6a6;
+}
+.cfg-c-blue {
+  background: #3e7be0;
+}
+.cfg-c-purple {
+  background: #8e5bd9;
+}
+.cfg-c-pink {
+  background: #e0559b;
+}
