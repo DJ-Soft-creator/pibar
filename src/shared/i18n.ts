@@ -372,24 +372,9 @@ const de = {
   "Export …": "Exportieren …",
   Export: "Exportieren",
   "Export session": "Session exportieren",
-  // config exchange (webapp)
+  // webapp sync (src/main/configExchange.ts)
   Webapp: "Webapp",
   "Webapp URL": "Webapp-URL",
-  "Webapp URL…": "Webapp-URL …",
-  "Address of the mobile webapp; empty = config exchange off.":
-    "Adresse der mobilen Webapp; leer = Konfig-Austausch aus.",
-  "Send config to webapp": "Konfig an Webapp senden",
-  "Sessions, projects and groups to the mobile webapp": "Sessions, Projekte und Gruppen an die mobile Webapp",
-  "Import config from webapp": "Konfig von Webapp importieren",
-  "Auto-sync to webapp": "Auto-Sync zur Webapp",
-  "Send the config automatically after every change": "Konfig nach jeder Änderung automatisch senden",
-  "No webapp URL configured.": "Keine Webapp-URL konfiguriert.",
-  "Config sent to the webapp.": "Konfig an die Webapp gesendet.",
-  "Sending failed": "Senden fehlgeschlagen",
-  "Import failed": "Import fehlgeschlagen",
-  "Nothing new to import.": "Nichts Neues zu importieren.",
-  "Imported {sessions} session(s), {groups} group(s), {projects} project(s).":
-    "{sessions} Session(s), {groups} Gruppe(n), {projects} Projekt(e) importiert.",
   "JSON or CSV for machine evaluation": "JSON oder CSV zur maschinellen Auswertung",
   "Exports the whole session file for machine evaluation.":
     "Exportiert die gesamte Session-Datei zur maschinellen Auswertung.",
@@ -1089,6 +1074,56 @@ const de = {
     "Das Projekt, in dessen Ordner der Arbeitsordner der Session liegt",
   // (end of webapp: sessions & organisation)
   // webapp: desktop sync & tokens – new keys go above the end line of this section
+  "e.g. MacBook": "z. B. MacBook",
+  "Copy the token now – it is shown only this once.":
+    "Kopiere den Token jetzt – er wird nur dieses eine Mal angezeigt.",
+  "In the desktop app: Settings → Webapp. Enter this address and the token there:":
+    "In der Desktop-App: Einstellungen → Webapp. Trage dort diese Adresse und den Token ein:",
+  "Token for {name}": "Token für {name}",
+  "last sync {when}": "letzter Abgleich {when}",
+  "never used": "noch nie benutzt",
+  "created {when}": "angelegt {when}",
+  Rename: "Umbenennen",
+  "Rename token": "Token umbenennen",
+  Revoke: "Widerrufen",
+  "Revoke the token {name}? The desktop app using it can no longer sync.":
+    "Token {name} widerrufen? Die Desktop-App, die ihn benutzt, kann dann nicht mehr abgleichen.",
+  "Create token": "Token erzeugen",
+  "New token": "Neuer Token",
+  "A PiBar desktop app syncs names, colours, groups and projects of the sessions with the webapp. Create one token per desktop app.":
+    "Eine PiBar-Desktop-App gleicht Namen, Farben, Gruppen und Projekte der Sessions mit der Webapp ab. Lege pro Desktop-App einen Token an.",
+  "No tokens yet.": "Noch keine Tokens.",
+  "This session is open in the desktop app right now.": "Diese Session ist gerade in der Desktop-App offen.",
+  "This session is open in the webapp right now.": "Diese Session ist gerade in der Webapp offen.",
+  "Not synced yet.": "Noch nicht abgeglichen.",
+  "Last sync {when} failed: {error}": "Letzter Abgleich {when} fehlgeschlagen: {error}",
+  "Last sync {when}: {updated} received, {removed} removed.":
+    "Letzter Abgleich {when}: {updated} übernommen, {removed} entfernt.",
+  "Not in the webapp: {hosts}": "Nicht in der Webapp: {hosts}",
+  "Webapp sync": "Webapp-Abgleich",
+  "Webapp sync…": "Webapp-Abgleich …",
+  "Address of the mobile webapp; empty = sync off.": "Adresse der mobilen Webapp; leer = Abgleich aus.",
+  "API token from the webapp (More → Desktop app tokens).":
+    "API-Token aus der Webapp (Mehr → Tokens für Desktop-Apps).",
+  "No webapp URL or token configured.": "Keine Webapp-URL oder kein Token eingetragen.",
+  "Sync failed": "Abgleich fehlgeschlagen",
+  "Sync with webapp now": "Jetzt mit der Webapp abgleichen",
+  "Names, colours, groups and projects in both directions": "Namen, Farben, Gruppen und Projekte in beide Richtungen",
+  "Sync with webapp automatically": "Automatisch mit der Webapp abgleichen",
+  "At start, after every change and every minute": "Beim Start, nach jeder Änderung und jede Minute",
+  "API token": "API-Token",
+  "Automatic sync": "Automatischer Abgleich",
+  "Names, colours, pins, groups and projects of the sessions, in both directions; the newer change wins.":
+    "Namen, Farben, Pins, Gruppen und Projekte der Sessions, in beide Richtungen; die neuere Änderung gewinnt.",
+  "Sync now": "Jetzt abgleichen",
+  "Open since {when}.": "Offen seit {when}.",
+  "Session is already open": "Session ist schon offen",
+  "Read only shows the history without starting Pi. Take over stops Pi there and continues here.":
+    "„Nur lesen“ zeigt den Verlauf, ohne Pi zu starten. „Übernehmen“ beendet Pi dort und macht hier weiter.",
+  "Read only": "Nur lesen",
+  "Take over": "Übernehmen",
+  "Read only – Pi is not started here.": "Nur lesen – Pi wird hier nicht gestartet.",
+  "Read only – take the session over to write.": "Nur lesen – übernimm die Session, um zu schreiben.",
   // (end of webapp: desktop sync & tokens)
   // webapp: settings & extras – new keys go above the end line of this section
   "<provider>/<model id>, empty = keep the session's model":

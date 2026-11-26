@@ -3,7 +3,7 @@ import { api, AppConfig, SearchHit, SessionInfo } from "../shared/api";
 import { errMsg, toast } from "../shared/dom";
 import { t } from "../shared/i18n";
 import type { SessionTab } from "./sessionTab";
-import { notifyConfigSaved } from "./configSync";
+import { notifyConfigSaved, prepareConfigSave } from "./configSync";
 
 export interface HostStatus {
   state: "ok" | "err" | "busy";
@@ -38,8 +38,10 @@ export const state = {
 
 export async function saveConfig() {
   try {
+    // the webapp sync stamps changed session metadata, groups and projects (updatedAt) before they are written
+    prepareConfigSave();
     await api.saveConfig(state.config);
-    // Listeners (e.g. the webapp auto-sync in configExchange.ts) follow every save; the registry in
+    // Listeners (e.g. the webapp sync in configExchange.ts) follow every save; the registry in
     // configSync.ts keeps state.ts free of a circular import back to configExchange.ts.
     notifyConfigSaved();
   } catch (e) {

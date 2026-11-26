@@ -1,7 +1,8 @@
 // Pi process commands with the Tauri names (lib.rs: pi_open, pi_send, pi_reply, pi_stderr, pi_close). Commands with a
 // handle check that the user may use the host the process runs on. pi_open joins a session that already runs in the
-// webapp instead of starting it twice (see host/pi.ts).
-import { argOptString, argOptStringArray, CommandError, type CommandContext, type CommandRegistry } from "../commands.js";
+// webapp instead of starting it twice (see host/pi.ts); a session another Pi holds (desktop app, lock file on the
+// host, host/lock.ts) fails with "session-locked:…" (409) unless `force: true` takes it over.
+import { argOptBool, argOptString, argOptStringArray, CommandError, type CommandContext, type CommandRegistry } from "../commands.js";
 import { canUseHost } from "../helpers.js";
 import type { PiManager } from "../host/pi.js";
 import { isSessionFile } from "../host/sessions.js";
@@ -19,29 +20,33 @@ function handleOf(ctx: CommandContext, pi: PiManager, args: Record<string, unkno
 export function registerPiCommands(registry: CommandRegistry, pi: PiManager) {
   registry.register("pi_open", {
     host: true,
-    run: (ctx, args) => {
+    run: async (ctx, args) => {
       const cwd = argOptString(args, "cwd", "~") || "~";
       const sessionPath = argOptString(args, "sessionPath") || null;
       if (sessionPath && !isSessionFile(sessionPath)) throw new CommandError(400, `Not a Pi session file: ${sessionPath}`);
-      return pi.open(ctx.host, cwd, {
+      const opened = await pi.openChecked(ctx.host, cwd, {
         sessionPath,
         tools: argOptStringArray(args, "tools"),
         appendPrompt: argOptString(args, "appendPrompt") || null,
-      }).handle;
+        force: argOptBool(args, "force", false),
+      });
+      return opened.handle;
     },
   });
   /** Webapp only: like pi_open, but also says whether a running process was joined and how far its events are */
   registry.register("pi_attach", {
     host: true,
-    run: (ctx, args) => {
+    run: async (ctx, args) => {
       const cwd = argOptString(args, "cwd", "~") || "~";
       const sessionPath = argOptString(args, "sessionPath") || null;
       if (sessionPath && !isSessionFile(sessionPath)) throw new CommandError(400, `Not a Pi session file: ${sessionPath}`);
-      // tools (plan mode, a subagent's allowlist) and an agent's system prompt only count when Pi starts
-      const { handle, joined } = pi.open(ctx.host, cwd, {
+      // tools (plan mode, a subagent's allowlist) and an agent's system prompt only count when Pi starts;
+      // the session lock refuses a session another live Pi holds unless `force` takes it over
+      const { handle, joined } = await pi.openChecked(ctx.host, cwd, {
         sessionPath,
         tools: argOptStringArray(args, "tools"),
         appendPrompt: argOptString(args, "appendPrompt") || null,
+        force: argOptBool(args, "force", false),
       });
       const info = pi.info(handle);
       return { handle, joined, streaming: info?.streaming ?? false, seq: pi.replay(handle, Number.MAX_SAFE_INTEGER).seq };

@@ -178,9 +178,9 @@ export class HostExec {
     });
   }
 
-  /** Start Pi in RPC mode in the given folder (hostexec.rs: spawn_pi) */
-  spawnPi(host: HostTarget, cwd: string, extraArgs: string[] = []): ChildProcessWithoutNullStreams {
-    return this.runner.spawnShell(host, piScript(host, cwd, "rpc", extraArgs));
+  /** Start Pi in RPC mode in the given folder (hostexec.rs: spawn_pi); `pre` runs first (the session lock, lock.ts) */
+  spawnPi(host: HostTarget, cwd: string, extraArgs: string[] = [], pre = ""): ChildProcessWithoutNullStreams {
+    return this.runner.spawnShell(host, pre + piScript(host, cwd, "rpc", extraArgs));
   }
 }
 

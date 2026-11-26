@@ -11,6 +11,7 @@ import { HostExec, LocalRunner, SshRunner } from "./src/server/host/hostexec.js"
 import { toTarget } from "./src/server/hosts.js";
 import { PiManager } from "./src/server/host/pi.js";
 import { AppConfigStore } from "./src/server/appConfig.js";
+import { ApiTokenStore } from "./src/server/apiTokens.js";
 import { importLegacyConfig, MetaStore } from "./src/server/meta.js";
 import { startWebPush } from "./src/server/push.js";
 import { Store } from "./src/server/store.js";
@@ -48,7 +49,9 @@ const exec = new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new Ssh
 const pi = new PiManager(exec);
 // organisation of the session list (shared, synced with the desktop) and shared settings
 const meta = new MetaStore(dataDir);
-if (!meta.exists && store.config) importLegacyConfig(meta, store.config.payload, store.config.receivedAt, store.sortedHosts());
+if (!meta.exists && store.legacyConfig) {
+  importLegacyConfig(meta, store.legacyConfig.payload, store.legacyConfig.receivedAt, store.sortedHosts());
+}
 const appConfig = new AppConfigStore(dataDir);
 
 const app = createApp(store, {
@@ -64,7 +67,8 @@ const app = createApp(store, {
     },
     canUseHost,
   },
-  onConfigUpdated: (receivedAt) => hub?.broadcast({ type: "config/updated", receivedAt }),
+  // API tokens of the desktop apps and their two-way sync of the session organisation
+  sync: { meta, apiTokens: new ApiTokenStore(dataDir) },
 });
 
 const server = createServer(app);

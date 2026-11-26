@@ -23,8 +23,8 @@ import { quickActionsEditor, renderQuickActions } from "./quickActions";
 import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
 import { diagnoseDialog } from "./diagnose";
-import { autoSyncEnabled, setAutoSyncEnabled, setWebappUrl, webappUrl } from "./configExchange";
-import { exportConfig, importConfig } from "./configExchangeTool";
+import { autoSyncEnabled, lastSync, onSyncResult, setAutoSyncEnabled } from "./configExchange";
+import { syncResultText, syncWithFeedback, webappFields } from "./configExchangeTool";
 
 function tapOptions(): [string, string][] {
   return [
@@ -484,26 +484,26 @@ export function settingsDialog() {
     })
     .catch(() => {});
 
-  // Config exchange with the mobile webapp (same controls as the session list's view menu);
-  // URL and toggle live in localStorage (configExchange.ts), not in state.config
-  const webappUrlInput = h("input", {
-    type: "url",
-    value: webappUrl(),
-    placeholder: "http://192.168.1.20:8787",
-  }) as HTMLInputElement;
-  // send/import/auto-sync use the field's current value right away, even before Save
-  const applyWebappUrl = () => setWebappUrl(webappUrlInput.value);
+  // Two-way sync with the mobile webapp (same controls as the session list's view menu); URL, token and toggle
+  // live in localStorage (configExchange.ts), not in state.config – the token never reaches the config file
+  const webapp = webappFields();
   const webappSync = h("input", {
     type: "checkbox",
     checked: autoSyncEnabled(),
     style: "width:auto",
   }) as HTMLInputElement;
-  // like the menu toggle: persists at once, turning it on sends once immediately (with the usual feedback)
+  // like the menu toggle: persists at once, turning it on syncs once immediately (with the usual feedback)
   webappSync.addEventListener("change", () => {
-    applyWebappUrl();
+    webapp.apply();
     setAutoSyncEnabled(webappSync.checked);
-    if (webappSync.checked) void exportConfig();
+    if (webappSync.checked) void syncWithFeedback();
   });
+  const syncStatus = h("p", { class: "hint", "data-testid": "webapp-sync-status" }, syncResultText(lastSync()));
+  const offSync = onSyncResult((r) => {
+    syncStatus.textContent = syncResultText(r);
+    syncStatus.style.color = r.ok ? "" : "var(--danger)";
+  });
+  if (lastSync()?.ok === false) syncStatus.style.color = "var(--danger)";
 
   const version = h("p", { class: "app-version" }, "PiBar");
   getVersion()
@@ -575,7 +575,7 @@ export function settingsDialog() {
     state.config.ui.notifyDone = notifyDone.checked;
     state.config.ui.background = background.checked;
     state.config.ui.subagentMode = subagentMode.value === "parallel" ? "parallel" : "sequential";
-    setWebappUrl(webappUrlInput.value);
+    webapp.apply();
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -779,28 +779,27 @@ export function settingsDialog() {
 
   section(
     "Webapp",
-    h("div", { class: "row" }, h("label", {}, t("Webapp URL")), webappUrlInput),
-    h("p", { class: "hint" }, t("Address of the mobile webapp; empty = config exchange off.")),
+    h("div", { class: "row" }, h("label", {}, t("Webapp URL")), webapp.url),
+    h("p", { class: "hint" }, t("Address of the mobile webapp; empty = sync off.")),
+    h("div", { class: "row" }, h("label", {}, t("API token")), webapp.token),
+    h("p", { class: "hint" }, t("API token from the webapp (More → Desktop app tokens).")),
     h(
       "div",
       { class: "row" },
-      h("label", {}, t("Auto-sync to webapp")),
-      h("label", { class: "check" }, webappSync, ` ${t("Send the config automatically after every change")}`),
+      h("label", {}, t("Automatic sync")),
+      h("label", { class: "check" }, webappSync, ` ${t("At start, after every change and every minute")}`),
+    ),
+    h(
+      "p",
+      { class: "hint" },
+      t("Names, colours, pins, groups and projects of the sessions, in both directions; the newer change wins."),
     ),
     h(
       "div",
       { class: "preset-actions" },
-      h(
-        "button",
-        { class: "ghost", onclick: () => (applyWebappUrl(), void exportConfig()) },
-        t("Send config to webapp"),
-      ),
-      h(
-        "button",
-        { class: "ghost", onclick: () => (applyWebappUrl(), void importConfig(renderHosts)) },
-        t("Import config from webapp"),
-      ),
+      h("button", { class: "ghost", onclick: () => (webapp.apply(), void syncWithFeedback()) }, t("Sync now")),
     ),
+    syncStatus,
   );
 
   section(
@@ -835,7 +834,7 @@ export function settingsDialog() {
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
       h("button", { class: "primary", onclick: save }, t("Save")),
     ],
-    undefined,
+    offSync,
     "settings-modal",
   );
 }

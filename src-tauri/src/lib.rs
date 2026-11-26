@@ -8,6 +8,7 @@ mod files;
 mod gitlog;
 mod hostexec;
 mod i18n;
+mod lock;
 mod models;
 mod pi;
 mod quick;
@@ -121,7 +122,8 @@ async fn save_text_file(name: String, text: String) -> Result<bool, String> {
 // ---------- Pi processes ----------
 
 #[tauri::command]
-fn pi_open(
+#[allow(clippy::too_many_arguments)]
+async fn pi_open(
     app: AppHandle,
     mgr: State<'_, PiManager>,
     host_id: String,
@@ -129,8 +131,16 @@ fn pi_open(
     session_path: Option<String>,
     tools: Option<Vec<String>>,
     append_prompt: Option<String>,
+    force: Option<bool>,
 ) -> Result<u32, String> {
     let host = config::find_host(&app, &host_id)?;
+    // session lock (src-tauri/src/lock.rs): another live Pi (the webapp) holding the session refuses the start,
+    // unless `force` takes it over; the check runs on the host, so off the main thread
+    if let Some(p) = session_path.clone() {
+        let h = host.clone();
+        let force = force.unwrap_or(false);
+        tauri::async_runtime::spawn_blocking(move || lock::claim(&h, &p, force)).await.map_err(|e| e.to_string())??;
+    }
     mgr.open(&app, &host, &cwd, session_path, tools, append_prompt)
 }
 

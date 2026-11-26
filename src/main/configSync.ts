@@ -1,9 +1,22 @@
-// Config-save notifications and the pure auto-sync helpers (decision + trailing-edge debounce with injectable
-// timers). state.ts calls notifyConfigSaved() after every save; configExchange.ts registers its silent webapp
-// send here — this module imports nothing, so there is no circular import between state.ts and configExchange.ts.
+// Config-save hooks and the pure auto-sync helpers (decision + trailing-edge debounce with injectable timers).
+// state.ts calls prepareConfigSave() before and notifyConfigSaved() after every save; configExchange.ts registers
+// its updatedAt stamping and the debounced webapp sync here — this module imports nothing, so there is no circular
+// import between state.ts and configExchange.ts.
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
+const preparers = new Set<Listener>();
+
+/** Register a hook that runs right before every config save (the sync stamps changed entries there) */
+export function onBeforeConfigSave(cb: Listener): () => void {
+  preparers.add(cb);
+  return () => preparers.delete(cb);
+}
+
+/** Called by saveConfig() in state.ts before the config goes to the Rust core */
+export function prepareConfigSave() {
+  for (const cb of preparers) cb();
+}
 
 /** Register a listener for config saves; returns a function that removes it again */
 export function onConfigSaved(cb: Listener): () => void {

@@ -1,6 +1,6 @@
 // Express app factory: health, auth, user management (admin), hosts with SSH data (admin), the command router
-// (/api/cmd/<name>, see commands.ts), config sync (no auth — replaced by the token sync in task D2), sessions
-// for the UI, static client + SPA fallback.
+// (/api/cmd/<name>, see commands.ts), API tokens and the desktop sync (routes/tokens.ts), static client + SPA
+// fallback.
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -14,8 +14,9 @@ import { createLoginRateLimiter } from "./rateLimit.js";
 import { fileRoutes, uploadJson } from "./routes/files.js";
 import { TOKEN_TTL_MS, type Store, type UserRecord } from "./store.js";
 import { validateHostInput, type HostRecord } from "./hosts.js";
+import { tokenRoutes, type TokenRouteDeps } from "./routes/tokens.js";
 import type { PublicUser } from "./types.js";
-import { isConfigPayload, isRecord, isRole, isString } from "./validation.js";
+import { isRecord, isRole, isString } from "./validation.js";
 
 declare module "express-serve-static-core" {
   interface Request {
@@ -33,8 +34,8 @@ export interface AppOptions {
   appConfig?: AppConfigStore;
   /** Command router (/api/cmd/<name>); without it the route answers 404 for every command */
   commands?: Omit<CommandDeps, "store" | "requireAuth">;
-  /** Called after a config payload was persisted (WebSocket broadcast). */
-  onConfigUpdated?: (receivedAt: string) => void;
+  /** API tokens and the desktop sync (/api/tokens*, /api/sync/meta); without it those routes answer 404 */
+  sync?: Omit<TokenRouteDeps, "store" | "requireAuth" | "requireAdmin">;
 }
 
 function publicUser(u: UserRecord): PublicUser {
@@ -71,7 +72,7 @@ function asyncRoute(fn: AsyncHandler) {
   };
 }
 
-// Only the PiBar desktop Tauri WebView may read /api/config cross-origin.
+// Only the PiBar desktop Tauri WebView may call the webapp cross-origin (the sync, /api/sync/meta).
 // Same-origin requests (the webapp client itself) need no CORS headers at all.
 const TAURI_ORIGINS = new Set([
   "tauri://localhost",
@@ -147,6 +148,7 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
   // ---------------------------------------------------------------- commands
   if (opts.commands) app.use("/api/cmd", commandRouter({ ...opts.commands, store, requireAuth }));
   if (opts.commands) app.use("/api/files", fileRoutes({ ...opts.commands, store, requireAuth }));
+  if (opts.sync) app.use("/api", tokenRoutes({ ...opts.sync, store, requireAuth, requireAdmin }));
 
   // ---------------------------------------------------------------- auth
   app.post("/api/login", asyncRoute(async (req: Request, res: Response) => {
@@ -423,46 +425,6 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     }
     store.deleteHost(host.id);
     res.json({ status: "ok" });
-  });
-
-  // --------------------------------------- config sync (NO auth, see README)
-  app.post("/api/config", (req: Request, res: Response) => {
-    const body: unknown = req.body;
-    if (!isConfigPayload(body)) {
-      res.status(400).json({ error: "Expected a ConfigPayload with sessions, projects and groups arrays and string ids" });
-      return;
-    }
-    const receivedAt = new Date().toISOString();
-    store.setConfig(body, receivedAt);
-    // body.hosts (sent by the desktop) is ignored: the webapp manages its own hosts with SSH data
-    opts.onConfigUpdated?.(receivedAt);
-    res.json({ status: "ok" });
-  });
-
-  app.get("/api/config", (_req: Request, res: Response) => {
-    if (!store.config) {
-      res.status(404).json({ error: "No config received yet" });
-      return;
-    }
-    res.json(store.config.payload);
-  });
-
-  app.get("/api/config/status", (_req: Request, res: Response) => {
-    const cfg = store.config;
-    res.json({
-      hasConfig: cfg !== null,
-      receivedAt: cfg?.receivedAt ?? null,
-      counts: {
-        sessions: cfg?.payload.sessions.length ?? 0,
-        projects: cfg?.payload.projects.length ?? 0,
-        groups: cfg?.payload.groups.length ?? 0,
-      },
-    });
-  });
-
-  // ----------------------------------------------------- sessions for the UI
-  app.get("/api/sessions", requireAuth, (_req: Request, res: Response) => {
-    res.json(store.config?.payload.sessions ?? []);
   });
 
   // ------------------------------------------------ static client + fallback

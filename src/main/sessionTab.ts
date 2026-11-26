@@ -47,6 +47,8 @@ import { speak, stopSpeaking } from "../shared/voice";
 import { icon, IconName } from "../shared/icons";
 import type { Attachment } from "./composerTools";
 import { diagnoseDialog } from "./diagnose";
+import { branchMessages, parseSessionLock, type SessionLock } from "../shared/sessionLock";
+import { askSessionLock, readOnlyBanner } from "./sessionLock";
 import { saveConfig, state } from "./state";
 
 type PartKind = "text" | "thinking" | "tool";
@@ -271,6 +273,10 @@ export class SessionTab {
   background = false;
   /** No Pi process here: the tab shows a run in the background (or waits for the next one) */
   detached = false;
+  /** Another Pi holds this session (the webapp, src/main/sessionLock.ts): the history is shown without Pi */
+  readOnly: SessionLock | null = null;
+  /** The next start takes the session over from the other Pi (lock on the host) */
+  private forceOpen = false;
   /** The current run in the background reported agent_settled (otherwise it ended without an answer) */
   private bgSettled = false;
   /** The user stopped the current run in the background (no answer is not an error then) */
@@ -352,13 +358,10 @@ export class SessionTab {
 
   async start(onHandle?: (tab: SessionTab) => void) {
     this.note(this.sessionPath ? t("Loading session …") : t("Starting new session …"));
-    this.handle = await api.piOpen(
-      this.hostId,
-      this.cwd,
-      this.sessionPath ?? undefined,
-      this.toolset,
-      this.agentPromptFile,
-    );
+    const handle = await this.openPi();
+    if (handle === null) return;
+    this.handle = handle;
+    this.readOnly = null;
     this.alive = true;
     this.detached = false;
     this.contextStatusSeen = false;
@@ -373,6 +376,43 @@ export class SessionTab {
     await this.applyChoice();
     await this.applyContext();
     await this.applyTemperature();
+    this.cb.onStateChange(this);
+  }
+
+  /**
+   * pi_open behind the session lock: when another Pi (the webapp) holds the session, ask "read only" or "take over".
+   * null = read only, the history is shown without Pi.
+   */
+  private async openPi(): Promise<number | null> {
+    const open = (force: boolean) =>
+      api.piOpen(this.hostId, this.cwd, this.sessionPath ?? undefined, this.toolset, this.agentPromptFile, force);
+    const force = this.forceOpen;
+    this.forceOpen = false;
+    try {
+      return await open(force);
+    } catch (e) {
+      const lock = parseSessionLock(e);
+      if (!lock || !this.sessionPath) throw e;
+      if ((await askSessionLock(lock)) === "takeover") return open(true);
+      await this.showReadOnly(lock);
+      return null;
+    }
+  }
+
+  /** The session's history from its file, without Pi, and a banner to take the session over */
+  private async showReadOnly(lock: SessionLock) {
+    this.readOnly = lock;
+    this.alive = false;
+    const text = await api.readSessionFile(this.hostId, this.sessionPath ?? "");
+    this.el.querySelectorAll(".msg.note.loading").forEach((n) => n.remove());
+    for (const m of branchMessages(text)) this.renderStored(m);
+    this.flush();
+    this.el.append(
+      readOnlyBanner(lock, () => {
+        this.forceOpen = true;
+        this.restart().catch((e) => toast(errMsg(e), "err"));
+      }),
+    );
     this.cb.onStateChange(this);
   }
 
@@ -539,6 +579,10 @@ export class SessionTab {
    * between, before Pi's next step). The queue is shown above the input (`queue`, chatView.ts renderQueue).
    */
   async send(text: string, images: Image[] = [], when: QueueWhen = "followUp") {
+    if (this.readOnly) {
+      toast(t("Read only – take the session over to write."), "err");
+      return;
+    }
     if (this.detached) {
       await this.sendToBackground(text, images, when);
       return;

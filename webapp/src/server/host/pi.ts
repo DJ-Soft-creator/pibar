@@ -7,10 +7,13 @@
 // - Every event gets a sequence number and is kept in a ring buffer; a client that reconnects asks for the events
 //   after the last number it saw (replay). If they are no longer in the buffer it is told to reload the history.
 // - Processes nobody watches that are idle (no answer running) are closed after a while.
+// - Session lock against the desktop app (lock.ts): the start script writes ~/.pibar/<hash>.lock; openChecked
+//   refuses a session another live Pi holds unless `force` takes it over.
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { followScript } from "./bg.js";
 import type { HostExec, HostTarget } from "./hostexec.js";
+import { claimSession, lockWritePrefix, newLockOwner } from "./lock.js";
 
 /** How long a single RPC command may take until Pi answers (pi.rs: RPC_TIMEOUT) */
 const RPC_TIMEOUT_MS = 60_000;
@@ -80,10 +83,15 @@ export class PiManager {
   private readonly extra = new Set<PiListener>();
   private sweeper: NodeJS.Timeout | null = null;
 
+  /** Owner id in the lock files of this server's Pi processes (lock.ts) */
+  readonly lockOwner: string;
+
   constructor(
     private readonly exec: HostExec,
-    private readonly opts: { idleMs?: number; isWatched?: (handle: number) => boolean } = {},
-  ) {}
+    private readonly opts: { idleMs?: number; isWatched?: (handle: number) => boolean; lockOwner?: string } = {},
+  ) {
+    this.lockOwner = opts.lockOwner ?? newLockOwner("webapp");
+  }
 
   setListener(l: PiListener | null) {
     this.listener = l;
@@ -177,7 +185,8 @@ export class PiManager {
     if (sessionPath) args.push("--session", sessionPath);
     args.push(...toolArgs(o.tools ?? null));
     if (o.appendPrompt) args.push("--append-system-prompt", o.appendPrompt);
-    const child = this.exec.spawnPi(host, cwd, args);
+    // the start script writes the session lock before it becomes Pi (lock.ts)
+    const child = this.exec.spawnPi(host, cwd, args, sessionPath ? lockWritePrefix(this.lockOwner, sessionPath) : "");
     return { handle: this.register(host, cwd, sessionPath, child, false), joined: false };
   }
 
@@ -202,6 +211,18 @@ export class PiManager {
     this.procs.set(handle, proc);
     this.pump(proc);
     return handle;
+  }
+
+  /**
+   * open() behind the session lock: a session that is not running here yet is checked on the host first. Another live
+   * Pi holding it (desktop app, another webapp) → SessionLockedError (409), unless `force` stops that process.
+   */
+  async openChecked(host: HostTarget, cwd: string, o: OpenOptions & { force?: boolean } = {}) {
+    const sessionPath = o.sessionPath ?? null;
+    if (sessionPath && this.findSession(host.id, sessionPath) === null) {
+      await claimSession(this.exec, host, sessionPath, this.lockOwner, o.force === true);
+    }
+    return this.open(host, cwd, o);
   }
 
   private pump(p: PiProc) {

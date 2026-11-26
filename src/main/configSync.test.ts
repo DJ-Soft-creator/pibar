@@ -1,8 +1,15 @@
 // Tests for the auto-sync helpers (decision, listener registry, trailing-edge debounce with injected timers)
-// and for the HostInfo address building of the config exchange payload.
+// and for the HostInfo address building of the webapp sync request.
 import { describe, expect, it } from "vitest";
-import { onConfigSaved, notifyConfigSaved, shouldAutoSync, trailingDebounce } from "./configSync";
-import { hostInfo } from "./configExchange";
+import {
+  onBeforeConfigSave,
+  onConfigSaved,
+  notifyConfigSaved,
+  prepareConfigSave,
+  shouldAutoSync,
+  trailingDebounce,
+} from "./configSync";
+import { hostInfo } from "../shared/metaSync";
 
 /** Manual clock: set/clear collect jobs, advance(ms) runs the due ones */
 function fakeTimers() {
@@ -55,6 +62,17 @@ describe("config-save listeners", () => {
     notifyConfigSaved();
     expect([a, b]).toEqual([1, 2]);
     offB();
+  });
+});
+
+describe("before-save hooks", () => {
+  it("run on prepareConfigSave until they unsubscribe", () => {
+    let n = 0;
+    const off = onBeforeConfigSave(() => n++);
+    prepareConfigSave();
+    off();
+    prepareConfigSave();
+    expect(n).toBe(1);
   });
 });
 
