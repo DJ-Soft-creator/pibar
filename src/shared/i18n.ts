@@ -965,8 +965,6 @@ const de = {
   "SSH user": "SSH-Benutzer",
   Search: "Suchen",
   "Testing …": "Teste …",
-  "The files of a session follow with a later step of the webapp.":
-    "Die Dateien einer Session kommen mit einem späteren Schritt der Webapp.",
   Theme: "Design",
   Username: "Benutzername",
   Users: "Benutzer",
@@ -984,6 +982,18 @@ const de = {
   "Queued – Pi reads it after the current answer.": "Vorgemerkt – Pi liest es nach der aktuellen Antwort.",
   "Session file": "Session-Datei",
   "Pick a session in the list or start a new one.": "Wähle eine Session in der Liste oder starte eine neue.",
+  "Model presets": "Modell-Presets",
+  "Desktop app tokens": "Tokens für Desktop-Apps",
+  // webapp: files & git – new keys go above the end line of this section
+  // (end of webapp: files & git)
+  // webapp: chat – new keys go above the end line of this section
+  // (end of webapp: chat)
+  // webapp: sessions & organisation – new keys go above the end line of this section
+  // (end of webapp: sessions & organisation)
+  // webapp: desktop sync & tokens – new keys go above the end line of this section
+  // (end of webapp: desktop sync & tokens)
+  // webapp: settings & extras – new keys go above the end line of this section
+  // (end of webapp: settings & extras)
 } as const;
 
 export type Msg = keyof typeof de;

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { validateSettings, type AppConfigStore } from "./appConfig.js";
 import { commandRouter, type CommandDeps } from "./commands.js";
 import { canUseHost, createStoreUserHelpers, isSameOrigin, SESSION_COOKIE } from "./helpers.js";
 import { createToken, createUser, hashPassword, verifyPassword } from "./auth.js";
@@ -27,6 +28,8 @@ export interface AppOptions {
   clientDir: string;
   /** Secure flag of the session cookie: auto = when the request came over HTTPS (also behind the proxy) */
   cookieSecure?: "auto" | "always" | "never";
+  /** Shared settings (presets, quick actions, colour profiles, voice); without it /api/app-config answers 404 */
+  appConfig?: AppConfigStore;
   /** Command router (/api/cmd/<name>); without it the route answers 404 for every command */
   commands?: Omit<CommandDeps, "store" | "requireAuth">;
   /** Called after a config payload was persisted (WebSocket broadcast). */
@@ -318,6 +321,30 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     }
     store.deleteUser(user.id);
     res.json({ status: "ok" });
+  });
+
+  // ------------------------------------------- shared settings (admin; users read them via app_config_get)
+  app.get("/api/app-config", requireAuth, requireAdmin, (_req: Request, res: Response) => {
+    if (!opts.appConfig) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json(opts.appConfig.publicConfig());
+  });
+
+  /** Replaces the settings; an empty apiKey next to apiKeySet=true keeps the stored key */
+  app.put("/api/app-config", requireAuth, requireAdmin, (req: Request, res: Response) => {
+    if (!opts.appConfig) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const parsed = validateSettings(req.body);
+    if (typeof parsed === "string") {
+      res.status(400).json({ error: parsed });
+      return;
+    }
+    opts.appConfig.save(parsed);
+    res.json(opts.appConfig.publicConfig());
   });
 
   // ------------------------------------------- hosts (admin CRUD; users see the hosts they may use)

@@ -5,7 +5,18 @@ import { setLang } from "@shared/i18n";
 import { applyTheme } from "@shared/theme";
 import { account, type HostRecord, type Me, type Settings } from "./rest";
 
-export type Route = "sessions" | "chat" | "files" | "more" | "admin/hosts" | "admin/users";
+export type Route =
+  | "sessions"
+  | "chat"
+  | "files"
+  | "more"
+  | "admin/hosts"
+  | "admin/users"
+  | "admin/presets"
+  | "admin/quick-actions"
+  | "admin/colors"
+  | "admin/voice"
+  | "admin/tokens";
 
 /** The session shown in the chat tab; path null = a new session (Pi creates the file with the first message) */
 export interface ChatTarget {
@@ -16,7 +27,19 @@ export interface ChatTarget {
   title: string;
 }
 
-const ROUTES: Route[] = ["sessions", "chat", "files", "more", "admin/hosts", "admin/users"];
+const ROUTES: Route[] = [
+  "sessions",
+  "chat",
+  "files",
+  "more",
+  "admin/hosts",
+  "admin/users",
+  "admin/presets",
+  "admin/quick-actions",
+  "admin/colors",
+  "admin/voice",
+  "admin/tokens",
+];
 
 export const state = {
   me: null as Me | null,

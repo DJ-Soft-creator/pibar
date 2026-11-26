@@ -42,6 +42,10 @@ export function registerPiCommands(registry: CommandRegistry, pi: PiManager) {
       return { handle, joined, streaming: info?.streaming ?? false, seq: pi.replay(handle, Number.MAX_SAFE_INTEGER).seq };
     },
   });
+  /** Webapp only: the Pi processes running on the user's hosts (session list marks, "working" badges) */
+  registry.register("pi_list", {
+    run: (ctx) => pi.list().filter((p) => canUseHost(ctx.user, p.hostId)),
+  });
   registry.register("pi_send", {
     run: async (ctx, args) => {
       const handle = handleOf(ctx, pi, args);

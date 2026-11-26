@@ -10,6 +10,8 @@ import { canUseHost } from "./src/server/helpers.js";
 import { HostExec, LocalRunner, SshRunner } from "./src/server/host/hostexec.js";
 import { toTarget } from "./src/server/hosts.js";
 import { PiManager } from "./src/server/host/pi.js";
+import { AppConfigStore } from "./src/server/appConfig.js";
+import { importLegacyConfig, MetaStore } from "./src/server/meta.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
 
@@ -43,12 +45,17 @@ let hub: SocketHub | null = null;
 const exec = new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new SshRunner({ dir: sshDir }));
 // Pi processes belong to the server: they keep running while a phone is locked or offline
 const pi = new PiManager(exec);
+// organisation of the session list (shared, synced with the desktop) and shared settings
+const meta = new MetaStore(dataDir);
+if (!meta.exists && store.config) importLegacyConfig(meta, store.config.payload, store.config.receivedAt, store.sortedHosts());
+const appConfig = new AppConfigStore(dataDir);
 
 const app = createApp(store, {
   clientDir,
   cookieSecure,
+  appConfig,
   commands: {
-    registry: createRegistry({ pi }),
+    registry: createRegistry({ pi, meta, appConfig }),
     exec,
     resolveHost: (id) => {
       const h = store.hosts.get(id);
@@ -61,6 +68,8 @@ const app = createApp(store, {
 
 const server = createServer(app);
 hub = createSocketHub(server, store, pi);
+meta.onChange(() => hub?.broadcast({ type: "meta/updated" }));
+appConfig.onChange(() => hub?.broadcast({ type: "config/app-updated" }));
 const watched = hub;
 pi.startSweeper((handle) => watched.isWatched(handle));
 

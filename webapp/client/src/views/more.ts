@@ -115,6 +115,11 @@ export function renderMore(root: HTMLElement, onLogout: () => void, rerender: ()
             { class: "stack" },
             button(t("Hosts"), () => go("admin/hosts")),
             button(t("Users"), () => go("admin/users")),
+            button(t("Model presets"), () => go("admin/presets")),
+            button(t("Quick actions"), () => go("admin/quick-actions")),
+            button(t("Chat colours"), () => go("admin/colors")),
+            button(t("Voice"), () => go("admin/voice")),
+            button(t("Desktop app tokens"), () => go("admin/tokens")),
           ),
         ),
       ]

@@ -8,6 +8,8 @@
 //            {"type":"pi/reload","handle":3}   (events after `since` are gone from the buffer: reload the history)
 //            {"type":"event","event":"pi-exit","payload":{"handle":3,"stderr":"…"}}
 //   client → {"type":"unsubscribe","handle":3}
+//   server → {"type":"activity","handle":3,"hostId":"…","sessionPath":"…","streaming":true,"alive":true}
+//            to every user of that host when a process starts/finishes an answer or ends (session list marks)
 import type { IncomingMessage, Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
 import { canUseHost, userForRequest } from "./helpers.js";
@@ -98,9 +100,22 @@ export function createSocketHub(server: Server, store: Store, pi?: PiManager): S
     });
   });
 
+  /** Tell every user of the host that a process started/finished an answer or ended */
+  function activity(handle: number, alive: boolean) {
+    const info = pi?.info(handle);
+    if (!info) return;
+    const msg = { type: "activity", handle, hostId: info.hostId, sessionPath: info.sessionPath, streaming: info.streaming, alive };
+    wss.clients.forEach((ws) => {
+      const user = userOf(ws);
+      if (user && canUseHost(user, info.hostId)) send(ws, msg);
+    });
+  }
+
   if (pi) {
     pi.setListener({
       onEvent(handle, seq, event) {
+        const type = (event as { type?: unknown }).type;
+        if (type === "agent_start" || type === "agent_settled") activity(handle, true);
         for (const [ws, set] of subs) {
           if (!set.has(handle)) continue;
           // rights can change while a socket is open (admin removes a host): check on every event
@@ -111,6 +126,7 @@ export function createSocketHub(server: Server, store: Store, pi?: PiManager): S
         }
       },
       onExit(handle, stderr) {
+        activity(handle, false);
         for (const [ws, set] of subs) {
           if (set.has(handle) && userOf(ws)) send(ws, { type: "event", event: "pi-exit", payload: { handle, stderr } });
         }

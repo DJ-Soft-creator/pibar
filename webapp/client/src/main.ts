@@ -7,9 +7,12 @@ import { account, hosts, onUnauthorized } from "./rest";
 import { connectSocket, type SocketHandle } from "./socket";
 import { notifySocketMessage, notifySocketOpen, setSocket } from "./socketBus";
 import { applySettings, currentRoute, go, isAdmin, restoreChat, state, type Route } from "./state";
-import { empty, header } from "./ui";
 import { renderHostsAdmin, renderUsersAdmin } from "./views/admin";
+import { initExtras } from "./extras";
+import { renderAdminConfig } from "./views/adminConfig";
 import { renderChat } from "./views/chat";
+import { renderFiles } from "./views/files";
+import { renderTokens } from "./views/tokens";
 import { renderLogin } from "./views/login";
 import { renderMore } from "./views/more";
 import { renderSessions } from "./views/sessions";
@@ -73,7 +76,7 @@ function renderPage() {
       renderChat(page);
       break;
     case "files":
-      page.replaceChildren(header(t("Files")), empty(t("The files of a session follow with a later step of the webapp.")));
+      renderFiles(page);
       break;
     case "more":
       renderMore(page, showLogin, renderPage);
@@ -84,6 +87,17 @@ function renderPage() {
       break;
     case "admin/users":
       if (isAdmin()) void renderUsersAdmin(page);
+      else go("more");
+      break;
+    case "admin/presets":
+    case "admin/quick-actions":
+    case "admin/colors":
+    case "admin/voice":
+      if (isAdmin()) void renderAdminConfig(page, route);
+      else go("more");
+      break;
+    case "admin/tokens":
+      if (isAdmin()) void renderTokens(page);
       else go("more");
       break;
   }
@@ -122,6 +136,7 @@ async function boot() {
   });
   setSocket(socket);
   shell();
+  initExtras();
 }
 
 onUnauthorized(showLogin);
