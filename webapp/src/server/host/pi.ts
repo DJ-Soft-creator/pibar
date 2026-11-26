@@ -73,6 +73,8 @@ export class PiManager {
   private nextHandle = 1;
   private nextReq = 1;
   private listener: PiListener | null = null;
+  /** Further listeners besides the socket hub's one (web push) */
+  private readonly extra = new Set<PiListener>();
   private sweeper: NodeJS.Timeout | null = null;
 
   constructor(
@@ -82,6 +84,12 @@ export class PiManager {
 
   setListener(l: PiListener | null) {
     this.listener = l;
+  }
+
+  /** Add a listener next to the one of setListener; returns the function that removes it */
+  addListener(l: PiListener): () => void {
+    this.extra.add(l);
+    return () => this.extra.delete(l);
   }
 
   /** Close idle processes nobody watches (every minute; idleMs default 30 min) */
@@ -197,6 +205,7 @@ export class PiManager {
       }
       p.pending.clear();
       this.listener?.onExit(p.handle, p.stderr);
+      for (const l of this.extra) l.onExit(p.handle, p.stderr);
     });
     p.child.on("error", () => {
       /* spawn errors also end in close */
@@ -211,6 +220,7 @@ export class PiManager {
     p.buffer.push({ seq, event: msg });
     if (p.buffer.length > BUFFER_EVENTS) p.buffer.splice(0, p.buffer.length - BUFFER_EVENTS);
     this.listener?.onEvent(p.handle, seq, msg);
+    for (const l of this.extra) l.onEvent(p.handle, seq, msg);
   }
 
   /**

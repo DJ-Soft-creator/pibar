@@ -6,6 +6,7 @@ import { t } from "@shared/i18n";
 import { hosts as hostApi, users as userApi, type HostRecord, type PublicUser, type Role } from "../rest";
 import { go, state } from "../state";
 import { button, confirmDialog, empty, field, header } from "../ui";
+import { colorProfileSelect } from "./adminColors";
 
 const back = () => h("button", { class: "icon-btn", "aria-label": t("Back"), onclick: () => go("more") }, "‹");
 
@@ -22,6 +23,7 @@ function hostDialog(host: HostRecord | null, done: () => void) {
   const port = input(host?.sshPort ? String(host.sshPort) : "", { inputmode: "numeric", placeholder: "22" });
   const pi = input(host?.piCommand ?? "", { placeholder: "pi" });
   const dir = input(host?.defaultDir ?? "", { placeholder: "~" });
+  const colors = colorProfileSelect(host?.colorProfile ?? "");
   const body = h(
     "div",
     { class: "form" },
@@ -31,6 +33,7 @@ function hostDialog(host: HostRecord | null, done: () => void) {
     field(t("Port"), port),
     field(t("Pi command"), pi),
     field(t("Default folder"), dir),
+    field(t("Colour profile"), colors),
   );
   const values = () => ({
     name: name.value,
@@ -39,7 +42,7 @@ function hostDialog(host: HostRecord | null, done: () => void) {
     sshPort: port.value.trim() ? Number(port.value) : null,
     piCommand: pi.value,
     defaultDir: dir.value,
-    colorProfile: host?.colorProfile ?? "",
+    colorProfile: colors.value,
   });
   const close = openModal(host ? t("Edit host") : t("Add host"), body, [
     button(t("Cancel"), () => close()),
