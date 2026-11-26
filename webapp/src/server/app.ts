@@ -11,6 +11,7 @@ import { commandRouter, type CommandDeps } from "./commands.js";
 import { canUseHost, createStoreUserHelpers, isSameOrigin, SESSION_COOKIE } from "./helpers.js";
 import { createToken, createUser, hashPassword, verifyPassword } from "./auth.js";
 import { createLoginRateLimiter } from "./rateLimit.js";
+import { fileRoutes, uploadJson } from "./routes/files.js";
 import { TOKEN_TTL_MS, type Store, type UserRecord } from "./store.js";
 import { validateHostInput, type HostRecord } from "./hosts.js";
 import type { PublicUser } from "./types.js";
@@ -115,6 +116,9 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       },
     }),
   );
+  // upload_file carries a whole file as base64: its own body limit from MAX_UPLOAD_MB (routes/files.ts), parsed
+  // first so the global 10 MB parser below skips it; every other request keeps the 10 MB limit
+  app.use("/api/cmd/upload_file", uploadJson(store));
   app.use(express.json({ limit: "10mb" }));
 
   const { requireAuth, requireAdmin } = createStoreUserHelpers(store);
@@ -142,6 +146,7 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
 
   // ---------------------------------------------------------------- commands
   if (opts.commands) app.use("/api/cmd", commandRouter({ ...opts.commands, store, requireAuth }));
+  if (opts.commands) app.use("/api/files", fileRoutes({ ...opts.commands, store, requireAuth }));
 
   // ---------------------------------------------------------------- auth
   app.post("/api/login", asyncRoute(async (req: Request, res: Response) => {
