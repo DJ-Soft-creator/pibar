@@ -1019,6 +1019,60 @@ const de = {
   // webapp: desktop sync & tokens – new keys go above the end line of this section
   // (end of webapp: desktop sync & tokens)
   // webapp: settings & extras – new keys go above the end line of this section
+  "<provider>/<model id>, empty = keep the session's model":
+    "<Anbieter>/<Modell-ID>, leer = Modell der Session beibehalten",
+  "A message on this device when Pi has finished an answer in a session you had open, and when a reminder is due.":
+    "Eine Nachricht auf diesem Gerät, wenn Pi eine Antwort in einer Session fertig hat, die du offen hattest, und wenn eine Erinnerung fällig ist.",
+  "Buttons in the chat: the text goes to the open session as a message or a slash command (e.g. /compact). Rows without a name or text are dropped.":
+    "Buttons im Chat: Der Text geht als Nachricht oder Slash-Befehl (z. B. /compact) an die offene Session. Zeilen ohne Name oder Text werden verworfen.",
+  "Colour profiles": "Farbprofile",
+  "Command in the webapp container": "Befehl im Webapp-Container",
+  "Default ({name})": "Standard ({name})",
+  "Dictate: hold to talk, or tap to start and stop":
+    "Diktieren: gedrückt halten zum Sprechen, oder tippen zum Starten und Stoppen",
+  "In the chat: hold the microphone to talk, or tap to start and tap again to stop.":
+    "Im Chat: Mikrofon gedrückt halten zum Sprechen, oder tippen zum Starten und erneut tippen zum Stoppen.",
+  "Label of the button": "Beschriftung des Buttons",
+  "Models of the hosts": "Modelle der Hosts",
+  "No access to the microphone – allow it for this page in the browser settings.":
+    "Kein Zugriff aufs Mikrofon – erlaube es für diese Seite in den Browser-Einstellungen.",
+  "No presets yet.": "Noch keine Presets.",
+  "No quick actions yet.": "Noch keine Schnellwahl-Buttons.",
+  "Nothing recognised.": "Nichts erkannt.",
+  Notifications: "Benachrichtigungen",
+  "Notifications are blocked for this page – allow them in the settings.":
+    "Benachrichtigungen sind für diese Seite blockiert – erlaube sie in den Einstellungen.",
+  "Notifications are on.": "Benachrichtigungen sind an.",
+  "Off for this device.": "Auf diesem Gerät aus.",
+  "On for this device.": "Auf diesem Gerät an.",
+  "On the iPhone and iPad notifications only work in the app on the home screen (iOS 16.4 or newer): Share → Add to Home Screen, then open PiBar from there.":
+    "Auf iPhone und iPad gehen Benachrichtigungen nur in der App auf dem Home-Bildschirm (ab iOS 16.4): Teilen → Zum Home-Bildschirm, dann PiBar von dort öffnen.",
+  "Pick a colour": "Farbe wählen",
+  "Pick a model of the hosts …": "Modell eines Hosts wählen …",
+  "Previous / next tab": "Vorheriger / nächster Tab",
+  "Quick choice of model and thinking level in the chat. An empty field keeps the session's value.":
+    "Schnellwahl von Modell und Denkaufwand im Chat. Ein leeres Feld behält den Wert der Session.",
+  "Recording too short.": "Aufnahme zu kurz.",
+  "Remove the stored key": "Gespeicherten Schlüssel entfernen",
+  "Saved.": "Gespeichert.",
+  "Search sessions": "Sessions durchsuchen",
+  "Send a test": "Test senden",
+  "Sessions, Chat, Files, More": "Sessions, Chat, Dateien, Mehr",
+  "Shell script – runs only in the desktop app (it opens a terminal there), not in the webapp.":
+    "Shell-Skript – läuft nur in der Desktop-App (öffnet dort ein Terminal), nicht in der Webapp.",
+  "Stored – leave empty to keep it": "Gespeichert – leer lassen zum Behalten",
+  "Test sent.": "Test gesendet.",
+  "The order applies to the chat's preset list. Presets without a name or without model and thinking level are dropped.":
+    "Die Reihenfolge gilt für die Preset-Liste im Chat. Presets ohne Name oder ohne Modell und Denkaufwand werden verworfen.",
+  "The services are called by the server; API keys stay there and are never shown again.":
+    "Die Dienste ruft der Server auf; API-Schlüssel bleiben dort und werden nie wieder angezeigt.",
+  "This browser does not support notifications.": "Dieser Browser unterstützt keine Benachrichtigungen.",
+  "Turn off": "Ausschalten",
+  "Turn on": "Einschalten",
+  "Voice of the browser": "Stimme des Browsers",
+  "e.g. Fast": "z. B. Schnell",
+  "{file} is the recording; the command prints the text. It runs inside the webapp's Docker container, so the program must be installed there (the standard image has none).":
+    "{file} ist die Aufnahme; der Befehl gibt den Text aus. Er läuft im Docker-Container der Webapp, das Programm muss also dort installiert sein (das Standard-Image hat keins).",
   // (end of webapp: settings & extras)
 } as const;
 

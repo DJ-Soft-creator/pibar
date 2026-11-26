@@ -12,6 +12,7 @@ import { toTarget } from "./src/server/hosts.js";
 import { PiManager } from "./src/server/host/pi.js";
 import { AppConfigStore } from "./src/server/appConfig.js";
 import { importLegacyConfig, MetaStore } from "./src/server/meta.js";
+import { startWebPush } from "./src/server/push.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
 
@@ -71,6 +72,7 @@ hub = createSocketHub(server, store, pi);
 meta.onChange(() => hub?.broadcast({ type: "meta/updated" }));
 appConfig.onChange(() => hub?.broadcast({ type: "config/app-updated" }));
 const watched = hub;
+startWebPush({ dataDir, store, pi, meta, subject: process.env.VAPID_SUBJECT });
 pi.startSweeper((handle) => watched.isWatched(handle));
 
 // stop the Pi processes with the container (docker stop sends SIGTERM)
