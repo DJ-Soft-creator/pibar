@@ -40,6 +40,7 @@ printed **once** to the server log — copy it from there.
 | `DEV_LOCAL_HOME` | *(unset)*    | **development only**: host commands run with bash on this machine against this `$HOME` instead of SSH (e.g. with `node ../dev/fake-pi.mjs` as the host's Pi command) |
 | `COOKIE_SECURE`  | `auto`       | `Secure` on the session cookie: `auto` (HTTPS, also via the proxy), `always`, `never` |
 | `CLIENT_DIR`     | `./dist/client` | static client directory (Vite build)        |
+| `VAPID_SUBJECT`  | `mailto:admin@example.com` | contact of the operator sent to the push services (`mailto:` or `https:` URL); set your own |
 
 ## API overview
 
@@ -69,6 +70,35 @@ printed **once** to the server log — copy it from there.
 - `GET /ws` — WebSocket, login required (cookie only from our own origin); broadcasts
   `{"type":"config/updated","receivedAt":…}` on every config POST; Pi events follow as
   `{"type":"event","event":"pi-event","payload":…}`.
+
+## Shared settings (admin → More)
+
+Model presets, quick actions, chat colours (profiles per host, light and dark) and the voice services are shared by
+all users and stored in `DATA_DIR/app-config.json` (mode 0600). API keys of the voice services stay on the server:
+the admin pages only show whether a key is stored, an empty key field keeps it.
+
+## Voice
+
+Dictation, text improvement and reading aloud call OpenAI-compatible APIs (OpenAI, Groq, speaches, Ollama,
+LM Studio …) **from the server** with the keys of the shared settings; the browser only records (MediaRecorder; iOS
+Safari records `audio/mp4`) and plays the audio. The microphone needs HTTPS (or `localhost`). The dictation provider
+"Command" runs the given program inside the webapp's container (`{file}` = the recording) – the standard image has
+no speech recogniser, so this only helps with an own image. Reading aloud can also use the browser's own voice.
+
+## Web push
+
+The webapp can notify a phone when Pi has finished an answer in a session the user had open (not while that chat is
+on the screen) and when a reminder of the session list is due. Each user switches it on per device in
+**More → Notifications**.
+
+- The VAPID keys are generated on the first start and kept in `DATA_DIR/vapid.json` (mode 0600). Deleting the file
+  invalidates every subscription (devices have to switch notifications on again). Set `VAPID_SUBJECT`.
+- Subscriptions live in `DATA_DIR/push.json`; only endpoints of the known push services (Apple, Google, Mozilla,
+  Microsoft) are accepted. The container must reach them over HTTPS.
+- **iPhone/iPad: only in the app on the home screen, iOS/iPadOS 16.4 or newer.** Open the webapp in Safari →
+  Share → *Add to Home Screen*, start PiBar from the home screen, then More → Notifications → *Turn on*. A Safari
+  tab has no web push. HTTPS is required (Nginx Proxy Manager).
+- The service worker (`/sw.js`) only handles push – it caches nothing, the app always loads from the server.
 
 ## Docker
 

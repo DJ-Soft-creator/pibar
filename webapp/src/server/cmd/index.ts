@@ -43,7 +43,7 @@ export function createRegistry(deps: RegistryDeps = {}): CommandRegistry {
   registerModelCommands(registry);
   registerSnapshotCommands(registry);
   registerDiagCommands(registry);
-  registerVoiceCommands(registry);
+  registerVoiceCommands(registry, deps);
   if (deps.pi) {
     registerPiCommands(registry, deps.pi);
     registerBgCommands(registry, deps.pi);
