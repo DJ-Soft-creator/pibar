@@ -38,6 +38,7 @@ printed **once** to the server log — copy it from there.
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `SSH_DIR`        | *(own ~/.ssh)* | folder with the SSH key, `known_hosts`, optional `config` |
 | `DEV_LOCAL_HOME` | *(unset)*    | **development only**: host commands run with bash on this machine against this `$HOME` instead of SSH (e.g. with `node ../dev/fake-pi.mjs` as the host's Pi command) |
+| `MAX_UPLOAD_MB`  | `25`         | largest file `upload_file` accepts (it travels base64-encoded; only that command gets the bigger body limit) |
 | `COOKIE_SECURE`  | `auto`       | `Secure` on the session cookie: `auto` (HTTPS, also via the proxy), `always`, `never` |
 | `CLIENT_DIR`     | `./dist/client` | static client directory (Vite build)        |
 | `VAPID_SUBJECT`  | `mailto:admin@example.com` | contact of the operator sent to the push services (`mailto:` or `https:` URL); set your own |
@@ -48,6 +49,10 @@ printed **once** to the server log — copy it from there.
 - `POST /api/cmd/<name>` — the commands of the desktop's Rust core (`src-tauri/src/lib.rs`) with the same
   names and arguments; body = arguments as a JSON object, answer `{ "result": … }` or `{ "error": "…" }`.
   Login required; commands that work on a host take `hostId`, the server checks the user may use it.
+- `GET /api/files/download?hostId=…&path=…[&inline=1]` — streams a file of a host to the browser (login, host
+  rights and the same path guard as the file commands; `inline` only for PDFs and pictures). File and Git commands
+  only reach the host user's home folder and the folders of the host's sessions, resolved on the host (symlinks
+  followed); credential folders such as `~/.ssh` stay closed.
 
 - `POST /api/login` — sets the HttpOnly session cookie (`SameSite=Strict`) for the browser and returns the token
   for other clients (Bearer). Foreign origins are refused. `POST /api/logout`, `POST /api/logout-all`.
