@@ -37,7 +37,12 @@ export function registerPiCommands(registry: CommandRegistry, pi: PiManager) {
       const cwd = argOptString(args, "cwd", "~") || "~";
       const sessionPath = argOptString(args, "sessionPath") || null;
       if (sessionPath && !isSessionFile(sessionPath)) throw new CommandError(400, `Not a Pi session file: ${sessionPath}`);
-      const { handle, joined } = pi.open(ctx.host, cwd, { sessionPath });
+      // tools (plan mode, a subagent's allowlist) and an agent's system prompt only count when Pi starts
+      const { handle, joined } = pi.open(ctx.host, cwd, {
+        sessionPath,
+        tools: argOptStringArray(args, "tools"),
+        appendPrompt: argOptString(args, "appendPrompt") || null,
+      });
       const info = pi.info(handle);
       return { handle, joined, streaming: info?.streaming ?? false, seq: pi.replay(handle, Number.MAX_SAFE_INTEGER).seq };
     },
