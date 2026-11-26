@@ -1045,6 +1045,9 @@ const de = {
   waiting: "wartet",
   "Back to the model's default": "Zurück zum Standard des Modells",
   "Needs PiBar's temperature extension on this host.": "Braucht PiBars Temperatur-Erweiterung auf diesem Host.",
+  since: "seit",
+  "Read only – take it over to write here; the other Pi is stopped then.":
+    "Nur lesen – übernimm sie, um hier zu schreiben; der andere Pi wird dann beendet.",
   // (end of webapp: chat)
   // webapp: sessions & organisation – new keys go above the end line of this section
   "(shortened)": "(gekürzt)",

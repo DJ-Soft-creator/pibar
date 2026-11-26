@@ -10,6 +10,7 @@ import { errMsg, h, openModal, toast } from "@shared/dom";
 import { cleanTitle, withFiles } from "@shared/format";
 import { t } from "@shared/i18n";
 import type { PiEvent, PiMessage } from "@shared/piProtocol";
+import { branchMessages, parseSessionLock, sessionLockText, type SessionLock } from "@shared/sessionLock";
 import { findQuestions, type QuestionGroup } from "@shared/questions";
 import { api } from "@shared/api";
 import { listen } from "../bridge";
@@ -104,9 +105,65 @@ export class ChatView {
         if (m.type === "pi/denied") void this.reattach();
       }),
     );
-    const a = await this.session.open();
+    let a: Awaited<ReturnType<ChatSession["open"]>>;
+    try {
+      a = await this.session.open();
+    } catch (e) {
+      const lock = parseSessionLock(e);
+      if (!lock) throw e;
+      await this.showLocked(lock);
+      return;
+    }
     this.composer.setQuickActions(this.session.shared.quickActions);
     await this.afterAttach(a.joined);
+  }
+
+  /**
+   * The session runs in another Pi right now (desktop app or another webapp): show its history read-only from the
+   * session file and offer to take it over (the other Pi is stopped then).
+   */
+  private async showLocked(lock: SessionLock) {
+    this.list.clear();
+    const path = this.target.path;
+    if (path) {
+      try {
+        const jsonl = await api.readSessionFile(this.target.hostId, path);
+        for (const m of branchMessages(jsonl)) this.list.renderStored(m);
+      } catch (e) {
+        this.list.note(errMsg(e), "error");
+      }
+    }
+    const since = lock.since ? ` (${t("since")} ${new Date(lock.since).toLocaleTimeString()})` : "";
+    const box = h(
+      "div",
+      { class: "chat-note hint locked" },
+      `${sessionLockText(lock)}${since} ${t("Read only – take it over to write here; the other Pi is stopped then.")}`,
+      h(
+        "div",
+        { class: "err-acts" },
+        button(
+          t("Take over"),
+          () => {
+            box.remove();
+            void this.takeOver();
+          },
+          "primary",
+        ),
+      ),
+    );
+    this.list.append(box);
+    this.scrollDown(true);
+  }
+
+  private async takeOver() {
+    try {
+      this.list.note(t("Starting Pi on {host} …", { host: this.target.hostName }), "loading");
+      const a = await this.session.attach(true);
+      this.composer.setQuickActions(this.session.shared.quickActions);
+      await this.afterAttach(a.joined);
+    } catch (e) {
+      this.list.note(errMsg(e), "error");
+    }
   }
 
   private async afterAttach(joined: boolean) {
@@ -133,7 +190,9 @@ export class ChatView {
       const a = await this.session.attach();
       await this.afterAttach(a.joined);
     } catch (e) {
-      this.list.note(errMsg(e), "error");
+      const lock = parseSessionLock(e);
+      if (lock) await this.showLocked(lock);
+      else this.list.note(errMsg(e), "error");
     }
   }
 

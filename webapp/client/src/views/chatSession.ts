@@ -158,13 +158,15 @@ export class ChatSession {
     return this.meta.tools ?? null;
   }
 
-  async attach(): Promise<Attached> {
+  /** Start or join Pi; `force` takes over a session another live Pi holds (desktop app, see @shared/sessionLock) */
+  async attach(force = false): Promise<Attached> {
     const a = await invoke<Attached>("pi_attach", {
       hostId: this.target.hostId,
       cwd: this.target.cwd || "~",
       sessionPath: this.target.path,
       tools: this.toolset(),
       appendPrompt: this.start.appendPrompt ?? this.meta.agentPrompt ?? null,
+      force,
     });
     this.handle = a.handle;
     this.seq = a.seq;
