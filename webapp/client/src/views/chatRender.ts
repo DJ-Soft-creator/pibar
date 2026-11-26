@@ -11,7 +11,7 @@ import { isStaleInstallError } from "@shared/piErrors";
 import type { AssistantMessage, Content, PiEvent, PiMessage, ToolArgs } from "@shared/piProtocol";
 import { stripPlanMode } from "@shared/planMode";
 import { subagentFromArgs, subagentFromDetails, type SubagentCall } from "@shared/subagents";
-import { canSpeak, speakText } from "../voiceInput";
+import { canSpeak, isSpeaking, speakText, stopSpeaking } from "../voiceInput";
 
 export type UserAction = "edit" | "rerun" | "rewind" | "reuse" | "copy";
 
@@ -385,7 +385,7 @@ export class MessageList {
         ),
     }, "⧉");
     const speak = canSpeak()
-      ? h("button", { class: "msg-act", type: "button", "aria-label": t("Read aloud"), title: t("Read aloud"), onclick: () => void speakText(text).catch((e: unknown) => toast(errMsg(e), "err")) }, "🔊")
+      ? h("button", { class: "msg-act", type: "button", "aria-label": t("Read aloud"), title: t("Read aloud"), onclick: () => (isSpeaking() ? stopSpeaking() : void speakText(text).catch((e: unknown) => toast(errMsg(e), "err"))) }, "🔊")
       : null;
     const used = m.model ? h("span", { class: "msg-model", title: `${m.provider ?? ""}/${m.model}` }, shortModel(m.model)) : null;
     return h("div", { class: "msg-acts answer-acts" }, used, copy, speak);

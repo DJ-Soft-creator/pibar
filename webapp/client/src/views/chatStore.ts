@@ -5,7 +5,7 @@
 import type { ChatMode, ModelPreset, Project, QuickAction, SessionMeta } from "@shared/api";
 import { cleanQuickActions } from "@shared/quickActions";
 import { invoke } from "../bridge";
-import { onSocketMessage } from "../socketBus";
+import { loadSharedConfig, sharedConfig as loadedConfig } from "../sharedConfig";
 import { saveSettings, settings } from "../state";
 
 export interface MetaView {
@@ -39,21 +39,15 @@ export interface SharedConfig {
   quickActions: QuickAction[];
 }
 
-let shared: Promise<SharedConfig> | null = null;
-onSocketMessage((m) => {
-  if (m.type === "config/app-updated") shared = null;
-});
-
-/** Presets (only those with a name and something to set) and the quick actions of kind "command" */
-export function sharedConfig(): Promise<SharedConfig> {
-  shared ??= invoke<{ presets?: ModelPreset[]; quickActions?: QuickAction[] }>("app_config_get")
-    .then((c) => ({
-      presets: (c.presets ?? []).filter((p) => p && p.id && p.name && (p.model || p.thinking)),
-      // shell scripts need a terminal: the webapp has none
-      quickActions: cleanQuickActions(c.quickActions).filter((a) => a.kind === "command"),
-    }))
-    .catch(() => ({ presets: [], quickActions: [] }));
-  return shared;
+/** Presets (only those with a name and something to set) and the quick actions of kind "command" (from the cached
+ * shared settings of ../sharedConfig.ts, which reloads them when an admin saves) */
+export async function sharedConfig(): Promise<SharedConfig> {
+  const c = loadedConfig() ?? (await loadSharedConfig());
+  return {
+    presets: (c?.presets ?? []).filter((p) => p && p.id && p.name && (p.model || p.thinking)),
+    // shell scripts need a terminal: the webapp has none
+    quickActions: cleanQuickActions(c?.quickActions).filter((a) => a.kind === "command"),
+  };
 }
 
 // ------------------------------------------------------------------ the user's chat settings

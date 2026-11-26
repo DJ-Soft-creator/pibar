@@ -41,7 +41,9 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
   return new Promise((resolve) => {
     let cur: DirListing | null = null;
     let result: string | null = null;
-    const pathEl = h("div", { class: "fp-path" }, start);
+    // the start of a long path is cut (rtl box), the path itself stays left-to-right
+    const pathText = h("bdi", {}, start);
+    const pathEl = h("div", { class: "fp-path" }, pathText);
     const list = h("div", { class: "fp-list" });
     const status = h("p", { class: "muted small" });
     const load = async (path: string, fallback = true) => {
@@ -49,7 +51,7 @@ export function pickFolder(hostId: string, start: string): Promise<string | null
       try {
         cur = await api.listDirs(hostId, path || "~");
         const listing = cur;
-        pathEl.textContent = tildePath(listing.path, listing.home);
+        pathText.textContent = tildePath(listing.path, listing.home);
         status.textContent = listing.dirs.length ? "" : t("No subfolders");
         list.replaceChildren(
           ...listing.dirs.map((d) => h("button", { type: "button", class: "fp-item", onclick: () => void load(`${listing.path}/${d}`) }, h("span", { "aria-hidden": "true" }, "📁"), h("span", {}, d))),

@@ -77,10 +77,21 @@
 
 .msg.assistant .md.answer {
   color: var(--chat-answer, inherit);
+  background: var(--chat-answer-bg, transparent);
+  border-radius: 10px;
+  padding: 2px 4px;
+}
+
+.card.thinking {
+  background: var(--chat-thinking-bg, var(--surface));
 }
 
 .card.thinking > .md {
   color: var(--chat-thinking, var(--muted));
+}
+
+.card.tool {
+  background: var(--chat-tool-bg, var(--surface));
 }
 
 .card.tool .tool-name {
@@ -827,4 +838,9 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 14px;
+}
+
+.fp-path bdi {
+  direction: ltr;
+  unicode-bidi: isolate;
 }

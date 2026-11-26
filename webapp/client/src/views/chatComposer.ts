@@ -6,7 +6,7 @@ import type { PiCommand, QuickAction } from "@shared/api";
 import { readAttachment, type FileAttachment } from "@shared/attach";
 import { errMsg, h, toast } from "@shared/dom";
 import { t } from "@shared/i18n";
-import { createDictationButton } from "../voiceInput";
+import { createDictationButton, createImproveButton } from "../voiceInput";
 import type { QueueWhen } from "./chatSession";
 
 export interface ComposerCallbacks {
@@ -95,6 +95,7 @@ export class Composer {
     this.slash = h("div", { class: "slash-menu", hidden: true, role: "listbox" });
     this.bgChip = h("div", { class: "bg-chip", hidden: true }, `☁ ${t("In the background")}`);
     const mic = createDictationButton((text) => this.insert(text));
+    const improve = createImproveButton(this.input);
     this.el = h(
       "div",
       { class: "composer-wrap" },
@@ -102,7 +103,7 @@ export class Composer {
       this.queueBox,
       this.quickBar,
       this.chips,
-      h("div", { class: "composer" }, plus, attachMenu, files, photos, camera, this.input, mic, this.bgChip, this.stopBtn, this.sendBtn),
+      h("div", { class: "composer" }, plus, attachMenu, files, photos, camera, this.input, improve, mic, this.bgChip, this.stopBtn, this.sendBtn),
     );
   }
 
@@ -207,7 +208,8 @@ export class Composer {
 
   private onInput() {
     this.input.style.height = "auto";
-    this.input.style.height = `${Math.min(this.input.scrollHeight, 200)}px`;
+    // an empty field keeps its one-line height (a long placeholder must not grow it)
+    if (this.input.value) this.input.style.height = `${Math.min(this.input.scrollHeight, 200)}px`;
     if (/^\/\S*$/.test(this.input.value)) this.openSlash(false);
     else this.slash.hidden = true;
     if (this.streaming) this.renderQueue();

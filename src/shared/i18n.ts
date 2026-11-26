@@ -1033,7 +1033,6 @@ const de = {
   "All hosts": "Alle Hosts",
   "By folder": "Nach Ordner",
   "Choose this folder": "Diesen Ordner wählen",
-  "Choose …": "Wählen …",
   "Closed by default": "Standardmäßig zugeklappt",
   Exported: "Exportiert",
   "Folders cannot be listed": "Ordner können nicht aufgelistet werden",

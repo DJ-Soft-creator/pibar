@@ -311,7 +311,10 @@ export function renderStatusLine(el: HTMLElement, s: ChatSession) {
     el.replaceChildren(s.detached ? h("span", { class: "us-part" }, t("In the background")) : "");
     return;
   }
-  el.replaceChildren(...footerParts(footerStats(s)).map((p) => h("span", { class: `us-part ${p.level ?? ""}`, title: t(HINTS[p.hint] ?? "Tokens") }, p.text)));
+  const st = footerStats(s);
+  // without a context window and numbers the footer has nothing to say ("?/0")
+  const parts = footerParts(st).filter((p) => p.hint !== "context" || st.contextWindow > 0 || st.contextPercent !== null);
+  el.replaceChildren(...parts.map((p) => h("span", { class: `us-part ${p.level ?? ""}`, title: t(HINTS[p.hint] ?? "Tokens") }, p.text)));
 }
 
 /** Details sheet of the status line (tap): counters, cost, context use, session id */
