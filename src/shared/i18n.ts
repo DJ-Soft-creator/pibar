@@ -989,6 +989,32 @@ const de = {
   // webapp: chat – new keys go above the end line of this section
   // (end of webapp: chat)
   // webapp: sessions & organisation – new keys go above the end line of this section
+  "(shortened)": "(gekürzt)",
+  "All hosts": "Alle Hosts",
+  "By folder": "Nach Ordner",
+  "Choose this folder": "Diesen Ordner wählen",
+  "Choose …": "Wählen …",
+  "Closed by default": "Standardmäßig zugeklappt",
+  Exported: "Exportiert",
+  "Folders cannot be listed": "Ordner können nicht aufgelistet werden",
+  "For everybody; each of your blocks keeps its own choice once you open or close it":
+    "Für alle; jeder deiner Blöcke behält seine eigene Wahl, sobald du ihn auf- oder zuklappst",
+  "Markdown, JSON or CSV": "Markdown, JSON oder CSV",
+  "Move to project": "In Projekt verschieben",
+  "New project from this folder …": "Neues Projekt aus diesem Ordner …",
+  "No folders in here": "Keine Ordner darin",
+  "No project": "Kein Projekt",
+  "Open by default": "Standardmäßig aufgeklappt",
+  Organise: "Organisieren",
+  "Select sessions …": "Sessions auswählen …",
+  "Share file": "Datei teilen",
+  "Summary of the earlier conversation": "Zusammenfassung des früheren Gesprächs",
+  "The archive is a collapsed group at the end of the list; nothing is deleted. Sessions where Pi is working stay.":
+    "Das Archiv ist eine zugeklappte Gruppe am Ende der Liste; nichts wird gelöscht. Sessions, in denen Pi arbeitet, bleiben.",
+  "to read and share: messages, answers and tool calls":
+    "zum Lesen und Teilen: Nachrichten, Antworten und Tool-Aufrufe",
+  "The project whose folder holds the session's working folder":
+    "Das Projekt, in dessen Ordner der Arbeitsordner der Session liegt",
   // (end of webapp: sessions & organisation)
   // webapp: desktop sync & tokens – new keys go above the end line of this section
   // (end of webapp: desktop sync & tokens)

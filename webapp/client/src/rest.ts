@@ -22,6 +22,8 @@ export interface Settings {
   hostId?: string;
   /** Text size in percent */
   textScale?: number;
+  /** Session list: order, sections, filters, collapsed blocks (checked in views/sessionsData.ts) */
+  sessionList?: Record<string, unknown>;
 }
 
 export interface Me {
