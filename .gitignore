@@ -98,5 +98,8 @@ memory-bank/
 # persönliches Deploy-Skript (dev, prod, github)
 deploy.sh
 
+# persönliches Webapp-Deploy-Skript (Host + Deploy-Ziel drin)
+deploy-webapp.sh
+
 # Testberichte des Agenten-Harness (generiert)
 .vitest/
