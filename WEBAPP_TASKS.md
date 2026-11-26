@@ -39,12 +39,31 @@
 
 ## Stand
 
-| Task | Status |
+**Alle Wellen A–J umgesetzt** (Branch `webapp-rebuild`, 2026-11-26). K1 (Sicherheitsprüfung durch einen unabhängigen
+Subagent), K2 (Doku: `webapp/README.md`, `docs/CODEMAP.md`, ADR 0007) und K3 (Vergleich unten) erledigt. Offen: K4
+(Test auf dem echten iPhone über VPN + NPM).
+
+Bewusste Abweichungen und Restpunkte:
+- C1: statt eines eigenen `webApi.ts` leitet `client/src/bridge.ts` Tauris `invoke()` auf den Server um.
+- B9/D1: eine ganz neue Session (noch ohne Datei) und Hintergrund-Runs bekommen noch keine Sperre.
+- E1: eigene Reihenfolge per Ziehen und Subagents eingerückt in der Liste fehlen (Subagents erscheinen im Chat).
+- J3: Push und Diktieren sind nur mit Tests geprüft, nicht auf einem echten iPhone.
+- `git_create_commit` (Webapp-eigener Befehl): Tauris `git_commit` zeigt nur Commit-Details.
+
+## Funktionsvergleich Desktop ↔ Webapp (K3)
+
+| Desktop-Funktion | Webapp |
 |---|---|
-| A1–A6, B1–B3, B10, C1–C4, C6, E3, E4 | ✅ erledigt (Branch `webapp-rebuild`) |
-| B9 | ◐ Pi-Prozesse laufen; dieselbe Session wird in der Webapp geteilt statt doppelt gestartet. Lock gegenüber der Desktop-App fehlt noch (mit D1) |
-| E5, F1 | ◐ neue Session im Standardordner des Hosts (Ordnerauswahl fehlt); Pi-Dialoge confirm/select/input/editor/notify |
-| alle anderen | offen |
+| Hosts, Sessions-Liste, Gruppen, Projekte, Farben, Pins, Versionen, Suche, Aufräumen, Export, Erinnerungen | vorhanden (Erinnerungen zusätzlich als Push) |
+| Chat: Streaming, Denken, Tools, Ansichten, Abbrechen, Steer/Follow-up, Warteschlange, Dialoge, Fragen | vorhanden |
+| Modellwahl, Denkstufe, Presets, Plan/Build, Kontext-Modus, Antwortstil, Temperatur, Statuszeile | vorhanden |
+| Anhänge (Bilder, Textdateien), Slash-Menü, Quick Actions (Befehle) | vorhanden; Quick Actions vom Typ Shell-Skript nur am Desktop |
+| Versionen/Branches, Zurückspulen mit Dateien, Subagents, Hintergrund-Runs, Diagnose | vorhanden |
+| Dateien: Baum, Ansicht, Bearbeiten, Diff, Upload/Download, Löschen, Git-Historie, Commit | vorhanden |
+| Diktieren, Text verbessern, Vorlesen | vorhanden (Dienste in den Webapp-Einstellungen) |
+| Einstellungen: Presets, Quick Actions, Farbprofile, Farbbeschreibungen, Sprache, Design, Textgröße | vorhanden |
+| Terminal, Quick-Bar, globale Hotkeys, Doppeltipp, Bildschirmfoto/OCR, App-Badge | bewusst weggelassen (Desktop-only) |
+| Abgleich mit dem Desktop | Zwei-Wege-Sync mit API-Token, Session-Sperre in beide Richtungen |
 
 ## Wellen (Reihenfolge für Subagents)
 
