@@ -14,24 +14,8 @@ import { createLoginRateLimiter } from "../src/server/rateLimit.js";
 import { Store, TOKEN_TTL_MS } from "../src/server/store.js";
 import { createSocketHub, type SocketHub } from "../src/server/ws.js";
 import type { HostRecord } from "../src/server/hosts.js";
-import type { ConfigPayload, HostInfo } from "../src/server/types.js";
 
 const ADMIN = { username: "admin", password: "admin-pass-123" };
-
-const samplePayload: ConfigPayload = {
-  sessions: [
-    { id: "host1|/home/u/.pi/a.jsonl", name: "a", color: "blue", pinned: true },
-    { id: "host1|/home/u/.pi/b.jsonl", name: "b", color: "", group: "g1", pinned: false },
-  ],
-  projects: [{ id: "p1", name: "PiBar", hostId: "host1", dir: "/home/u/PiBar" }],
-  groups: [{ id: "g1", name: "Work", color: "teal", collapsed: false }],
-  meta: { generatedAt: "2025-01-01T00:00:00.000Z" },
-};
-
-const sampleHosts: HostInfo[] = [
-  { id: "host1", name: "Zuhause", kind: "local", address: "" },
-  { id: "host2", name: "Arbeitsrechner", kind: "ssh", address: "user@target:22" },
-];
 
 interface Ctx {
   url: string;
@@ -39,6 +23,7 @@ interface Ctx {
   dataDir: string;
   server: Server;
   wss: WebSocketServer;
+  hub: SocketHub;
   adminToken: string;
 }
 
@@ -52,19 +37,15 @@ async function start(
   const dataDir = mkdtempSync(join(tmpdir(), "pibar-webapp-test-"));
   const store = new Store(dataDir);
   await bootstrapAdmin(store, env, () => {});
-  let hub: SocketHub | null = null;
-  const app = createApp(store, {
-    clientDir: join(dataDir, "client"),
-    onConfigUpdated: (receivedAt) => hub?.broadcast({ type: "config/updated", receivedAt }),
-  });
+  const app = createApp(store, { clientDir: join(dataDir, "client") });
   const server = createServer(app);
-  hub = createSocketHub(server, store);
+  const hub = createSocketHub(server, store);
   const wss = hub.wss;
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const port = (server.address() as AddressInfo).port;
   const url = `http://127.0.0.1:${port}`;
   t.after(async () => {
-    await hub?.close();
+    await hub.close();
     server.closeAllConnections();
     await new Promise((r) => server.close(r));
     rmSync(dataDir, { recursive: true, force: true });
@@ -75,7 +56,7 @@ async function start(
     body: JSON.stringify(ADMIN),
   });
   const adminToken = res.status === 200 ? ((await res.json()) as { token: string }).token : "";
-  return { url, store, dataDir, server, wss, adminToken };
+  return { url, store, dataDir, server, wss, hub, adminToken };
 }
 
 async function api(
@@ -131,10 +112,10 @@ test("bootstrap without env generates a working random password", async (t) => {
 
 test("logout invalidates the token", async (t) => {
   const ctx = await start(t);
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, ctx.adminToken)).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, ctx.adminToken)).status, 200);
   const out = await api(ctx, "POST", "/api/logout", undefined, ctx.adminToken);
   assert.deepEqual(out.json, { status: "ok" });
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, ctx.adminToken)).status, 401);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, ctx.adminToken)).status, 401);
 });
 
 test("login rate limit: 429 after 10 attempts per minute per IP", async (t) => {
@@ -147,7 +128,7 @@ test("login rate limit: 429 after 10 attempts per minute per IP", async (t) => {
   assert.equal(blocked.status, 429);
   assert.equal(typeof (blocked.json as { error: unknown }).error, "string");
   // other endpoints are unaffected
-  assert.equal((await api(ctx, "GET", "/api/config/status")).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/health")).status, 200);
 });
 
 test("rate limiter sliding window (unit, injected clock)", () => {
@@ -201,7 +182,7 @@ test("user CRUD, role enforcement and self-delete protection", async (t) => {
   assert.equal((await api(ctx, "PATCH", `/api/users/${alice.id}`, { host: "h" }, aliceToken)).status, 403);
   assert.equal((await api(ctx, "DELETE", `/api/users/${alice.id}`, undefined, aliceToken)).status, 403);
   // but /api/sessions is fine for role user
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, aliceToken)).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, aliceToken)).status, 200);
 
   // PATCH host, role, password
   const patched = await api(ctx, "PATCH", `/api/users/${alice.id}`, { host: "host2", role: "admin", password: "new-pass" }, ctx.adminToken);
@@ -219,7 +200,7 @@ test("user CRUD, role enforcement and self-delete protection", async (t) => {
 
   // delete alice -> her tokens die too
   assert.equal((await api(ctx, "DELETE", `/api/users/${alice.id}`, undefined, ctx.adminToken)).status, 200);
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, aliceToken)).status, 401);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, aliceToken)).status, 401);
   assert.equal((await api(ctx, "DELETE", `/api/users/${alice.id}`, undefined, ctx.adminToken)).status, 404);
 });
 
@@ -265,107 +246,52 @@ test("password reset revokes all tokens of that user", async (t) => {
   const l2 = await api(ctx, "POST", "/api/login", { username: "carol", password: "carol-pass" });
   const t1 = (l1.json as { token: string }).token;
   const t2 = (l2.json as { token: string }).token;
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, t1)).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, t1)).status, 200);
 
   const patch = await api(ctx, "PATCH", `/api/users/${carol.id}`, { password: "new-carol-pass" }, ctx.adminToken);
   assert.equal(patch.status, 200);
   // both of carol's tokens are dead, the admin's token is untouched
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, t1)).status, 401);
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, t2)).status, 401);
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, ctx.adminToken)).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, t1)).status, 401);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, t2)).status, 401);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, ctx.adminToken)).status, 200);
   assert.equal((await api(ctx, "POST", "/api/login", { username: "carol", password: "new-carol-pass" })).status, 200);
 
   // a host-only PATCH must NOT revoke tokens
   const l3 = await api(ctx, "POST", "/api/login", { username: "carol", password: "new-carol-pass" });
   const t3 = (l3.json as { token: string }).token;
   assert.equal((await api(ctx, "PATCH", `/api/users/${carol.id}`, { host: "h9" }, ctx.adminToken)).status, 200);
-  assert.equal((await api(ctx, "GET", "/api/sessions", undefined, t3)).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/me", undefined, t3)).status, 200);
 });
 
-// ------------------------------------------------------------ config sync
+// ------------------------------------------------------------ CORS
 
-test("CORS: only Tauri origins get cross-origin access", async (t) => {
+test("CORS: only Tauri origins get cross-origin access (desktop sync)", async (t) => {
   const ctx = await start(t);
   for (const origin of ["tauri://localhost", "http://tauri.localhost", "https://tauri.localhost"]) {
-    const res = await fetch(`${ctx.url}/api/config`, { headers: { Origin: origin } });
+    const res = await fetch(`${ctx.url}/api/health`, { headers: { Origin: origin } });
     assert.equal(res.headers.get("access-control-allow-origin"), origin);
   }
-  const evil = await fetch(`${ctx.url}/api/config`, { headers: { Origin: "https://evil.example" } });
+  const evil = await fetch(`${ctx.url}/api/health`, { headers: { Origin: "https://evil.example" } });
   assert.equal(evil.headers.get("access-control-allow-origin"), null);
-  // preflight from a Tauri origin allows POST + Content-Type (PiBar's sendToWebapp)
-  const pre = await fetch(`${ctx.url}/api/config`, {
+  // preflight from a Tauri origin allows POST + Authorization (the desktop's token sync)
+  const pre = await fetch(`${ctx.url}/api/sync/meta`, {
     method: "OPTIONS",
     headers: {
       Origin: "tauri://localhost",
       "Access-Control-Request-Method": "POST",
-      "Access-Control-Request-Headers": "content-type",
+      "Access-Control-Request-Headers": "authorization,content-type",
     },
   });
   assert.equal(pre.headers.get("access-control-allow-origin"), "tauri://localhost");
   assert.match(pre.headers.get("access-control-allow-methods") ?? "", /POST/);
+  assert.match(pre.headers.get("access-control-allow-headers") ?? "", /authorization/i);
 });
 
-test("config POST/GET roundtrip, status and shape validation (no auth)", async (t) => {
+test("the old unauthenticated config routes are gone", async (t) => {
   const ctx = await start(t);
-  const empty = await api(ctx, "GET", "/api/config");
-  assert.equal(empty.status, 404);
-  assert.deepEqual(empty.json, { error: "No config received yet" });
-
-  const status0 = await api(ctx, "GET", "/api/config/status");
-  assert.deepEqual(status0.json, {
-    hasConfig: false,
-    receivedAt: null,
-    counts: { sessions: 0, projects: 0, groups: 0 },
-  });
-
-  const post = await api(ctx, "POST", "/api/config", samplePayload);
-  assert.equal(post.status, 200);
-  assert.deepEqual(post.json, { status: "ok" });
-
-  const got = await api(ctx, "GET", "/api/config");
-  assert.equal(got.status, 200);
-  assert.deepEqual(got.json, samplePayload);
-
-  const status1 = (await api(ctx, "GET", "/api/config/status")).json as {
-    hasConfig: boolean;
-    receivedAt: string | null;
-    counts: { sessions: number; projects: number; groups: number };
-  };
-  assert.equal(status1.hasConfig, true);
-  assert.ok(status1.receivedAt);
-  assert.deepEqual(status1.counts, { sessions: 2, projects: 1, groups: 1 });
-
-  // invalid payloads -> 400, stored config untouched
-  const bad: unknown[] = [
-    {},
-    { sessions: [], projects: [], groups: [] }, // no meta
-    { ...samplePayload, sessions: [{ id: 5, name: "x", color: "", pinned: false }] },
-    { ...samplePayload, sessions: [{ id: "x", name: "x", color: "", pinned: "yes" }] },
-    { ...samplePayload, projects: [{ id: "p", name: "n", hostId: "h" }] },
-    { ...samplePayload, groups: [{ id: "g", name: "n", color: "", collapsed: 1 }] },
-    { ...samplePayload, sessions: "nope" },
-    { ...samplePayload, hosts: "nope" },
-    { ...samplePayload, hosts: [{}] },
-    { ...samplePayload, hosts: [{ id: 5, name: "h", kind: "local", address: "" }] },
-    { ...samplePayload, hosts: [{ id: "h", name: "h", kind: "remote", address: "" }] },
-    { ...samplePayload, hosts: [{ id: "h", name: "h", kind: "ssh" }] }, // address missing
-    { ...samplePayload, hosts: [{ id: "h", name: "h", kind: "local", address: "", source: "manual" }, null] },
-  ];
-  for (const payload of bad) {
-    assert.equal((await api(ctx, "POST", "/api/config", payload)).status, 400, JSON.stringify(payload));
-  }
-  assert.deepEqual((await api(ctx, "GET", "/api/config")).json, samplePayload);
-});
-
-test("GET /api/sessions requires auth and mirrors the config", async (t) => {
-  const ctx = await start(t);
-  assert.equal((await api(ctx, "GET", "/api/sessions")).status, 401);
-  assert.deepEqual((await api(ctx, "GET", "/api/sessions", undefined, ctx.adminToken)).json, []);
-  await api(ctx, "POST", "/api/config", samplePayload);
-  assert.deepEqual(
-    (await api(ctx, "GET", "/api/sessions", undefined, ctx.adminToken)).json,
-    samplePayload.sessions,
-  );
+  assert.equal((await api(ctx, "POST", "/api/config", { sessions: [], projects: [], groups: [] })).status, 404);
+  assert.equal((await api(ctx, "GET", "/api/config")).status, 404);
+  assert.equal((await api(ctx, "GET", "/api/config/status")).status, 404);
 });
 
 // ------------------------------------------------------------ hosts
@@ -390,13 +316,11 @@ test("corrupt or misshapen hosts.json error names the file", (t) => {
   assert.throws(() => new Store(dataDir), /hosts\.json/);
 });
 
-test("secret files are mode 0600, config stays 0644", async (t) => {
+test("secret files are mode 0600, hosts stay 0644", async (t) => {
   const ctx = await start(t);
-  await api(ctx, "POST", "/api/config", samplePayload);
   const mode = (f: string): number => statSync(join(ctx.dataDir, f)).mode & 0o777;
   assert.equal(mode("users.json"), 0o600);
   assert.equal(mode("tokens.json"), 0o600);
-  assert.equal(mode("config.json"), 0o644);
   await api(ctx, "POST", "/api/hosts", { name: "Manuell", sshTarget: "manual" }, ctx.adminToken);
   assert.equal(mode("hosts.json"), 0o644);
 });
@@ -426,10 +350,14 @@ test("token TTL: expired tokens pruned on load/save, legacy format migrated", as
   assert.ok("another-token" in onDisk);
 });
 
-test("persistence: users, tokens and config survive a reload", async (t) => {
+test("persistence: users, tokens and hosts survive a reload; an old config.json is read for the import", async (t) => {
   const ctx = await start(t);
   await api(ctx, "POST", "/api/users", { username: "bob", password: "bob-pass", host: "host9" }, ctx.adminToken);
-  await api(ctx, "POST", "/api/config", { ...samplePayload, hosts: sampleHosts });
+  const legacy = {
+    receivedAt: "2025-01-01T00:00:00.000Z",
+    payload: { sessions: [], projects: [], groups: [], meta: { generatedAt: "2025-01-01T00:00:00.000Z" } },
+  };
+  writeFileSync(join(ctx.dataDir, "config.json"), JSON.stringify(legacy));
   const created = await api(ctx, "POST", "/api/hosts", { name: "Manuell", sshTarget: "manual", sshUser: "user" }, ctx.adminToken);
   const manual = created.json as HostRecord;
 
@@ -439,8 +367,7 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
   const bob = reloaded.findUserByName("bob");
   assert.ok(bob);
   assert.deepEqual(bob.hostIds, ["host9"]);
-  assert.deepEqual(reloaded.config?.payload, { ...samplePayload, hosts: sampleHosts });
-  // hosts survive; hosts in the desktop payload are ignored (the webapp manages its own)
+  assert.deepEqual(reloaded.legacyConfig, legacy);
   assert.deepEqual(reloaded.sortedHosts(), [manual]);
   // old token still valid after reload
   assert.equal(reloaded.userForToken(ctx.adminToken)?.username, "admin");
@@ -453,16 +380,15 @@ test("persistence: users, tokens and config survive a reload", async (t) => {
     await new Promise((r) => server2.close(r));
   });
   const port2 = (server2.address() as AddressInfo).port;
-  const res = await fetch(`http://127.0.0.1:${port2}/api/sessions`, {
+  const res = await fetch(`http://127.0.0.1:${port2}/api/me`, {
     headers: { Authorization: `Bearer ${ctx.adminToken}` },
   });
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), samplePayload.sessions);
 });
 
 // -------------------------------------------------------------- websocket
 
-test("WebSocket /ws receives config/updated and ignores unknown messages", async (t) => {
+test("WebSocket /ws receives broadcasts and ignores unknown messages", async (t) => {
   const ctx = await start(t);
   const ws = new WebSocket(`${ctx.url.replace("http://", "ws://")}/ws`, {
     headers: { Authorization: `Bearer ${ctx.adminToken}` },
@@ -475,13 +401,13 @@ test("WebSocket /ws receives config/updated and ignores unknown messages", async
   ws.send(JSON.stringify({ type: "chat", text: "later task" }));
 
   const messagePromise = once(ws, "message");
-  const post = await api(ctx, "POST", "/api/config", samplePayload);
-  assert.equal(post.status, 200);
+  // let the server read the garbage first
+  await new Promise((r) => setTimeout(r, 50));
+  ctx.hub.broadcast({ type: "meta/updated" });
   const [data] = await messagePromise;
-  const msg = JSON.parse(String(data)) as { type: string; receivedAt: string };
-  assert.equal(msg.type, "config/updated");
-  assert.equal(msg.receivedAt, ctx.store.config?.receivedAt);
+  const msg = JSON.parse(String(data)) as { type: string };
+  assert.equal(msg.type, "meta/updated");
 
   // server still healthy
-  assert.equal((await api(ctx, "GET", "/api/config")).status, 200);
+  assert.equal((await api(ctx, "GET", "/api/health")).status, 200);
 });

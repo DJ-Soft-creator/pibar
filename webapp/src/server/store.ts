@@ -1,4 +1,5 @@
-// JSON-file persistence under DATA_DIR. Every write is atomic (tmp file + rename).
+// JSON-file persistence under DATA_DIR. Every write is atomic (tmp file + rename). config.json (what the old
+// config-exchange version received from the desktop) is only read, for the one-time import into meta.json.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -88,7 +89,8 @@ export class Store {
   /** token -> { userId, createdAt } */
   readonly tokens = new Map<string, TokenRecord>();
   readonly hosts = new Map<string, HostRecord>();
-  config: StoredConfig | null = null;
+  /** config.json of the old config-exchange version, read once for importLegacyConfig (meta.ts); never written */
+  legacyConfig: StoredConfig | null = null;
 
   private readonly usersFile: string;
   private readonly tokensFile: string;
@@ -146,7 +148,7 @@ export class Store {
       if (!isRecord(config) || !isString(config.receivedAt) || !isConfigPayload(config.payload)) {
         throw new Error(`Corrupt config file: ${this.configFile}`);
       }
-      this.config = { payload: config.payload, receivedAt: config.receivedAt };
+      this.legacyConfig = { payload: config.payload, receivedAt: config.receivedAt };
     }
     const hosts = readJson(this.hostsFile);
     if (hosts !== null) {
@@ -223,12 +225,6 @@ export class Store {
     return this.users.get(record.userId);
   }
 
-  setConfig(payload: ConfigPayload, receivedAt: string): void {
-    this.config = { payload, receivedAt };
-    // Config is not secret — keep the default 0644.
-    writeJsonAtomic(this.configFile, this.config, 0o644);
-  }
-
   // ---------------------------------------------------------------- hosts
 
   sortedHosts(): HostRecord[] {
@@ -263,7 +259,7 @@ export class Store {
   }
 
   private persistHosts(): void {
-    // Host metadata is not secret — same mode as config.json.
+    // Host metadata is not secret.
     writeJsonAtomic(this.hostsFile, [...this.hosts.values()], 0o644);
   }
 }

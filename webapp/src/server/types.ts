@@ -1,5 +1,5 @@
-// Shared types of the webapp backend. ConfigPayload mirrors the desktop contract
-// in src/main/configExchange.ts — do not change the shape.
+// Shared types of the webapp backend. ConfigPayload is the payload of the old config-exchange version (desktop
+// before the token sync); it is only read from an old config.json for the one-time import (meta.ts).
 
 export type Role = "admin" | "user";
 
@@ -29,7 +29,7 @@ export interface GroupConfig {
 
 export type HostKind = "local" | "ssh";
 
-/** Host entry the desktop still sends in its config payload; validated, but ignored (the webapp manages its own hosts, src/server/hosts.ts). */
+/** Host entry of the old config payload (also the host shape of the token sync, sync.ts DesktopHost) */
 export interface HostInfo {
   id: string;
   name: string;
