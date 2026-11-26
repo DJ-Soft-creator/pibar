@@ -11,6 +11,7 @@ per decision, numbered. A superseded decision is not deleted but set to "superse
 | [0004](0004-ocr-and-double-tap-macos.md) | OCR with Apple Vision, double tap via CGEventTap (macOS only) | accepted |
 | [0005](0005-i18n.md) | Translations without a library, English text as key | accepted |
 | [0006](0006-quick-tasks.md) | Quick tasks bar in the right pane | proposed |
+| [0007](0007-webapp.md) | Mobile webapp as its own Pi client over SSH | accepted |
 
 Template for new ADRs:
 
