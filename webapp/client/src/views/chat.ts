@@ -1,596 +1,398 @@
-// Chat of one session (tasks E3/E4, mobile): joins or starts Pi on the host (pi_attach), shows the history
-// (get_messages), follows the live events over the WebSocket (with replay after a reconnect, see server ws.ts) and
-// sends messages. Thinking and tool calls are collapsible cards; Pi's dialogs (extension UI) open as sheets.
-// Event handling follows SessionTab.onEvent/renderStored in src/main/sessionTab.ts.
-import { api } from "@shared/api";
-import { errMsg, h, openModal, renderMarkdown, toast } from "@shared/dom";
-import { splitContext, splitFiles, splitScreenText, stripAnswerStyle } from "@shared/format";
+// Chat of one session (mobile): compact header (back, name, model chip, "⋯"), the message list, the input with
+// attachments, quick actions and the "/" menu, and the status line under it. Joins or starts Pi on the host
+// (pi_attach) or follows the session's run in the background, shows the history (get_messages), follows the live
+// events over the WebSocket (with replay after a reconnect, see server ws.ts) and sends messages.
+// Session state lives in chatSession.ts, rendering in chatRender.ts; follows SessionTab in src/main/sessionTab.ts.
+import "./chat.css";
+import type { QuickAction } from "@shared/api";
+import type { FileAttachment } from "@shared/attach";
+import { errMsg, h, openModal, toast } from "@shared/dom";
+import { cleanTitle, withFiles } from "@shared/format";
 import { t } from "@shared/i18n";
-import { stripPlanMode } from "@shared/planMode";
-import type { AssistantMessage, Content, PiEvent, PiMessage, ToolArgs, UiRequest } from "@shared/piProtocol";
-import { invoke, listen } from "../bridge";
+import type { PiEvent, PiMessage } from "@shared/piProtocol";
+import { findQuestions, type QuestionGroup } from "@shared/questions";
+import { api } from "@shared/api";
+import { listen } from "../bridge";
 import { onSocketMessage, onSocketOpen, socketSend } from "../socketBus";
 import { go, rememberChat, state, type ChatTarget } from "../state";
 import { button } from "../ui";
+import { Composer } from "./chatComposer";
+import { diagnoseDialog, questionDialog, uiRequest } from "./chatDialogs";
+import { refreshBranches, subagentDialog, userAction } from "./chatExtras";
+import { MessageList } from "./chatRender";
+import { ChatSession, type QueueWhen } from "./chatSession";
+import { modelLabel, modelSheet, optionsSheet, renderStatusLine, statsSheet } from "./chatSheets";
+import { chatSettings } from "./chatStore";
+import { startNewSession } from "./newSession";
 
-interface Attached {
-  handle: number;
-  joined: boolean;
-  streaming: boolean;
-  seq: number;
-}
-
-/** Plain text of a message content (text parts joined) */
-function contentText(c: Content | undefined): string {
-  if (typeof c === "string") return c;
-  if (!Array.isArray(c)) return "";
-  return c
-    .map((p) => (p.type === "text" ? (p.text ?? "") : ""))
-    .filter(Boolean)
-    .join("\n");
-}
-
-/** What PiBar adds to a sent message (answer style, plan mode, context paths, files, screen text) is not shown */
-function cleanUserText(text: string): string {
-  let s = stripPlanMode(stripAnswerStyle(text));
-  s = splitScreenText(s).text;
-  s = splitContext(s).text;
-  return splitFiles(s).text.trim();
-}
-
-/** One line about a tool call: the command, the path or the first text argument */
-function toolSummary(name: string, args: ToolArgs | undefined): string {
-  if (!args) return "";
-  const pick = args.command ?? args.path ?? args.file_path ?? args.pattern ?? args.query ?? args.url;
-  const v = typeof pick === "string" ? pick : Object.values(args).find((x) => typeof x === "string");
-  return typeof v === "string" ? v.split("\n")[0]?.slice(0, 160) ?? "" : name;
-}
-
-const RESULT_MAX = 6000;
-
-class ChatView {
+export class ChatView {
   readonly el: HTMLElement;
-  private readonly msgs: HTMLElement;
-  private readonly input: HTMLTextAreaElement;
-  private readonly sendBtn: HTMLButtonElement;
-  private readonly stopBtn: HTMLButtonElement;
-  private readonly status: HTMLElement;
-  private readonly subtitle: HTMLElement;
-  handle = 0;
-  private seq = 0;
-  private alive = false;
-  private streaming = false;
+  readonly list: MessageList;
+  readonly session: ChatSession;
+  readonly composer: Composer;
+  private readonly titleEl: HTMLElement;
+  private readonly subEl: HTMLElement;
+  private readonly modelChip: HTMLButtonElement;
+  private readonly scroller: HTMLElement;
+  private readonly activity: HTMLElement;
+  private readonly statusLine: HTMLElement;
+  private readonly questionBar: HTMLElement;
+  private undoBar: HTMLElement;
   /** Events that arrive while the history loads (applied afterwards) */
-  private queued: { seq: number; ev: PiEvent }[] | null = [];
-  /** The assistant block being written */
-  private cur: { el: HTMLElement; parts: Map<number, { kind: string; el: HTMLElement; text: string }> } | null = null;
-  private tools = new Map<string, { card: HTMLDetailsElement; status: HTMLElement; args: HTMLElement; result: HTMLElement; argText: string; name: string; summary: HTMLElement }>();
-  private renderQueued = new Set<{ kind: string; el: HTMLElement; text: string }>();
+  private waiting: PiEvent[] | null = [];
   private unlisten: (() => void)[] = [];
-  private stickToBottom = true;
+  private stick = true;
+  private questions: QuestionGroup[] = [];
+  disposed = false;
 
   constructor(readonly target: ChatTarget) {
-    this.subtitle = h("div", { class: "chat-sub" }, target.hostName);
-    this.msgs = h("div", { class: "chat-msgs", onscroll: () => this.onScroll() });
-    this.status = h("div", { class: "chat-status" });
-    this.input = h("textarea", {
-      rows: 1,
-      placeholder: t("Message to Pi"),
-      oninput: () => this.autosize(),
-      onkeydown: (e: KeyboardEvent) => {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          void this.send();
-        }
-      },
+    this.session = new ChatSession(target, {
+      changed: () => this.refresh(),
+      reload: () => this.reloadHistory(),
+      reattach: () => this.reattach(),
+      backgroundDone: (ok, stderr) => void this.backgroundDone(ok, stderr),
     });
-    this.sendBtn = h("button", { class: "send-btn", "aria-label": t("Send"), onclick: () => void this.send() }, "↑");
-    this.stopBtn = h("button", { class: "stop-btn", "aria-label": t("Stop"), hidden: true, onclick: () => void this.abort() }, "■");
+    this.list = new MessageList({
+      userAction: (i, a, text) => void userAction(this, i, a, text),
+      diagnose: (error) => this.diagnose(error),
+      restart: () => void this.session.restart().catch((e: unknown) => toast(errMsg(e), "err")),
+      grew: () => this.scrollDown(),
+    });
+    this.titleEl = h("div", { class: "chat-name" }, target.title || t("New session"));
+    this.subEl = h("div", { class: "chat-sub" }, target.hostName);
+    this.modelChip = h("button", { class: "model-chip", type: "button", "aria-label": t("Model"), onclick: () => modelSheet(this.session) }, t("Model"));
     const head = h(
       "header",
       { class: "chat-head" },
-      h("button", { class: "icon-btn", "aria-label": t("Back"), onclick: () => go("sessions") }, "‹"),
-      h("div", { class: "chat-title" }, h("div", { class: "chat-name" }, target.title || t("New session")), this.subtitle),
-      h("button", { class: "icon-btn", "aria-label": t("Details"), onclick: () => this.details() }, "ⓘ"),
+      h("button", { class: "icon-btn", type: "button", "aria-label": t("Back"), onclick: () => go("sessions") }, "‹"),
+      h("button", { class: "chat-title", type: "button", "aria-label": t("Rename …"), onclick: () => this.rename() }, this.titleEl, this.subEl),
+      this.modelChip,
+      h("button", { class: "icon-btn", type: "button", "aria-label": t("Session options"), onclick: () => this.options() }, "⋯"),
     );
-    this.el = h(
-      "div",
-      { class: "chat" },
-      head,
-      this.msgs,
-      this.status,
-      h("div", { class: "composer" }, this.input, this.stopBtn, this.sendBtn),
-    );
+    this.scroller = h("div", { class: "chat-msgs", onscroll: () => this.onScroll() }, this.list.el);
+    this.activity = h("div", { class: "chat-status", hidden: true });
+    this.questionBar = h("div", { class: "question-bar", hidden: true });
+    this.undoBar = h("div", { class: "undo-bar", hidden: true });
+    this.composer = new Composer({
+      send: (text, att, when) => this.send(text, att, when),
+      abort: () => void this.session.abort().catch((e: unknown) => toast(errMsg(e), "err")),
+      commands: () => this.session.commands,
+      unqueue: () => void this.unqueue(),
+      quick: (a) => void this.quick(a),
+    });
+    this.statusLine = h("button", { class: "status-line", type: "button", "aria-label": t("Session statistics"), onclick: () => void statsSheet(this.session) });
+    this.el = h("div", { class: "chat" }, head, this.scroller, this.activity, this.undoBar, this.questionBar, this.composer.el, this.statusLine);
   }
 
   // ------------------------------------------------------------------ lifecycle
 
   async start() {
-    this.note(t("Starting Pi on {host} …", { host: this.target.hostName }), "loading");
+    this.list.note(t("Starting Pi on {host} …", { host: this.target.hostName }), "loading");
     this.unlisten.push(
       await listen<{ handle: number; event: PiEvent; seq?: number }>("pi-event", (e) => {
-        if (e.payload.handle !== this.handle) return;
-        this.onRaw(e.payload.event, e.payload.seq);
+        if (e.payload.handle === this.session.handle) this.onRaw(e.payload.event, e.payload.seq);
       }),
       await listen<{ handle: number; stderr: string }>("pi-exit", (e) => {
-        if (e.payload.handle === this.handle) this.onExit(e.payload.stderr);
+        if (e.payload.handle === this.session.handle) void this.onExit(e.payload.stderr);
       }),
       onSocketOpen(() => {
-        if (this.handle) socketSend({ type: "subscribe", handle: this.handle, since: this.seq });
+        if (this.session.handle) socketSend({ type: "subscribe", handle: this.session.handle, since: this.session.seq });
       }),
       onSocketMessage((m) => {
-        if (m.handle !== this.handle) return;
-        if (m.type === "pi/reload") void this.reload();
+        if (m.handle !== this.session.handle) return;
+        if (m.type === "pi/reload") void this.reloadHistory();
         if (m.type === "pi/denied") void this.reattach();
       }),
     );
-    await this.attach();
+    const a = await this.session.open();
+    this.composer.setQuickActions(this.session.shared.quickActions);
+    await this.afterAttach(a.joined);
   }
 
-  private async attach() {
-    const a = await invoke<Attached>("pi_attach", {
-      hostId: this.target.hostId,
-      cwd: this.target.cwd || "~",
-      sessionPath: this.target.path,
-    });
-    this.handle = a.handle;
-    this.seq = a.seq;
-    this.alive = true;
-    this.queued = [];
-    socketSend({ type: "subscribe", handle: this.handle, since: this.seq });
-    await this.loadHistory();
-    this.setStreaming(a.streaming);
-    if (a.streaming) this.setStatus(t("Pi is working …"));
-    void this.loadModel();
+  private async afterAttach(joined: boolean) {
+    this.waiting = [];
+    socketSend({ type: "subscribe", handle: this.session.handle, since: this.session.seq });
+    this.list.setMode(this.session.viewMode());
+    if (this.session.detached) {
+      this.list.clear();
+      this.list.note(t("This session runs in the background – its history appears when the run is done."), "hint");
+      this.flushWaiting();
+    } else {
+      await this.loadHistory();
+      await this.session.ready(joined);
+      if (this.target.path) void refreshBranches(this);
+    }
+    this.refresh();
   }
 
-  /** The process is gone on the server (closed while idle, container restarted): start it again */
-  private async reattach() {
-    if (!this.target.path) return;
+  /** Start Pi again (after it stopped, a tool change, a run in the background) */
+  async reattach() {
     try {
-      this.msgs.replaceChildren();
-      await this.attach();
+      this.list.clear();
+      this.list.note(t("Starting Pi on {host} …", { host: this.target.hostName }), "loading");
+      const a = await this.session.attach();
+      await this.afterAttach(a.joined);
     } catch (e) {
-      this.note(errMsg(e), "error");
+      this.list.note(errMsg(e), "error");
     }
   }
 
-  private async reload() {
-    this.msgs.replaceChildren();
-    this.queued = [];
+  private async reloadHistory() {
+    this.waiting = [];
     await this.loadHistory();
+    if (this.target.path) void refreshBranches(this);
+    this.refresh();
   }
 
   private async loadHistory() {
+    let messages: PiMessage[] = [];
     try {
-      const data = await api.pi(this.handle, { type: "get_messages" });
-      this.msgs.replaceChildren();
-      this.cur = null;
-      this.tools.clear();
-      for (const m of data.messages ?? []) this.renderStored(m);
-      if (!data.messages?.length) this.note(t("New session in {folder}", { folder: this.target.cwd || "~" }), "hint");
+      messages = (await api.pi(this.session.handle, { type: "get_messages" })).messages ?? [];
+      this.list.clear();
+      for (const m of messages) this.list.renderStored(m);
+      if (!messages.length) this.list.note(t("New session in {folder}", { folder: this.target.cwd || "~" }), "hint");
     } catch (e) {
-      // after Pi ended the exit box already says what happened
-      if (this.alive) this.note(errMsg(e), "error");
+      this.list.clear();
+      if (this.session.alive) this.list.note(errMsg(e), "error");
     }
-    const waiting = this.queued ?? [];
-    this.queued = null;
-    for (const q of waiting) this.onEvent(q.ev);
+    this.questions = messages.at(-1)?.role === "assistant" ? findQuestions(this.list.lastText) : [];
+    this.flushWaiting();
     this.scrollDown(true);
   }
 
-  private async loadModel() {
-    try {
-      const st = await api.pi(this.handle, { type: "get_state" });
-      const model = st.model ? `${st.model.name ?? st.model.id}` : "";
-      this.subtitle.textContent = [this.target.hostName, model].filter(Boolean).join(" · ");
-      if (st.sessionFile && !this.target.path) {
-        // a new session got its file: remember it, so a reload opens this session again
-        this.target.path = st.sessionFile;
-        rememberChat();
-      }
-    } catch {
-      /* the subtitle stays */
-    }
+  private flushWaiting() {
+    const w = this.waiting ?? [];
+    this.waiting = null;
+    for (const ev of w) this.onEvent(ev);
   }
 
   dispose() {
+    this.disposed = true;
     for (const u of this.unlisten) u();
     this.unlisten = [];
-    if (this.handle) socketSend({ type: "unsubscribe", handle: this.handle });
+    if (this.session.handle) socketSend({ type: "unsubscribe", handle: this.session.handle });
   }
 
-  // ------------------------------------------------------------------ rendering
-
-  private onScroll() {
-    const m = this.msgs;
-    this.stickToBottom = m.scrollHeight - m.scrollTop - m.clientHeight < 80;
-  }
-
-  private scrollDown(force = false) {
-    if (force || this.stickToBottom) this.msgs.scrollTop = this.msgs.scrollHeight;
-  }
-
-  private note(text: string, kind: "hint" | "error" | "loading") {
-    this.msgs.querySelectorAll(".chat-note.loading").forEach((n) => n.remove());
-    this.msgs.append(h("div", { class: `chat-note ${kind}` }, text));
-    this.scrollDown();
-  }
-
-  private userBubble(content: Content | undefined) {
-    this.cur = null;
-    const text = cleanUserText(contentText(content));
-    const imgs = Array.isArray(content)
-      ? content
-          .filter((c) => c.type === "image" && c.data)
-          .map((c) => h("img", { class: "msg-img", src: `data:${(c as { mimeType?: string }).mimeType || "image/png"};base64,${(c as { data: string }).data}` }))
-      : [];
-    this.msgs.querySelectorAll(".chat-note.hint").forEach((n) => n.remove());
-    this.msgs.append(h("div", { class: "msg user" }, h("div", { class: "bubble" }, text, ...imgs)));
-    this.scrollDown(true);
-  }
-
-  private beginAssistant() {
-    if (this.cur) return;
-    const el = h("div", { class: "msg assistant" });
-    this.msgs.append(el);
-    this.cur = { el, parts: new Map() };
-  }
-
-  private part(index: number, kind: "text" | "thinking") {
-    this.beginAssistant();
-    const cur = this.cur as NonNullable<ChatView["cur"]>;
-    let p = cur.parts.get(index);
-    if (!p || p.kind !== kind) {
-      let el: HTMLElement;
-      if (kind === "thinking") {
-        const body = h("div", { class: "md" });
-        cur.el.append(h("details", { class: "card thinking" }, h("summary", {}, t("Thinking")), body));
-        el = body;
-      } else {
-        el = h("div", { class: "md" });
-        cur.el.append(el);
-      }
-      p = { kind, el, text: "" };
-      cur.parts.set(index, p);
-    }
-    return p;
-  }
-
-  private appendPart(index: number, kind: "text" | "thinking", delta: string) {
-    const p = this.part(index, kind);
-    p.text += delta;
-    this.schedule(p);
-  }
-
-  /** Markdown is rendered at most once per frame while text streams in */
-  private schedule(p: { kind: string; el: HTMLElement; text: string }) {
-    if (this.renderQueued.size === 0) {
-      requestAnimationFrame(() => {
-        for (const q of this.renderQueued) renderMarkdown(q.el, q.text);
-        this.renderQueued.clear();
-        this.scrollDown();
-      });
-    }
-    this.renderQueued.add(p);
-  }
-
-  private toolStart(id: string, name: string) {
-    if (this.tools.has(id)) return;
-    this.beginAssistant();
-    const status = h("span", { class: "tool-status" });
-    const summary = h("span", { class: "tool-sum" });
-    const args = h("pre", { class: "tool-args" });
-    const result = h("pre", { class: "tool-result", hidden: true });
-    const card = h(
-      "details",
-      { class: "card tool" },
-      h("summary", {}, h("span", { class: "tool-name" }, name || "Tool"), summary, status),
-      args,
-      result,
-    );
-    (this.cur as NonNullable<ChatView["cur"]>).el.append(card);
-    this.tools.set(id, { card, status, args, result, argText: "", name, summary });
-    this.scrollDown();
-  }
-
-  private toolArgs(id: string, args: ToolArgs | undefined) {
-    const tool = this.tools.get(id);
-    if (!tool || !args) return;
-    tool.summary.textContent = toolSummary(tool.name, args);
-    tool.args.textContent = JSON.stringify(args, null, 2);
-  }
-
-  private toolStatus(id: string, kind: "run" | "ok" | "err", label: string) {
-    const tool = this.tools.get(id);
-    if (!tool) return;
-    tool.status.className = `tool-status ${kind}`;
-    tool.status.textContent = label;
-  }
-
-  private toolResult(id: string, content: Content | undefined, isError: boolean) {
-    const tool = this.tools.get(id);
-    if (!tool) return;
-    const text = contentText(content);
-    tool.result.hidden = !text;
-    tool.result.textContent = text.length > RESULT_MAX ? `${text.slice(0, RESULT_MAX)}\n…` : text;
-    this.toolStatus(id, isError ? "err" : "ok", isError ? t("failed") : t("done"));
-  }
-
-  /** A finished assistant message: rebuild the block from the final message (fixes a stream joined midway) */
-  private endAssistant(m: AssistantMessage) {
-    const old = this.cur;
-    this.cur = null;
-    old?.el.remove();
-    this.renderAssistant(m, false);
-  }
-
-  private renderAssistant(m: AssistantMessage, stored: boolean) {
-    this.beginAssistant();
-    (m.content ?? []).forEach((c, i) => {
-      if (c.type === "text") {
-        const p = this.part(i, "text");
-        p.text = c.text ?? "";
-        renderMarkdown(p.el, p.text);
-      } else if (c.type === "thinking") {
-        const p = this.part(i, "thinking");
-        p.text = c.thinking ?? "";
-        renderMarkdown(p.el, p.text);
-      } else if (c.type === "toolCall") {
-        const known = this.tools.get(c.id);
-        if (known) {
-          (this.cur as NonNullable<ChatView["cur"]>).el.append(known.card);
-        } else {
-          this.toolStart(c.id, c.name);
-          if (stored) this.toolStatus(c.id, "ok", t("done"));
-        }
-        this.toolArgs(c.id, c.arguments);
-      }
-    });
-    if (m.stopReason === "error" || m.errorMessage) {
-      (this.cur as NonNullable<ChatView["cur"]>).el.append(h("div", { class: "chat-note error" }, m.errorMessage || t("Pi reported an error.")));
-    } else if (m.stopReason === "aborted") {
-      (this.cur as NonNullable<ChatView["cur"]>).el.append(h("div", { class: "chat-note hint" }, t("Stopped.")));
-    }
-    this.scrollDown();
-  }
-
-  private renderStored(m: PiMessage) {
-    if (m.role === "user") this.userBubble(m.content);
-    else if (m.role === "assistant") {
-      this.renderAssistant(m, true);
-      // tool results follow as their own messages; the next assistant message starts a new block
-      this.cur = null;
-    } else if (m.role === "toolResult") this.toolResult(m.toolCallId, m.content, !!m.isError);
-  }
-
-  // ------------------------------------------------------------------ live events
+  // ------------------------------------------------------------------ events
 
   private onRaw(ev: PiEvent, seq: number | undefined) {
     if (seq !== undefined) {
-      if (seq <= this.seq) return;
-      this.seq = seq;
+      if (seq <= this.session.seq) return;
+      this.session.seq = seq;
     }
-    if (this.queued) {
-      this.queued.push({ seq: seq ?? 0, ev });
-      return;
-    }
-    this.onEvent(ev);
+    if (this.waiting) this.waiting.push(ev);
+    else this.onEvent(ev);
   }
 
   private onEvent(ev: PiEvent) {
+    const hidden = this.session.onEvent(ev);
+    if (ev.type === "extension_ui_request" && !hidden) {
+      uiRequest(this.session.handle, ev, (text) => this.composer.fill(text));
+    }
+    if (!hidden) this.list.onEvent(ev);
     switch (ev.type) {
       case "agent_start":
-        this.setStreaming(true);
-        this.setStatus(t("Pi is working …"));
+        this.questions = [];
+        this.undoBar.hidden = true;
+        if (chatSettings().autoScroll !== "off") this.stick = true;
         break;
       case "agent_settled":
-        this.setStreaming(false);
-        this.setStatus("");
-        break;
-      case "message_start":
-        if (ev.message?.role === "user") this.userBubble(ev.message.content);
-        else if (ev.message?.role === "assistant") this.beginAssistant();
-        break;
-      case "message_update": {
-        const a = ev.assistantMessageEvent;
-        if (!a) break;
-        if (a.type === "text_delta") this.appendPart(a.contentIndex, "text", a.delta);
-        else if (a.type === "thinking_delta") this.appendPart(a.contentIndex, "thinking", a.delta);
-        else if (a.type === "toolcall_start") this.toolStart(a.id, a.toolName);
-        else if (a.type === "toolcall_delta") {
-          const last = [...this.tools.values()].at(-1);
-          if (last) {
-            last.argText += a.delta;
-            last.args.textContent = last.argText;
-          }
-        } else if (a.type === "toolcall_end" && a.toolCall) this.toolArgs(a.toolCall.id, a.toolCall.arguments);
-        break;
-      }
-      case "message_end":
-        if (ev.message?.role === "assistant") this.endAssistant(ev.message);
+        this.list.endTurn();
+        this.questions = findQuestions(this.list.lastText);
+        if (this.target.path) void refreshBranches(this);
         break;
       case "tool_execution_start":
-        this.toolStart(ev.toolCallId, ev.toolName ?? "Tool");
-        this.toolArgs(ev.toolCallId, ev.args);
-        this.toolStatus(ev.toolCallId, "run", t("running …"));
-        this.setStatus(`${ev.toolName ?? "Tool"} …`);
-        break;
-      case "tool_execution_end":
-        this.toolResult(ev.toolCallId, ev.result?.content, !!ev.isError);
-        this.setStatus(t("Pi is working …"));
-        break;
-      case "extension_ui_request":
-        this.uiRequest(ev);
+        this.activity.textContent = `${ev.toolName ?? "Tool"} …`;
         break;
       default:
         break;
     }
+    if (ev.type !== "message_update") this.refresh();
   }
 
-  private onExit(stderr: string) {
-    this.alive = false;
-    this.setStreaming(false);
-    this.setStatus("");
-    const box = h("div", { class: "chat-note error" }, t("Pi has stopped."), stderr.trim() ? h("pre", {}, stderr.trim().slice(-1500)) : null);
-    box.append(h("div", {}, button(t("Reconnect"), () => void this.reattach())));
-    this.msgs.append(box);
-    this.scrollDown(true);
-  }
-
-  // ------------------------------------------------------------------ Pi's dialogs (extension UI)
-
-  private uiRequest(ev: UiRequest) {
-    const reply = (msg: { value?: string; confirmed?: boolean; cancelled?: boolean }) =>
-      api.piReply(this.handle, { id: ev.id, ...msg }).catch((e: unknown) => toast(errMsg(e), "err"));
-    switch (ev.method) {
-      case "notify":
-        toast(ev.message ?? "", ev.notifyType === "error" ? "err" : "info");
-        return;
-      case "setStatus":
-      case "setWidget":
-      case "setTitle":
-      case "set_editor_text":
-        return;
-      case "confirm": {
-        let answered = false;
-        const close = openModal(
-          ev.title || t("Pi asks"),
-          h("p", {}, ev.message ?? ""),
-          [
-            button(t("No"), () => {
-              answered = true;
-              void reply({ confirmed: false });
-              close();
-            }),
-            button(
-              t("Yes"),
-              () => {
-                answered = true;
-                void reply({ confirmed: true });
-                close();
-              },
-              "primary",
-            ),
-          ],
-          () => {
-            if (!answered) void reply({ cancelled: true });
-          },
-        );
-        return;
-      }
-      case "select": {
-        let answered = false;
-        const close = openModal(
-          ev.title || t("Pi asks"),
-          h(
-            "div",
-            { class: "stack" },
-            ...(ev.options ?? []).map((o) =>
-              button(o, () => {
-                answered = true;
-                void reply({ value: o });
-                close();
-              }),
-            ),
-          ),
-          [button(t("Cancel"), () => close())],
-          () => {
-            if (!answered) void reply({ cancelled: true });
-          },
-        );
-        return;
-      }
-      case "input":
-      case "editor": {
-        let answered = false;
-        const field =
-          ev.method === "editor"
-            ? h("textarea", { rows: 8, placeholder: ev.placeholder ?? "" })
-            : h("input", { type: "text", placeholder: ev.placeholder ?? "" });
-        field.value = ev.prefill ?? "";
-        const close = openModal(
-          ev.title || t("Pi asks"),
-          h("div", { class: "form" }, ev.message ? h("p", {}, ev.message) : null, field),
-          [
-            button(t("Cancel"), () => close()),
-            button(
-              t("OK"),
-              () => {
-                answered = true;
-                void reply({ value: field.value });
-                close();
-              },
-              "primary",
-            ),
-          ],
-          () => {
-            if (!answered) void reply({ cancelled: true });
-          },
-        );
-        return;
-      }
-      default:
-        return;
-    }
-  }
-
-  // ------------------------------------------------------------------ input
-
-  private autosize() {
-    this.input.style.height = "auto";
-    this.input.style.height = `${Math.min(this.input.scrollHeight, 200)}px`;
-  }
-
-  private setStreaming(on: boolean) {
-    this.streaming = on;
-    this.stopBtn.hidden = !on;
-  }
-
-  private setStatus(text: string) {
-    this.status.textContent = text;
-    this.status.hidden = !text;
-  }
-
-  private async send() {
-    const text = this.input.value.trim();
-    if (!text || !this.handle) return;
-    if (!this.alive) {
-      toast(t("Pi has stopped."), "err");
+  private async onExit(stderr: string) {
+    if (this.session.detached) {
+      this.session.bgEnded(stderr);
       return;
     }
-    this.sendBtn.disabled = true;
-    // decided before sending: Pi's agent_start for this very message can arrive before the answer to the command
-    const queued = this.streaming;
+    this.session.alive = false;
+    this.session.streaming = false;
+    // another device may have sent this session to the background (the server then closes the live process)
+    if (this.target.path && (await api.bgRunning(this.target.hostId, this.target.path).catch(() => false))) {
+      const a = await this.session.follow();
+      await this.afterAttach(a.joined);
+      return;
+    }
+    const box = h(
+      "div",
+      { class: "chat-note error" },
+      t("Pi has stopped."),
+      stderr.trim() ? h("pre", {}, stderr.trim().slice(-1500)) : null,
+      h("div", { class: "err-acts" }, button(t("Reconnect"), () => void this.reattach()), button(t("Diagnose"), () => this.diagnose(stderr.trim() || t("Pi has stopped.")))),
+    );
+    this.list.append(box);
+    this.refresh();
+  }
+
+  private async backgroundDone(ok: boolean, stderr: string) {
+    const follower = this.session.handle;
+    socketSend({ type: "unsubscribe", handle: follower });
+    await api.piClose(follower).catch(() => {});
+    await this.reattach();
+    if (stderr.trim()) this.list.append(h("div", { class: "chat-note hint" }, stderr.trim().slice(-800)));
+    if (!ok) toast(`${t("In the background")}: ${t("The run ended without an answer – its log is on the host in ~/.pibar.")}`, "err");
+  }
+
+  // ------------------------------------------------------------------ header, status, scrolling
+
+  refresh() {
+    if (this.disposed) return;
+    const s = this.session;
+    const title = cleanTitle(s.meta.name || s.name || this.target.title) || t("New session");
+    this.titleEl.textContent = title;
+    const folder = (this.target.cwd || "~").split("/").filter(Boolean).pop() ?? "~";
+    const marks = [s.planMode ? t("Plan") : "", s.contextMode === "public" ? t("Public") : ""].filter(Boolean);
+    this.subEl.textContent = [this.target.hostName, folder, ...marks].join(" · ");
+    this.modelChip.textContent = modelLabel(s);
+    this.modelChip.classList.toggle("preset", !!s.presetId);
+    this.modelChip.disabled = !s.alive;
+    this.list.setMode(s.viewMode());
+    this.activity.hidden = !s.streaming;
+    if (!s.streaming) this.activity.textContent = "";
+    else if (!this.activity.textContent) this.activity.textContent = s.detached ? t("Runs in the background …") : t("Pi is working …");
+    this.composer.setState(s.streaming, s.detached, s.background);
+    this.composer.setQueue(s.queue.steering, s.queue.followUp);
+    renderStatusLine(this.statusLine, s);
+    this.questionBar.hidden = !this.questions.length || s.streaming;
+    this.questionBar.replaceChildren(
+      h("span", {}, t("Pi asks")),
+      button(t("Answer"), () => questionDialog(this.questions, (text) => this.send(text, [], "followUp").then(() => {})), "primary"),
+    );
+    if (this.target.path && state.chat === this.target) rememberChat();
+  }
+
+  showUndo(label: string, run: () => Promise<void>) {
+    this.undoBar.hidden = false;
+    this.undoBar.replaceChildren(
+      h("span", {}, label),
+      button(t("Undo"), () => {
+        this.undoBar.hidden = true;
+        void run().catch((e: unknown) => toast(errMsg(e), "err"));
+      }),
+      button("×", () => (this.undoBar.hidden = true)),
+    );
+  }
+
+  private onScroll() {
+    const m = this.scroller;
+    this.stick = m.scrollHeight - m.scrollTop - m.clientHeight < 80;
+  }
+
+  scrollDown(force = false) {
+    const mode = chatSettings().autoScroll ?? "auto";
+    if (force || mode === "always" || (mode === "auto" && this.stick)) this.scroller.scrollTop = this.scroller.scrollHeight;
+  }
+
+  // ------------------------------------------------------------------ sending
+
+  async send(text: string, att: FileAttachment[], when: QueueWhen): Promise<boolean> {
+    const s = this.session;
+    if (!s.alive) {
+      toast(t("Pi has stopped."), "err");
+      return false;
+    }
+    const images = att.filter((a) => a.kind === "image").map((a) => ({ data: (a as { data: string }).data, mimeType: a.mimeType }));
+    const files = att.filter((a) => a.kind === "text").map((a) => ({ name: a.name, text: (a as { text: string }).text }));
+    const message = withFiles(text, files);
+    if (!message.trim() && !images.length) return false;
+    if (images.length && !s.modelTakesImages()) toast(t("This model may not read images."));
+    this.questions = [];
     try {
-      const cmd: { type: "prompt"; [k: string]: unknown } = { type: "prompt", message: text };
-      // while Pi works the message waits until the current answer is done (desktop default: follow-up)
-      if (queued) cmd.streamingBehavior = "followUp";
-      await api.pi(this.handle, cmd);
-      this.input.value = "";
-      this.autosize();
-      if (queued) toast(t("Queued – Pi reads it after the current answer."));
-      void this.loadModel();
+      if (s.background && !s.streaming && !images.length && s.target.path) {
+        const live = s.handle;
+        const ok = await s.sendToBackground(message);
+        if (ok) {
+          socketSend({ type: "unsubscribe", handle: live });
+          await this.afterAttach(true);
+        }
+        return ok;
+      }
+      const queued = s.streaming;
+      await s.send(message, images, when);
+      if (queued) toast(when === "steer" ? t("Pi reads it before its next step.") : t("Queued – Pi reads it after the current answer."));
+      this.stick = true;
+      return true;
     } catch (e) {
       toast(errMsg(e), "err");
+      return false;
     } finally {
-      this.sendBtn.disabled = false;
+      this.refresh();
     }
   }
 
-  private async abort() {
+  private async quick(a: QuickAction) {
+    await this.send(a.text, [], "followUp");
+  }
+
+  private async unqueue() {
     try {
-      await api.pi(this.handle, { type: "abort" });
+      const items = await this.session.clearQueue();
+      if (items.length) this.composer.fill(items.join("\n\n"));
     } catch (e) {
       toast(errMsg(e), "err");
     }
+  }
+
+  // ------------------------------------------------------------------ menus
+
+  diagnose(error: string) {
+    const m = this.session.model;
+    diagnoseDialog(this.target.hostId, this.target.hostName, {
+      provider: m?.provider,
+      model: m?.id,
+      error,
+      handle: this.session.alive && !this.session.detached ? this.session.handle : undefined,
+    });
+  }
+
+  rename() {
+    const input = h("input", { type: "text", maxlength: 200 });
+    input.value = this.session.meta.name || this.session.name || this.target.title || "";
+    const save = () => {
+      close();
+      void this.session.rename(input.value.trim());
+    };
+    input.addEventListener("keydown", (e) => e.key === "Enter" && save());
+    const close = openModal(t("Rename …"), h("div", { class: "form" }, input), [button(t("Cancel"), () => close()), button(t("Save"), save, "primary")]);
   }
 
   private details() {
     const row = (label: string, value: string) => h("div", { class: "detail-row" }, h("span", {}, label), h("code", {}, value || "–"));
-    const close = openModal(this.target.title || t("New session"), h("div", { class: "detail" }, row(t("Host"), this.target.hostName), row(t("Folder"), this.target.cwd), row(t("Session file"), this.target.path ?? "")), [
-      button(t("Close"), () => close(), "primary"),
-    ]);
+    const close = openModal(
+      this.titleEl.textContent || t("New session"),
+      h(
+        "div",
+        { class: "detail" },
+        row(t("Host"), this.target.hostName),
+        row(t("Folder"), this.target.cwd),
+        row(t("Session file"), this.target.path ?? ""),
+        row(t("Session ID"), this.session.sessionId),
+        this.session.meta.agentName ? row(t("Agent"), this.session.meta.agentName) : null,
+      ),
+      [button(t("Close"), () => close(), "primary")],
+    );
+  }
+
+  private options() {
+    optionsSheet(this.session, {
+      rename: () => this.rename(),
+      newSubagent: () => subagentDialog(this),
+      diagnose: () => this.diagnose(""),
+      details: () => this.details(),
+      stats: () => void statsSheet(this.session),
+      newSession: () => startNewSession({ hostId: this.target.hostId, hostName: this.target.hostName, cwd: this.target.cwd }),
+      stopBackground: () => void this.session.stopBackground(),
+    });
   }
 }
 
@@ -611,9 +413,7 @@ export function renderChat(root: HTMLElement) {
     view?.dispose();
     view = new ChatView(target);
     const v = view;
-    v.start().catch((e: unknown) => {
-      v.el.querySelector(".chat-msgs")?.append(h("div", { class: "chat-note error" }, errMsg(e)));
-    });
+    v.start().catch((e: unknown) => v.list.note(errMsg(e), "error"));
   }
   root.replaceChildren(view.el);
 }
