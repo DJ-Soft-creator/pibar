@@ -156,7 +156,8 @@ export function wireMoreSection() {
   const place = () => {
     if (currentRoute() !== "more") return;
     const page = app.querySelector<HTMLElement>(".page");
-    if (!page || !page.querySelector(".page-head") || page.querySelector('[data-extras="push"]')) return;
+    // only on the More page itself (another view may still be rendering into the page after a fast tab change)
+    if (!page || page.querySelector(".page-head h1")?.textContent !== t("More") || page.querySelector('[data-extras="push"]')) return;
     // above the administration (the last card for admins) or at the end
     const cards = [...page.querySelectorAll<HTMLElement>(":scope > section.card")];
     const anchor = cards.length > 2 ? cards[2] : null;

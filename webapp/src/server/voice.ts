@@ -173,10 +173,10 @@ async function post(url: string, key: string, body: string | FormData, headers: 
 const postJson = (url: string, key: string, body: unknown) =>
   post(url, key, JSON.stringify(body), { "Content-Type": "application/json" });
 
-/** Run the dictation command in the container; {file} is replaced by the quoted path of the recording */
+/** Run the dictation command in the container with sh (the alpine image has no bash) */
 export function runCommand(script: string, timeoutMs = TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("bash", ["-c", script], { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile("sh", ["-c", script], { timeout: timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error((String(stderr).trim() || err.message).slice(0, ERROR_MAX)));
       else resolve(String(stdout).trim());
     });

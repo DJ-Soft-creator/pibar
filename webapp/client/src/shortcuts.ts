@@ -30,16 +30,21 @@ export function shortcutsDialog() {
   );
 }
 
-/** Go to the session list and put the cursor into its search field (as soon as the page has rendered it) */
+/**
+ * Go to the session list and put the cursor into its search field. The list renders again when its sessions have
+ * loaded, so for a moment the focus is put back into the new field as long as nothing else took it.
+ */
 function focusSearch() {
   go("sessions");
-  let tries = 0;
+  const until = Date.now() + 2000;
   const find = () => {
     const input = document.querySelector<HTMLInputElement>('.page input[type="search"]');
-    if (input) {
+    const active = document.activeElement;
+    if (input && active !== input && (!active || active === document.body)) {
       input.focus();
       input.select();
-    } else if (tries++ < 20) window.setTimeout(find, 50);
+    }
+    if (Date.now() < until && (!active || active === document.body || active === input || !input)) window.setTimeout(find, 50);
   };
   window.setTimeout(find, 0);
 }
