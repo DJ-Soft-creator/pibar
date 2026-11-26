@@ -1,0 +1,700 @@
+/* Files tab (views/files*.ts): tree, file screen, Git history and commit. Mobile first: rows of at least 44 px,
+   long names cut with an ellipsis instead of scrolling sideways; code and diffs scroll inside their own box. */
+
+/* ---------------------------------------------------------------- folder bar and tree */
+
+.fx-folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.fx-folder-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  direction: rtl; /* keep the end of a long path visible */
+  text-align: left;
+}
+
+.fx-folder-host {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-toggle.on {
+  background: var(--surface-2);
+}
+
+.fx-toggle .ic,
+.fx-ic {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.fx-ic {
+  color: var(--muted);
+}
+
+.fx-progress {
+  color: var(--accent);
+  font-size: 0.9rem;
+  margin: 0 4px 8px;
+}
+
+.fx-gitbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+.fx-gitbar .git-line {
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-gitline {
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.git-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border-radius: 8px;
+}
+
+.gicon,
+.ic {
+  display: inline-flex;
+  align-items: center;
+}
+
+.gbranch {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gmuted {
+  color: var(--muted);
+}
+
+.gsync.up {
+  color: var(--accent);
+}
+
+.gsync.down {
+  color: #c4672f;
+}
+
+.ginline {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 0;
+  max-width: 45%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ginline.dirty .gbranch {
+  color: #c4672f;
+}
+
+.gdot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c4672f;
+}
+
+.gmark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.gmark.mod {
+  color: #c4672f;
+  background: color-mix(in srgb, #c4672f 14%, transparent);
+}
+
+.gmark.new {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.gmark.del {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.fx-tree,
+.fx-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.fx-tline {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+}
+
+.fx-tree > :last-child,
+.fx-list > :last-child {
+  border-bottom: 0;
+}
+
+.fx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  min-height: 48px;
+  padding: 6px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fx-tline .fx-row {
+  border-bottom: 0;
+}
+
+.fx-row:active,
+.fx-change-btn:active,
+.fx-commit:active {
+  background: var(--surface-2);
+}
+
+.fx-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-dir .fx-name {
+  font-weight: 500;
+}
+
+.fx-chev {
+  flex: none;
+  width: 14px;
+  color: var(--muted);
+  transition: transform 0.15s;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.fx-chev.open {
+  transform: rotate(90deg);
+}
+
+.fx-count {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.fx-more {
+  flex: none;
+  font-size: 1.2rem;
+  color: var(--muted);
+}
+
+.fx-edited {
+  flex: none;
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.fx-hint-row {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fx-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 32px 12px;
+}
+
+/* ---------------------------------------------------------------- action sheet and buttons */
+
+.fx-sheet {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.fx-sheet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.fx-sheet-item:last-child {
+  border-bottom: 0;
+}
+
+.fx-sheet-item small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.fx-sheet-item.danger {
+  color: var(--danger);
+}
+
+.btn.danger-solid {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn.fx-small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.9rem;
+  flex: none;
+}
+
+/* ---------------------------------------------------------------- screens */
+
+.fx-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.fx-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  margin: 0 -8px;
+}
+
+.fx-back {
+  font-size: 2rem;
+  line-height: 1;
+  flex: none;
+}
+
+.fx-head-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.fx-head-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-head-sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-head-acts {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.fx-head-acts .btn.fx-save {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.fx-head-acts [hidden] {
+  display: none;
+}
+
+.fx-seg {
+  display: flex;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.fx-seg-btn {
+  flex: 1;
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.fx-seg-btn.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.fx-editor {
+  width: 100%;
+  min-height: 60vh;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: max(16px, 0.9rem);
+  line-height: 1.45;
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.fx-md {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.fx-md img {
+  max-width: 100%;
+}
+
+.fx-html {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* pages expect a white page; the frame cannot see our theme */
+  background: #fff;
+}
+
+.fx-code,
+.fx-diff,
+.fx-message {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  max-width: 100%;
+}
+
+.fx-code code {
+  white-space: pre;
+}
+
+.fx-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.fx-image {
+  display: flex;
+  justify-content: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.fx-image img {
+  max-width: 100%;
+  height: auto;
+}
+
+.fx-card-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 32px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.fx-card-center a.btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+/* ---------------------------------------------------------------- diffs */
+
+.fx-diff {
+  padding: 6px 0;
+}
+
+.fx-dl {
+  white-space: pre;
+  padding: 0 12px;
+  min-width: max-content;
+}
+
+.fx-dl.add {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+.fx-dl.del {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.fx-dl.hunk {
+  color: var(--accent);
+}
+
+.fx-dl.meta {
+  color: var(--muted);
+}
+
+.fx-dl.gap {
+  color: var(--muted);
+  font-style: italic;
+  font-family: inherit;
+}
+
+.fx-diff-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 2px 6px;
+  flex-wrap: wrap;
+}
+
+.fx-stat {
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.fx-stat.add {
+  color: var(--ok);
+}
+
+.fx-stat.del {
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------------- Git history and commit */
+
+.fx-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fx-commit-subject {
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.fx-unpushed {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.fx-commit-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.fx-refs {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 5px;
+  overflow-wrap: anywhere;
+}
+
+.fx-change {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 4px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fx-list > div:last-child .fx-change {
+  border-bottom: 0;
+}
+
+.fx-change-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  background: none;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.fx-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 44px;
+  flex: none;
+}
+
+.fx-check input {
+  width: 22px;
+  height: 22px;
+}
+
+.fx-change-name {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-change-dir {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-file-diff {
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.fx-file-diff[hidden] {
+  display: none;
+}
+
+.fx-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fx-commit-msg {
+  min-height: 88px;
+  resize: vertical;
+}
+
+/* ---------------------------------------------------------------- folder picker */
+
+.fx-pick-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fx-pick-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.fx-use {
+  margin-top: 8px;
+  position: sticky;
+  bottom: 8px;
+}

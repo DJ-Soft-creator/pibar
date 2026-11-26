@@ -985,6 +985,39 @@ const de = {
   "Model presets": "Modell-Presets",
   "Desktop app tokens": "Tokens für Desktop-Apps",
   // webapp: files & git – new keys go above the end line of this section
+  Commit: "Commit",
+  "Commit message": "Commit-Nachricht",
+  "Commit {n} files": "{n} Dateien committen",
+  "Commit …": "Committen …",
+  "Commits on the host with its Git identity. Nothing is pushed.":
+    "Committet auf dem Host mit dessen Git-Identität. Es wird nichts gepusht.",
+  "Committed: {hash}": "Committet: {hash}",
+  Discard: "Verwerfen",
+  "Empty file": "Leere Datei",
+  "File changed on the host": "Datei auf dem Host geändert",
+  "Folders of your sessions": "Ordner deiner Sessions",
+  "Hide Git status": "Git-Status ausblenden",
+  "Large folder: only the first 3000 files are listed; folders load more when opened.":
+    "Großer Ordner: nur die ersten 3000 Dateien sind aufgelistet; Ordner laden beim Öffnen nach.",
+  "Load new version": "Neue Version laden",
+  "Name not allowed": "Name nicht erlaubt",
+  "New file": "Neue Datei",
+  "New folder, not in Git yet": "Neuer Ordner, noch nicht in Git",
+  "Open PDF": "PDF öffnen",
+  Overwrite: "Überschreiben",
+  "Overwrite replaces those changes with yours.": "Überschreiben ersetzt diese Änderungen durch deine.",
+  "PDF documents open in the browser's own viewer.": "PDF-Dokumente öffnen sich im Viewer des Browsers.",
+  Repository: "Repository",
+  "Select all": "Alle auswählen",
+  "Select none": "Keine auswählen",
+  "Show Git status": "Git-Status anzeigen",
+  "Show another folder of the host": "Einen anderen Ordner des Hosts anzeigen",
+  "The file can no longer be read on the host (deleted or moved?).":
+    "Die Datei kann auf dem Host nicht mehr gelesen werden (gelöscht oder verschoben?).",
+  "The file was changed since you opened it, maybe by Pi.":
+    "Die Datei wurde seit dem Öffnen geändert, vielleicht von Pi.",
+  "Use this folder": "Diesen Ordner verwenden",
+  "What changed? (commit message)": "Was hat sich geändert? (Commit-Nachricht)",
   // (end of webapp: files & git)
   // webapp: chat – new keys go above the end line of this section
   // (end of webapp: chat)
