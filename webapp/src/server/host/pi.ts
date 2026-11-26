@@ -9,6 +9,7 @@
 // - Processes nobody watches that are idle (no answer running) are closed after a while.
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
+import { followScript } from "./bg.js";
 import type { HostExec, HostTarget } from "./hostexec.js";
 
 /** How long a single RPC command may take until Pi answers (pi.rs: RPC_TIMEOUT) */
@@ -38,6 +39,8 @@ export interface PiInfo {
   sessionPath: string | null;
   alive: boolean;
   streaming: boolean;
+  /** A follower of a run in the background (bg.ts): it streams the run's log and takes no commands */
+  follow: boolean;
 }
 
 interface Pending {
@@ -116,8 +119,37 @@ export class PiManager {
 
   /** The running process of a session file on a host, if the webapp has one */
   findSession(hostId: string, sessionPath: string): number | null {
-    for (const p of this.procs.values()) if (p.alive && p.hostId === hostId && p.sessionPath === sessionPath) return p.handle;
+    for (const p of this.procs.values()) {
+      if (p.alive && !p.follow && p.hostId === hostId && p.sessionPath === sessionPath) return p.handle;
+    }
     return null;
+  }
+
+  /** The follower of a session's run in the background, if one runs already */
+  findFollow(hostId: string, sessionPath: string): number | null {
+    for (const p of this.procs.values()) {
+      if (p.alive && p.follow && p.hostId === hostId && p.sessionPath === sessionPath) return p.handle;
+    }
+    return null;
+  }
+
+  /**
+   * Follow a run in the background (pi.rs: open_follow): print its log file and stream it like a live Pi, so the
+   * chat renders the run with the same events. There is no stdin: the run got its prompt on its command line. A
+   * session followed already is joined (two phones watching the same run share one follower).
+   */
+  openFollow(host: HostTarget, sessionPath: string): { handle: number; joined: boolean } {
+    const running = this.findFollow(host.id, sessionPath);
+    if (running !== null) {
+      this.touch(running);
+      return { handle: running, joined: true };
+    }
+    // closing a follower kills its shell; the trap takes its `tail -f` along (over SSH the hang-up would do that, a
+    // local shell in development and tests would keep it running and its output pipe open)
+    const script = `trap 'kill $t 2>/dev/null; exit 0' TERM HUP; ${followScript(sessionPath)}`;
+    const child = this.exec.runner.spawnShell(host, script);
+    child.stdin.end();
+    return { handle: this.register(host, "~", sessionPath, child, true), joined: false };
   }
 
   /**
@@ -138,6 +170,10 @@ export class PiManager {
     args.push(...toolArgs(o.tools ?? null));
     if (o.appendPrompt) args.push("--append-system-prompt", o.appendPrompt);
     const child = this.exec.spawnPi(host, cwd, args);
+    return { handle: this.register(host, cwd, sessionPath, child, false), joined: false };
+  }
+
+  private register(host: HostTarget, cwd: string, sessionPath: string | null, child: ChildProcessWithoutNullStreams, follow: boolean): number {
     const handle = this.nextHandle++;
     const proc: PiProc = {
       handle,
@@ -145,7 +181,9 @@ export class PiManager {
       cwd,
       sessionPath,
       alive: true,
-      streaming: false,
+      // a followed run is working from the first moment; its agent_settled ends that
+      streaming: follow,
+      follow,
       child,
       pending: new Map(),
       stderr: "",
@@ -155,7 +193,7 @@ export class PiManager {
     };
     this.procs.set(handle, proc);
     this.pump(proc);
-    return { handle, joined: false };
+    return handle;
   }
 
   private pump(p: PiProc) {
@@ -233,6 +271,7 @@ export class PiManager {
   send(handle: number, cmd: Record<string, unknown>): Promise<Record<string, unknown>> {
     const p = this.procs.get(handle);
     if (!p || !p.alive) return Promise.reject(new Error("Pi process not found"));
+    if (p.follow) return Promise.reject(new Error("This is no live Pi process"));
     p.lastActivity = Date.now();
     const id = `r${this.nextReq++}`;
     return new Promise((resolve, reject) => {
@@ -256,6 +295,7 @@ export class PiManager {
   reply(handle: number, msg: Record<string, unknown>) {
     const p = this.procs.get(handle);
     if (!p || !p.alive) throw new Error("Pi process not found");
+    if (p.follow) throw new Error("This is no live Pi process");
     p.lastActivity = Date.now();
     p.child.stdin.write(`${JSON.stringify(msg)}\n`);
   }
