@@ -1,4 +1,4 @@
-/* API tokens for desktop apps (views/tokens.ts): intro, token cards, the one-time secret dialog. */
+/* Desktop apps signed in with the own account (views/tokens.ts): intro, address, token cards. */
 .token-intro {
   margin: 0 0 12px;
   line-height: 1.4;
@@ -8,20 +8,8 @@
   overflow-wrap: anywhere;
 }
 
-.token-secret {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.token-warn {
-  margin: 0;
-  font-weight: 600;
-  color: var(--danger);
-}
-
-.token-value,
 .token-url {
+  margin: 0 0 12px;
   display: block;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -31,9 +19,4 @@
   -webkit-user-select: all;
   overflow-wrap: anywhere;
   word-break: break-all;
-}
-
-.token-secret .btn {
-  align-self: flex-start;
-  min-height: 44px;
 }

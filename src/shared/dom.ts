@@ -135,6 +135,26 @@ export function openModal(
   return close;
 }
 
+let cardToggleWired = false;
+
+/**
+ * WebKit (Tauri on macOS, Safari) does not toggle a <details> reliably when its summary has
+ * `display: flex`: clicks on the preview text or the empty summary area do nothing, only the
+ * label works. Toggle every chat card (thinking, tool, OCR, files) explicitly on summary click.
+ * Idempotent; call once from the app shell.
+ */
+export function wireCardToggle() {
+  if (cardToggleWired) return;
+  cardToggleWired = true;
+  document.addEventListener("click", (e) => {
+    const summary = (e.target as Element | null)?.closest?.("details.card > summary");
+    const details = summary?.parentElement as HTMLDetailsElement | null;
+    if (!details) return;
+    e.preventDefault(); // stop the native toggle so it does not flip back
+    details.open = !details.open;
+  });
+}
+
 /** Copy text to the clipboard; falls back to a hidden textarea where the Clipboard API is not allowed */
 export async function copyText(text: string): Promise<void> {
   try {

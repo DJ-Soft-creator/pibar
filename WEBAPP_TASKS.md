@@ -378,6 +378,12 @@ Alle Tasks: Datei `webapp/src/server/host/<modul>.ts`, Shell-Skripte wörtlich a
 
 ### I3 – Admin: Desktop-Tokens
 - **Fertig wenn:** Token erzeugen (einmal angezeigt), benennen, widerrufen.
+- **Abgelöst durch D4.**
+
+### D4 – Desktop-Login pro Benutzer
+- **Wo:** `webapp/src/server/routes/tokens.ts`, `apiTokens.ts`, `meta.ts`; `src/main/configExchange*.ts`, `src-tauri/src/webapp.rs`.
+- **Was:** Der Desktop meldet sich mit Benutzername + Passwort an (`POST /api/desktop/login`) und bekommt einen API-Token dieses Benutzers (Passwort wird nicht gespeichert). Jeder Benutzer hat eine eigene Organisation der Session-Liste (`DATA_DIR/meta/<user id>.json`, einmalig aus dem alten gemeinsamen `meta.json` übernommen); abgeglichen werden nur Hosts, die der Benutzer nutzen darf. Anfragen laufen über den Rust-Kern (curl), nicht über die WebView. Eigene Desktop-Anmeldungen unter Mehr → Konto → Desktop-Apps; Passwortwechsel, Zurücksetzen und Löschen des Benutzers beenden sie.
+- **Fertig wenn:** Anmelden/Abmelden in Einstellungen → Webapp; zwei Benutzer sehen getrennte Namen, Gruppen und Projekte; `npm run check` in Root und `webapp/` grün.
 
 ### I4 – Modell-Presets & Quick Actions
 - **Referenz:** `src/main/settings.ts` (`presetEditor`, `quickActionsEditor`).

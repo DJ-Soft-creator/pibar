@@ -1,9 +1,9 @@
-// Desktop sync and API tokens (tasks I3, D2): token store (hash only, shown once, revoke), admin routes, and the
-// two-way sync POST /api/sync/meta – token-only access, host mapping, merge (different entries, the same entry,
-// delete vs change), clock skew, rate limit.
+// Desktop sync and API tokens: token store (hash only, shown once, per user, revoke), desktop sign-in/-out, own and
+// admin token routes, and the two-way sync POST /api/sync/meta – token-only access, one organisation per user, host
+// rights, host mapping, merge (different entries, the same entry, delete vs change), clock skew, rate limit.
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -12,7 +12,7 @@ import { ApiTokenStore, hashSecret } from "../src/server/apiTokens.js";
 import { createApp } from "../src/server/app.js";
 import { bootstrapAdmin, createUser } from "../src/server/auth.js";
 import type { HostRecord } from "../src/server/hosts.js";
-import { MetaStore, sessionKey } from "../src/server/meta.js";
+import { MetaStore, sessionKey, UserMetaStores } from "../src/server/meta.js";
 import { createLoginRateLimiter } from "../src/server/rateLimit.js";
 import { Store } from "../src/server/store.js";
 import { cleanSessionValue, clampTime, MAX_CLOCK_SKEW_MS, type SyncResponse } from "../src/server/sync.js";
@@ -39,7 +39,10 @@ const host = (id: string, name: string, sshTarget: string, sshUser = ""): HostRe
 interface Ctx {
   url: string;
   store: Store;
+  metas: UserMetaStores;
+  /** the admin's own organisation */
   meta: MetaStore;
+  adminId: string;
   apiTokens: ApiTokenStore;
   adminToken: string;
   changes: () => number;
@@ -51,13 +54,19 @@ async function start(t: TestContext, syncLimit = 1000): Promise<Ctx> {
   await bootstrapAdmin(store, { ADMIN_USERNAME: ADMIN.username, ADMIN_PASSWORD: ADMIN.password }, () => {});
   store.saveHost(host("w-vm", "Pi-VM", "pi-vm.example", "user"));
   store.saveHost(host("w-mini", "Mini", "mini.example"));
-  const meta = new MetaStore(dataDir);
+  const metas = new UserMetaStores(dataDir);
   let n = 0;
-  meta.onChange(() => n++);
+  metas.onChange(() => n++);
+  const adminId = store.findUserByName(ADMIN.username)?.id ?? "";
   const apiTokens = new ApiTokenStore(dataDir);
   const app = createApp(store, {
     clientDir: join(dataDir, "client"),
-    sync: { meta, apiTokens, syncLimiter: createLoginRateLimiter({ limit: syncLimit, windowMs: 60_000 }) },
+    sync: {
+      metas,
+      apiTokens,
+      syncLimiter: createLoginRateLimiter({ limit: syncLimit, windowMs: 60_000 }),
+      loginLimiter: createLoginRateLimiter({ limit: 1000, windowMs: 60_000 }),
+    },
   });
   const server = createServer(app);
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
@@ -72,7 +81,7 @@ async function start(t: TestContext, syncLimit = 1000): Promise<Ctx> {
     body: JSON.stringify(ADMIN),
   });
   const adminToken = ((await login.json()) as { token: string }).token;
-  return { url, store, meta, apiTokens, adminToken, changes: () => n };
+  return { url, store, metas, meta: metas.of(adminId), adminId, apiTokens, adminToken, changes: () => n };
 }
 
 async function call(ctx: Ctx, method: string, path: string, body?: unknown, token?: string) {
@@ -97,7 +106,7 @@ const sync = (ctx: Ctx, secret: string, body: Record<string, unknown>) =>
 test("ApiTokenStore: secret shown once, only the hash stored (0600), verify, rename, revoke, reload", (t) => {
   const dir = tmp(t);
   const s = new ApiTokenStore(dir);
-  const { token, secret } = s.create("MacBook", 1000);
+  const { token, secret } = s.create("MacBook", "u1", 1000);
   assert.match(secret, /^pbt_[A-Za-z0-9_-]{43}$/);
   assert.equal(token.name, "MacBook");
   assert.ok(!("hash" in token));
@@ -107,6 +116,7 @@ test("ApiTokenStore: secret shown once, only the hash stored (0600), verify, ren
   assert.ok(file.includes(hashSecret(secret)));
   assert.equal(statSync(join(dir, "api-tokens.json")).mode & 0o777, 0o600);
   assert.equal(s.verify(secret)?.id, token.id);
+  assert.equal(s.verify(secret)?.userId, "u1");
   assert.equal(s.verify(`${secret}x`), null);
   assert.equal(s.verify("not-a-token"), null);
   assert.equal(s.rename(token.id, "Mac mini")?.name, "Mac mini");
@@ -120,38 +130,159 @@ test("ApiTokenStore: secret shown once, only the hash stored (0600), verify, ren
   assert.equal(new ApiTokenStore(dir).list().length, 0);
 });
 
-test("token routes: admin only, secret only in the create answer, rename, revoke", async (t) => {
-  const ctx = await start(t);
-  assert.equal((await call(ctx, "GET", "/api/tokens")).status, 401);
-  await ctx.store.saveUser(await createUser("alice", "alice-pass", "user", []));
-  const alice = (await call(ctx, "POST", "/api/login", { username: "alice", password: "alice-pass" })).json as { token: string };
-  assert.equal((await call(ctx, "GET", "/api/tokens", undefined, alice.token)).status, 403);
-  assert.equal((await call(ctx, "POST", "/api/tokens", { name: "x" }, alice.token)).status, 403);
+test("ApiTokenStore: tokens per user, revokeUser; old tokens without a user are dropped on load", (t) => {
+  const dir = tmp(t);
+  const s = new ApiTokenStore(dir);
+  const a = s.create("A", "u1");
+  s.create("B", "u2");
+  assert.deepEqual(s.list("u1").map((x) => x.name), ["A"]);
+  assert.equal(s.get(a.token.id, "u2"), null);
+  assert.equal(s.get(a.token.id, "u1")?.name, "A");
+  assert.equal(s.revokeUser("u1"), 1);
+  assert.equal(s.verify(a.secret), null);
+  assert.deepEqual(new ApiTokenStore(dir).list().map((x) => x.name), ["B"]);
 
-  assert.equal((await call(ctx, "POST", "/api/tokens", { name: "  " }, ctx.adminToken)).status, 400);
-  assert.equal((await call(ctx, "POST", "/api/tokens", { name: "x".repeat(65) }, ctx.adminToken)).status, 400);
-  const created = await call(ctx, "POST", "/api/tokens", { name: " MacBook " }, ctx.adminToken);
-  assert.equal(created.status, 201);
-  const { token, secret } = created.json as { token: { id: string; name: string }; secret: string };
-  assert.equal(token.name, "MacBook");
-  const list = (await call(ctx, "GET", "/api/tokens", undefined, ctx.adminToken)).json as Record<string, unknown>[];
-  assert.equal(list.length, 1);
-  assert.ok(!JSON.stringify(list).includes(secret));
-  assert.ok(!("hash" in (list[0] ?? {})));
-  const renamed = await call(ctx, "PATCH", `/api/tokens/${token.id}`, { name: "Mac mini" }, ctx.adminToken);
-  assert.equal((renamed.json as { name: string }).name, "Mac mini");
-  assert.equal((await call(ctx, "PATCH", "/api/tokens/nope", { name: "y" }, ctx.adminToken)).status, 404);
+  const old = tmp(t);
+  const legacy = { id: "old", name: "Old", hash: hashSecret("pbt_old"), hint: "pbt_", createdAt: 1, lastUsedAt: null };
+  writeFileSync(join(old, "api-tokens.json"), JSON.stringify([legacy]));
+  assert.equal(new ApiTokenStore(old).list().length, 0);
+  assert.equal(JSON.parse(readFileSync(join(old, "api-tokens.json"), "utf8")).length, 0);
+});
+
+test("desktop sign-in: name + password give an API token of that user; it syncs, signs out, is no login", async (t) => {
+  const ctx = await start(t);
+  assert.equal((await call(ctx, "POST", "/api/desktop/login", { username: "admin", password: "wrong" })).status, 401);
+  assert.equal((await call(ctx, "POST", "/api/desktop/login", { username: "admin" })).status, 400);
+  const res = await call(ctx, "POST", "/api/desktop/login", { ...ADMIN, device: " MacBook " });
+  assert.equal(res.status, 201);
+  const signed = res.json as { token: string; tokenId: string; username: string; role: string };
+  assert.match(signed.token, /^pbt_/);
+  assert.equal(signed.username, "admin");
+  assert.equal(signed.role, "admin");
+  assert.equal(ctx.apiTokens.get(signed.tokenId)?.userId, ctx.adminId);
+  assert.equal(ctx.apiTokens.get(signed.tokenId)?.name, "MacBook");
+  // a device name that is too long falls back to the default
+  const unnamed = (await call(ctx, "POST", "/api/desktop/login", { ...ADMIN, device: "x".repeat(99) })).json as { tokenId: string };
+  assert.equal(ctx.apiTokens.get(unnamed.tokenId)?.name, "PiBar desktop");
   // an API token is no login
-  assert.equal((await call(ctx, "GET", "/api/me", undefined, secret)).status, 401);
-  assert.equal((await call(ctx, "DELETE", `/api/tokens/${token.id}`, undefined, ctx.adminToken)).status, 200);
-  assert.equal((await call(ctx, "DELETE", `/api/tokens/${token.id}`, undefined, ctx.adminToken)).status, 404);
+  assert.equal((await call(ctx, "GET", "/api/me", undefined, signed.token)).status, 401);
+  const synced = await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, signed.token);
+  assert.equal(synced.status, 200);
+  assert.equal((synced.json as { user: string }).user, "admin");
+  assert.equal((await call(ctx, "POST", "/api/desktop/logout", undefined, ctx.adminToken)).status, 401);
+  assert.equal((await call(ctx, "POST", "/api/desktop/logout", undefined, signed.token)).status, 200);
+  assert.equal((await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, signed.token)).status, 401);
+});
+
+test("token routes: own tokens for every user, every token for admins", async (t) => {
+  const ctx = await start(t);
+  ctx.store.saveUser(await createUser("alice", "alice-pass", "user", []));
+  const alice = (await call(ctx, "POST", "/api/login", { username: "alice", password: "alice-pass" })).json as { token: string };
+  const aliceDesk = (await call(ctx, "POST", "/api/desktop/login", { username: "alice", password: "alice-pass", device: "Laptop" }))
+    .json as { tokenId: string; token: string };
+  const adminDesk = (await call(ctx, "POST", "/api/desktop/login", { ...ADMIN, device: "Mac" })).json as { tokenId: string };
+  assert.equal((await call(ctx, "GET", "/api/me/tokens")).status, 401);
+  const own = (await call(ctx, "GET", "/api/me/tokens", undefined, alice.token)).json as { id: string; name: string }[];
+  assert.deepEqual(own.map((x) => x.name), ["Laptop"]);
+  assert.ok(!JSON.stringify(own).includes(aliceDesk.token));
+  assert.ok(!("hash" in (own[0] ?? {})));
+  // nobody touches another user's token through /api/me
+  assert.equal((await call(ctx, "PATCH", `/api/me/tokens/${adminDesk.tokenId}`, { name: "x" }, alice.token)).status, 404);
+  assert.equal((await call(ctx, "DELETE", `/api/me/tokens/${adminDesk.tokenId}`, undefined, alice.token)).status, 404);
+  assert.equal((await call(ctx, "PATCH", `/api/me/tokens/${aliceDesk.tokenId}`, { name: " " }, alice.token)).status, 400);
+  const renamed = await call(ctx, "PATCH", `/api/me/tokens/${aliceDesk.tokenId}`, { name: "Work laptop" }, alice.token);
+  assert.equal((renamed.json as { name: string }).name, "Work laptop");
+  // admins see every token with its user and may revoke any
+  assert.equal((await call(ctx, "GET", "/api/tokens", undefined, alice.token)).status, 403);
+  const all = (await call(ctx, "GET", "/api/tokens", undefined, ctx.adminToken)).json as { name: string; username: string }[];
+  assert.deepEqual(all.map((x) => `${x.username}:${x.name}`).sort(), ["admin:Mac", "alice:Work laptop"]);
+  assert.equal((await call(ctx, "DELETE", `/api/tokens/${aliceDesk.tokenId}`, undefined, ctx.adminToken)).status, 200);
+  assert.equal((await call(ctx, "DELETE", `/api/me/tokens/${adminDesk.tokenId}`, undefined, ctx.adminToken)).status, 200);
+  assert.equal(ctx.apiTokens.list().length, 0);
+});
+
+test("desktop sign-ins end with a password change, a password reset and the user", async (t) => {
+  const ctx = await start(t);
+  const bob = await createUser("bob", "bob-pass-1", "user", []);
+  ctx.store.saveUser(bob);
+  const desk = async (password: string) =>
+    ((await call(ctx, "POST", "/api/desktop/login", { username: "bob", password })).json as { token: string }).token;
+  const login = async (password: string) =>
+    ((await call(ctx, "POST", "/api/login", { username: "bob", password })).json as { token: string }).token;
+  const ok = async (token: string) => (await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, token)).status;
+
+  const t1 = await desk("bob-pass-1");
+  const own = await login("bob-pass-1");
+  assert.equal((await call(ctx, "POST", "/api/me/password", { currentPassword: "bob-pass-1", newPassword: "bob-pass-2" }, own)).status, 200);
+  assert.equal(await ok(t1), 401);
+
+  const t2 = await desk("bob-pass-2");
+  assert.equal((await call(ctx, "PATCH", `/api/users/${bob.id}`, { password: "bob-pass-3" }, ctx.adminToken)).status, 200);
+  assert.equal(await ok(t2), 401);
+
+  const t3 = await desk("bob-pass-3");
+  ctx.metas.of(bob.id).setGroup("g", { id: "g", name: "Bob", color: "", collapsed: false });
+  assert.equal((await call(ctx, "DELETE", `/api/users/${bob.id}`, undefined, ctx.adminToken)).status, 200);
+  assert.equal(await ok(t3), 401);
+  assert.deepEqual(ctx.metas.of(bob.id).state.groups, {}, "the deleted user's organisation is gone");
+});
+
+test("sync: every user has an own organisation and only the hosts they may use", async (t) => {
+  const ctx = await start(t);
+  // carol may use Mini only; her desktop has the same two hosts as the admin's plus Mini
+  const carol = await createUser("carol", "carol-pass", "user", ["w-mini"]);
+  ctx.store.saveUser(carol);
+  const carolToken = ctx.apiTokens.create("Carol desk", carol.id).secret;
+  const adminToken = ctx.apiTokens.create("Desk", ctx.adminId).secret;
+  const hosts = [...DESKTOP_HOSTS, { id: "mini", name: "Mini", kind: "ssh", address: "mini.example" }];
+  const res = await call(ctx, "POST", "/api/sync/meta", {
+    hosts,
+    sessionMeta: { "vm|/s/a.jsonl": { color: "red", updatedAt: 100 }, "mini|/s/m.jsonl": { color: "blue", updatedAt: 100 } },
+    groups: [{ id: "g-carol", name: "Carol's", color: "", collapsed: false, updatedAt: 100 }],
+  }, carolToken);
+  const out = res.json as SyncResponse;
+  assert.deepEqual(out.hosts, [
+    { id: "vm", webappHost: null },
+    { id: "mac", webappHost: null },
+    { id: "mini", webappHost: "Mini" },
+  ]);
+  const carolState = ctx.metas.of(carol.id).state;
+  assert.deepEqual(Object.keys(carolState.sessions), [sessionKey("w-mini", "/s/m.jsonl")]);
+  assert.equal(carolState.groups["g-carol"]?.value?.name, "Carol's");
+  // the admin's organisation is untouched and the admin's sync does not see Carol's
+  assert.deepEqual(ctx.meta.state, { sessions: {}, groups: {}, projects: {} });
+  const adminOut = (await call(ctx, "POST", "/api/sync/meta", { hosts }, adminToken)).json as SyncResponse;
+  assert.deepEqual(adminOut.groups, []);
+  assert.deepEqual(adminOut.sessionMeta, {});
+});
+
+test("UserMetaStores: a user without an own file starts with a copy of the old shared meta.json", (t) => {
+  const dir = tmp(t);
+  const legacy = new MetaStore(dir);
+  legacy.setGroup("g", { id: "g", name: "Shared", color: "", collapsed: false }, 5);
+  const metas = new UserMetaStores(dir, legacy);
+  const changed: string[] = [];
+  metas.onChange((id) => changed.push(id));
+  const a = metas.of("user-a");
+  assert.equal(a.state.groups.g?.value?.name, "Shared");
+  a.setGroup("g", null, 10);
+  assert.deepEqual(changed, ["user-a"]);
+  assert.equal(legacy.state.groups.g?.value?.name, "Shared", "the copy is a copy");
+  assert.equal(metas.of("user-b").state.groups.g?.value?.name, "Shared");
+  // the own file wins from now on, also after a restart
+  assert.equal(new UserMetaStores(dir, legacy).of("user-a").state.groups.g?.value, null);
+  // ids cannot leave the folder
+  metas.of("../evil").setGroup("x", null);
+  assert.ok(statSync(join(dir, "meta", "___evil.json")).isFile());
 });
 
 // ------------------------------------------------------------------ sync
 
-test("sync: only a valid API token, no login token; revoked tokens are refused; bad bodies 400", async (t) => {
+test("sync: only a valid API token of an existing user, no login token; revoked tokens are refused; bad bodies 400", async (t) => {
   const ctx = await start(t);
-  const { token, secret } = ctx.apiTokens.create("Desk");
+  const ghost = ctx.apiTokens.create("Ghost", "no-such-user").secret;
+  assert.equal((await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, ghost)).status, 401);
+  const { token, secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   assert.equal((await call(ctx, "POST", "/api/sync/meta", { hosts: [] })).status, 401);
   assert.equal((await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, ctx.adminToken)).status, 401);
   assert.equal((await call(ctx, "POST", "/api/sync/meta", { hosts: [] }, secret)).status, 200);
@@ -174,7 +305,7 @@ test("sync: only a valid API token, no login token; revoked tokens are refused; 
 
 test("sync: host mapping – desktop ids in, webapp ids stored, desktop ids back; unmapped hosts are left out", async (t) => {
   const ctx = await start(t);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   const res = await sync(ctx, secret, {
     sessionMeta: {
       "vm|/home/user/.pi/agent/sessions/a.jsonl": { name: "Alpha", color: "blue", pinned: false, group: "", order: 0, tools: [], updatedAt: 100 },
@@ -215,7 +346,7 @@ test("sync: host mapping – desktop ids in, webapp ids stored, desktop ids back
 
 test("sync merge: both sides change different entries – both are kept on both sides", async (t) => {
   const ctx = await start(t);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   ctx.meta.setSession(sessionKey("w-vm", "/s/web.jsonl"), { color: "red" }, 200);
   const out = (await sync(ctx, secret, { sessionMeta: { "vm|/s/desk.jsonl": { color: "green", updatedAt: 210 } } }))
     .json as SyncResponse;
@@ -228,7 +359,7 @@ test("sync merge: both sides change different entries – both are kept on both 
 
 test("sync merge: both change the same entry – the newer one wins, in both directions", async (t) => {
   const ctx = await start(t);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   const key = sessionKey("w-vm", "/s/a.jsonl");
   ctx.meta.setSession(key, { color: "red" }, 200);
   ctx.meta.setGroup("g", { id: "g", name: "Web name", color: "", collapsed: false }, 300);
@@ -248,7 +379,7 @@ test("sync merge: both change the same entry – the newer one wins, in both dir
 
 test("sync merge: delete vs change – the later of the two wins", async (t) => {
   const ctx = await start(t);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   ctx.meta.setGroup("g-old", { id: "g-old", name: "Changed on the phone earlier", color: "", collapsed: false }, 100);
   ctx.meta.setGroup("g-new", { id: "g-new", name: "Changed on the phone later", color: "", collapsed: false }, 400);
   ctx.meta.setProject("p", { id: "p", name: "P", hostId: "w-vm", dir: "~/p", collapsed: false }, 100);
@@ -282,7 +413,7 @@ test("sync merge: delete vs change – the later of the two wins", async (t) => 
 
 test("sync: nothing new → no save and no broadcast; future timestamps count as now", async (t) => {
   const ctx = await start(t);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   const body = { sessionMeta: { "vm|/s/a.jsonl": { color: "blue", updatedAt: 100 } } };
   await sync(ctx, secret, body);
   const after = ctx.changes();
@@ -296,7 +427,7 @@ test("sync: nothing new → no save and no broadcast; future timestamps count as
 
 test("sync: rate limited per client", async (t) => {
   const ctx = await start(t, 2);
-  const { secret } = ctx.apiTokens.create("Desk");
+  const { secret } = ctx.apiTokens.create("Desk", ctx.adminId);
   assert.equal((await sync(ctx, secret, {})).status, 200);
   assert.equal((await sync(ctx, secret, {})).status, 200);
   assert.equal((await sync(ctx, secret, {})).status, 429);

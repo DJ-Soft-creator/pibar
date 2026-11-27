@@ -10,7 +10,7 @@ import { createUser } from "../src/server/auth.js";
 import { CommandRegistry } from "../src/server/commands.js";
 import { registerPushCommands } from "../src/server/cmd/push.js";
 import { PiManager } from "../src/server/host/pi.js";
-import { MetaStore, sessionKey } from "../src/server/meta.js";
+import { sessionKey, UserMetaStores } from "../src/server/meta.js";
 import { parseSubscription, PushService, sessionTitle, startWebPush, stopWebPush, type PushMessage, type Sender } from "../src/server/push.js";
 import { Store, type UserRecord } from "../src/server/store.js";
 import { fakeHost } from "./fakeHost.js";
@@ -33,7 +33,9 @@ async function setup(t: TestContext, opts: { pi?: PiManager; now?: () => number 
   const ben = await createUser("ben", "pw-ben-1234", "user", []);
   store.saveUser(anna);
   store.saveUser(ben);
-  const meta = new MetaStore(dir);
+  const metas = new UserMetaStores(dir);
+  // anna's own organisation (names and reminders of her sessions)
+  const meta = metas.of(anna.id);
   const sent: { endpoint: string; msg: PushMessage }[] = [];
   let fail = 0;
   const sender: Sender = (sub, payload) => {
@@ -41,9 +43,9 @@ async function setup(t: TestContext, opts: { pi?: PiManager; now?: () => number 
     sent.push({ endpoint: sub.endpoint, msg: JSON.parse(payload) as PushMessage });
     return Promise.resolve();
   };
-  const push = new PushService({ dataDir: dir, store, meta, pi: opts.pi, sender, now: opts.now });
+  const push = new PushService({ dataDir: dir, store, metas, pi: opts.pi, sender, now: opts.now });
   t.after(() => push.stop());
-  return { dir, store, meta, push, anna, ben, sent, failWith: (s: number) => (fail = s) };
+  return { dir, store, metas, meta, push, anna, ben, sent, failWith: (s: number) => (fail = s) };
 }
 
 async function until(cond: () => boolean, ms = 8000) {
@@ -161,7 +163,7 @@ test("reminders: due ones pushed once, a new time again, overdue ones at the fir
   s.meta.setSession(k, { remindAt: now - 2 * 24 * 3600_000 });
   assert.equal(await s.push.checkReminders(), 0);
   // kept across a restart
-  const again = new PushService({ dataDir: s.dir, store: s.store, meta: s.meta, sender: () => Promise.resolve(), now: () => now });
+  const again = new PushService({ dataDir: s.dir, store: s.store, metas: s.metas, sender: () => Promise.resolve(), now: () => now });
   assert.equal(await again.checkReminders(), 0);
 });
 

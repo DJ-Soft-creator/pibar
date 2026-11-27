@@ -4,7 +4,7 @@ import { emit } from "@tauri-apps/api/event";
 import { api } from "../shared/api";
 import type { AnswerMode, ChatMode, Theme } from "../shared/api";
 import { VIEWS } from "../shared/chatViews";
-import { $, h, errMsg, toast } from "../shared/dom";
+import { $, h, errMsg, toast, wireCardToggle } from "../shared/dom";
 import { cleanTitle, shortPath, stripAnswerStyle, thinkingLabel, withContext, withFiles } from "../shared/format";
 import { hasAttachments, renderDock, swapAttachments, takeAttachments, wireComposerTools } from "./composerTools";
 import { Msg, t } from "../shared/i18n";
@@ -657,6 +657,7 @@ export function setBackground(tab: SessionTab, on: boolean) {
 /** Wire header, input and global keyboard shortcuts */
 export function wireChatView() {
   wireAutoScroll();
+  wireCardToggle();
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
     sendInput();

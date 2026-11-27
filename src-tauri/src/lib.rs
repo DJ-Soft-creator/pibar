@@ -17,6 +17,7 @@ mod snapshot;
 mod temp;
 mod terminal;
 mod voice;
+mod webapp;
 
 use config::AppConfig;
 use pi::PiManager;
@@ -104,6 +105,19 @@ async fn search_sessions(app: AppHandle, host_id: String, query: String) -> Resu
 async fn read_session_file(app: AppHandle, host_id: String, path: String) -> Result<String, String> {
     let host = config::find_host(&app, &host_id)?;
     tauri::async_runtime::spawn_blocking(move || sessions::export(&host, &path)).await.map_err(|e| e.to_string())?
+}
+
+/// POST to the PiBar webapp (sign-in, sign-out, sync); only its desktop endpoints, see [`webapp::PATHS`]
+#[tauri::command]
+async fn webapp_request(
+    base: String,
+    path: String,
+    token: String,
+    body: Option<String>,
+) -> Result<webapp::Answer, String> {
+    tauri::async_runtime::spawn_blocking(move || webapp::post(&base, &path, &token, body.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Save exported text to this computer: a native save dialog (rfd) picks the target.
@@ -759,7 +773,8 @@ pub fn run() {
             ocr_image,
             transcribe_audio,
             improve_text,
-            speak_text
+            speak_text,
+            webapp_request
         ])
         .build(tauri::generate_context!())
         .expect("PiBar failed to start");

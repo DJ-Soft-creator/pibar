@@ -33,7 +33,7 @@ printed **once** to the server log — copy it from there.
 | Variable         | Default      | Meaning                                        |
 | ---------------- | ------------ | ---------------------------------------------- |
 | `PORT`           | `8787`       | HTTP + WebSocket port                          |
-| `DATA_DIR`       | `./data`     | users/tokens/hosts/meta/api-tokens JSON files (atomic writes) |
+| `DATA_DIR`       | `./data`     | users/tokens/hosts/api-tokens JSON files, `meta/<user id>.json` (atomic writes) |
 | `ADMIN_USERNAME` | `admin`      | bootstrap admin name (first start only)        |
 | `ADMIN_PASSWORD` | *(random)*   | bootstrap admin password (first start only)    |
 | `SSH_DIR`        | *(own ~/.ssh)* | folder with the SSH key, `known_hosts`, optional `config` |
@@ -65,21 +65,28 @@ printed **once** to the server log — copy it from there.
   /api/hosts*` — admin only, manual hosts. Hosts synced from PiBar (`source: "pibar"`)
   are read-only here (409); they are managed in the desktop app. `user.host` is a plain
   string (normally a host id); unknown/legacy values keep working.
-- `/api/tokens*` — admin only: API tokens for PiBar desktop apps. `POST /api/tokens {name}` answers
-  `{token, secret}`; the secret (`pbt_…`) is shown **once**, only its SHA-256 hash is stored (`api-tokens.json`,
-  mode 0600). `GET /api/tokens` (name, hint, created, last use), `PATCH /api/tokens/:id {name}`,
-  `DELETE /api/tokens/:id` (revoke). An API token is no login: it only works for the sync below.
-- `POST /api/sync/meta` — two-way sync of the session organisation with a desktop (`src/main/configExchange.ts`).
-  **Only** `Authorization: Bearer <API token>` (no cookie, no login token); 60 requests per minute per client.
-  See "Desktop sync" below.
-- `GET /ws` — WebSocket, login required (cookie only from our own origin); broadcasts `{"type":"meta/updated"}`
-  after organisation changes (also from a desktop sync); Pi events follow as
+- `POST /api/desktop/login {username, password, device?}` — sign-in of a PiBar desktop app as a webapp user
+  (10 attempts per minute per client). Answers 201 `{token, tokenId, username, role}`: an API token (`pbt_…`) of
+  that user, returned **once**; only its SHA-256 hash is stored (`api-tokens.json`, mode 0600). An API token is no
+  login: it only works for the desktop routes. `POST /api/desktop/logout` (Bearer API token) revokes it.
+- `GET /api/me/tokens`, `PATCH /api/me/tokens/:id {name}`, `DELETE /api/me/tokens/:id` — the own desktop sign-ins
+  (More → Account → Desktop apps). `GET /api/tokens` (with `username`) and `DELETE /api/tokens/:id` — admin only,
+  every token. A user's desktop tokens end with a password change or reset and with the user.
+- `POST /api/sync/meta` — two-way sync of the user's session organisation with a desktop
+  (`src/main/configExchange.ts`). **Only** `Authorization: Bearer <API token>` (no cookie, no login token); 60
+  requests per minute per client. See "Desktop sync" below.
+- `GET /ws` — WebSocket, login required (cookie only from our own origin); sends `{"type":"meta/updated"}` to a
+  user after changes of their organisation (also from a desktop sync); Pi events follow as
   `{"type":"event","event":"pi-event","payload":…}`.
 
 ## Desktop sync
 
-The desktop (Settings → Webapp: URL + API token) sends its state at start, debounced after every change, every
-60 s and on "Sync now". Body of `POST /api/sync/meta` (ids are the desktop's):
+Every user has an own organisation of the session list (names, colours, pins, groups, projects …) in
+`DATA_DIR/meta/<user id>.json`. A user without that file starts with a copy of the older shared `DATA_DIR/meta.json`
+(if there is one), so nothing is lost when updating. The desktop signs in under Settings → Webapp (address, user
+name, password; the password is not kept) and then sends its state at start, debounced after every change, every
+60 s and on "Sync now". The requests come from the desktop's Rust core (`src-tauri/src/webapp.rs`, curl), not from
+its WebView. Body of `POST /api/sync/meta` (ids are the desktop's):
 
 ```json
 {
@@ -91,13 +98,13 @@ The desktop (Settings → Webapp: URL + API token) sends its state at start, deb
 }
 ```
 
-- Desktop hosts are matched to webapp hosts by name (case-insensitive) or SSH address (`mapDesktopHost`); entries
-  of unmatched hosts are neither stored nor answered. Groups are global.
+- Desktop hosts are matched to the webapp hosts **the user may use** by name (case-insensitive) or SSH address
+  (`mapDesktopHost`); entries of unmatched hosts are neither stored nor answered. Groups belong to no host.
 - Merge per entry: the newer `updatedAt` wins (ties keep the webapp's), a deletion (tombstone) competes with its
   time. Timestamps more than 5 minutes in the future count as "now". Empty defaults of the desktop ("", false, 0,
   []) are not stored (`tools: []` and `temperature` are kept); unknown fields travel unchanged in both directions.
 - Answer: the merged state in the desktop's ids with the same keys, plus `hosts: [{id, webappHost}]` (matched
-  webapp host name or null) and `serverTime`.
+  webapp host name or null), `serverTime` and `user` (the signed-in user name).
 
 ## Session lock (desktop ↔ webapp)
 

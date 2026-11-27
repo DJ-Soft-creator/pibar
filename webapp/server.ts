@@ -12,7 +12,7 @@ import { toTarget } from "./src/server/hosts.js";
 import { PiManager } from "./src/server/host/pi.js";
 import { AppConfigStore } from "./src/server/appConfig.js";
 import { ApiTokenStore } from "./src/server/apiTokens.js";
-import { importLegacyConfig, MetaStore } from "./src/server/meta.js";
+import { importLegacyConfig, MetaStore, UserMetaStores } from "./src/server/meta.js";
 import { startWebPush } from "./src/server/push.js";
 import { Store } from "./src/server/store.js";
 import { createSocketHub, type SocketHub } from "./src/server/ws.js";
@@ -47,11 +47,13 @@ let hub: SocketHub | null = null;
 const exec = new HostExec(devLocalHome ? new LocalRunner(devLocalHome) : new SshRunner({ dir: sshDir }));
 // Pi processes belong to the server: they keep running while a phone is locked or offline
 const pi = new PiManager(exec);
-// organisation of the session list (shared, synced with the desktop) and shared settings
-const meta = new MetaStore(dataDir);
-if (!meta.exists && store.legacyConfig) {
-  importLegacyConfig(meta, store.legacyConfig.payload, store.legacyConfig.receivedAt, store.sortedHosts());
+// organisation of the session list, one per user (synced with that user's desktops); the old shared meta.json (and
+// before it the config of the first config exchange) only seeds a user's own store once
+const legacyMeta = new MetaStore(dataDir);
+if (!legacyMeta.exists && store.legacyConfig) {
+  importLegacyConfig(legacyMeta, store.legacyConfig.payload, store.legacyConfig.receivedAt, store.sortedHosts());
 }
+const metas = new UserMetaStores(dataDir, legacyMeta);
 const appConfig = new AppConfigStore(dataDir);
 
 const app = createApp(store, {
@@ -59,7 +61,7 @@ const app = createApp(store, {
   cookieSecure,
   appConfig,
   commands: {
-    registry: createRegistry({ pi, meta, appConfig }),
+    registry: createRegistry({ pi, metas, appConfig }),
     exec,
     resolveHost: (id) => {
       const h = store.hosts.get(id);
@@ -67,16 +69,16 @@ const app = createApp(store, {
     },
     canUseHost,
   },
-  // API tokens of the desktop apps and their two-way sync of the session organisation
-  sync: { meta, apiTokens: new ApiTokenStore(dataDir) },
+  // sign-in of the desktop apps (API token per user) and their two-way sync of the user's session organisation
+  sync: { metas, apiTokens: new ApiTokenStore(dataDir) },
 });
 
 const server = createServer(app);
 hub = createSocketHub(server, store, pi);
-meta.onChange(() => hub?.broadcast({ type: "meta/updated" }));
+metas.onChange((userId) => hub?.broadcast({ type: "meta/updated" }, (u) => u.id === userId));
 appConfig.onChange(() => hub?.broadcast({ type: "config/app-updated" }));
 const watched = hub;
-startWebPush({ dataDir, store, pi, meta, subject: process.env.VAPID_SUBJECT });
+startWebPush({ dataDir, store, pi, metas, subject: process.env.VAPID_SUBJECT });
 pi.startSweeper((handle) => watched.isWatched(handle));
 
 // stop the Pi processes with the container (docker stop sends SIGTERM)

@@ -1,13 +1,14 @@
-// Organisation of the session list, shared by all users of the webapp and synced with the desktop app: session
-// metadata (name, colour, pin, group, model choice … – SessionMeta of src/shared/api.ts), groups and projects.
+// Organisation of the session list, one per user (UserMetaStores: DATA_DIR/meta/<user id>.json) and synced with that
+// user's desktop apps: session metadata (name, colour, pin, group, model choice … – SessionMeta of src/shared/api.ts),
+// groups and projects. The older shared DATA_DIR/meta.json is only read: it seeds every user's own file once.
 // Every entry carries `updatedAt` (ms); a deleted entry stays as a tombstone, so a sync can tell "deleted" from
 // "never seen". Merging two states: per entry the newer one wins (last writer wins).
 //
 // Keys of session entries are "<webapp host id>|<session file path>". The desktop uses its own host ids; the sync
 // (task D2) maps them with mapDesktopHost.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { HostRecord } from "./hosts.js";
 import { isRecord } from "./validation.js";
 
@@ -117,9 +118,10 @@ export class MetaStore {
   private readonly file: string;
   private listeners = new Set<() => void>();
 
-  constructor(dataDir: string) {
-    mkdirSync(dataDir, { recursive: true });
-    this.file = join(dataDir, "meta.json");
+  /** `dataDir/meta.json`, or the given file (a user's own store) */
+  constructor(dataDir: string, file = join(dataDir, "meta.json")) {
+    this.file = file;
+    mkdirSync(dirname(file), { recursive: true });
     if (existsSync(this.file)) {
       try {
         this.state = parseState(JSON.parse(readFileSync(this.file, "utf8")));
@@ -146,7 +148,7 @@ export class MetaStore {
     for (const fn of this.listeners) fn();
   }
 
-  /** Live entries, filtered to the hosts a user may use (groups are global) */
+  /** Live entries, filtered to the hosts a user may use (groups belong to no host) */
   view(canUse: (hostId: string) => boolean): MetaView {
     const sessionMeta: Record<string, SessionMetaValue> = {};
     for (const [k, e] of Object.entries(this.state.sessions)) if (e.value && canUse(keyHost(k))) sessionMeta[k] = e.value;
@@ -190,6 +192,58 @@ export class MetaStore {
     const changed = mergeState(this.state, incoming);
     if (changed) this.save();
     return changed;
+  }
+}
+
+/** File name of a user's store: user ids are UUIDs, anything else is cleaned so it cannot leave the folder */
+export const userMetaFile = (dir: string, userId: string) => join(dir, `${userId.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+
+/**
+ * The organisation of every user (DATA_DIR/meta/<user id>.json), opened on first use. A user without an own file
+ * starts with a copy of the old shared meta.json (when there is one), so nobody loses names, groups or projects.
+ */
+export class UserMetaStores {
+  private readonly dir: string;
+  private readonly stores = new Map<string, MetaStore>();
+  private listeners = new Set<(userId: string) => void>();
+
+  constructor(
+    dataDir: string,
+    /** The old shared store (meta.json); null = start empty */
+    private readonly legacy: MetaStore | null = null,
+  ) {
+    this.dir = join(dataDir, "meta");
+    mkdirSync(this.dir, { recursive: true });
+  }
+
+  /** The store of a user */
+  of(userId: string): MetaStore {
+    let m = this.stores.get(userId);
+    if (m) return m;
+    const file = userMetaFile(this.dir, userId);
+    const fresh = !existsSync(file);
+    m = new MetaStore(this.dir, file);
+    if (fresh && this.legacy?.exists) {
+      m.state = parseState(JSON.parse(JSON.stringify(this.legacy.state)));
+      m.save();
+    }
+    m.onChange(() => {
+      for (const fn of this.listeners) fn(userId);
+    });
+    this.stores.set(userId, m);
+    return m;
+  }
+
+  /** Called after every change of a user's store (WebSocket broadcast "meta/updated" to that user, reminders) */
+  onChange(fn: (userId: string) => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  /** Forget a deleted user's store and its file */
+  remove(userId: string) {
+    this.stores.delete(userId);
+    rmSync(userMetaFile(this.dir, userId), { force: true });
   }
 }
 

@@ -1,8 +1,11 @@
-// Two-way sync of the session-list organisation (session metadata, groups, projects) with the mobile webapp
-// (task D3): POST /api/sync/meta with the webapp's API token (webapp/src/server/routes/tokens.ts). Runs at start,
-// debounced after every config save, every 60 s and on "Sync now". Webapp URL, token and the on/off switch live in
-// localStorage (never in the config file or the repository). The merge rules (updatedAt per entry, tombstones,
-// newer wins) are in src/shared/metaSync.ts; the stamping hook runs before every save (configSync.ts).
+// Two-way sync of the session-list organisation (session metadata, groups, projects) with the mobile webapp: the
+// desktop signs in with a webapp user's name and password (POST /api/desktop/login) and gets an API token of that
+// user; with it, it syncs that user's organisation (POST /api/sync/meta, webapp/src/server/routes/tokens.ts). All
+// requests go through the Rust core (api.webappRequest, src-tauri/src/webapp.rs). Runs at start, debounced after
+// every config save, every 60 s and on "Sync now". Webapp URL, token, user name and the on/off switch live in
+// localStorage (never in the config file or the repository; the password is not kept). The merge rules (updatedAt
+// per entry, tombstones, newer wins) are in src/shared/metaSync.ts; the stamping hook runs before every save
+// (configSync.ts).
 // Menu entries: src/main/configExchangeMenu.ts, dialogs and feedback: src/main/configExchangeTool.ts.
 import {
   applyResponse,
@@ -13,11 +16,13 @@ import {
   stampChanges,
   type Snapshot,
 } from "../shared/metaSync";
+import { api } from "../shared/api";
 import { onBeforeConfigSave, onConfigSaved, shouldAutoSync, trailingDebounce } from "./configSync";
 import { saveConfig, state } from "./state";
 
 const URL_KEY = "pibar.webappUrl";
 const TOKEN_KEY = "pibar.webappToken";
+const USER_KEY = "pibar.webappUser";
 const AUTO_SYNC_KEY = "pibar.webappAutoSync";
 const LAST_KEY = "pibar.webappLastSync";
 /** Quiet period after the last config save before the sync runs */
@@ -49,15 +54,79 @@ export function setWebappUrl(url: string) {
   else localStorage.removeItem(URL_KEY);
 }
 
-/** API token of this desktop (created by an admin in the webapp: More → Desktop app tokens) */
+/** API token of this desktop, received at sign-in (the webapp lists it under More → Desktop apps) */
 export function webappToken(): string {
   return localStorage.getItem(TOKEN_KEY) ?? "";
 }
 
-export function setWebappToken(token: string) {
-  const clean = token.trim();
-  if (clean) localStorage.setItem(TOKEN_KEY, clean);
-  else localStorage.removeItem(TOKEN_KEY);
+/** Name of the webapp user this desktop is signed in as ("" = not signed in) */
+export function webappUser(): string {
+  return webappToken() ? (localStorage.getItem(USER_KEY) ?? "") : "";
+}
+
+/** Signed in: address and token are there */
+export function signedIn(): boolean {
+  return webappUrl() !== "" && webappToken() !== "";
+}
+
+function setSignIn(token: string, user: string) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(USER_KEY, user);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  }
+}
+
+/** The webapp's error text of an answer, or "HTTP <status>" */
+function answerError(status: number, data: unknown): string {
+  const err = (data as { error?: unknown } | null)?.error;
+  return typeof err === "string" ? err : `HTTP ${status}`;
+}
+
+function parseBody(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Sign in to the webapp as one of its users: saves the address, receives an API token of that user (the password is
+ * only sent, never kept). Returns the user name; throws with the webapp's error text.
+ */
+export async function signIn(url: string, username: string, password: string): Promise<string> {
+  setWebappUrl(url);
+  const base = webappUrl();
+  const res = await api.webappRequest(
+    base,
+    "/api/desktop/login",
+    "",
+    JSON.stringify({ username: username.trim(), password }),
+  );
+  const data = parseBody(res.body) as { token?: unknown; username?: unknown } | null;
+  if (res.status !== 201 || typeof data?.token !== "string") throw new Error(answerError(res.status, data));
+  const user = typeof data.username === "string" ? data.username : username.trim();
+  setSignIn(data.token, user);
+  localStorage.removeItem(LAST_KEY);
+  return user;
+}
+
+/** Sign out: the webapp revokes this desktop's token (when reachable); the token is forgotten here in any case */
+export async function signOut(): Promise<void> {
+  const token = webappToken();
+  const base = webappUrl();
+  setSignIn("", "");
+  localStorage.removeItem(LAST_KEY);
+  if (token && base) {
+    try {
+      await api.webappRequest(base, "/api/desktop/logout", token);
+    } catch {
+      /* offline: the token stays valid in the webapp until it is signed out there (More → Desktop apps) */
+    }
+  }
 }
 
 /** Whether the sync runs by itself (start, after saves, every minute) */
@@ -110,26 +179,23 @@ export function stampConfig(): boolean {
 async function runSync(): Promise<SyncResult> {
   const url = webappUrl();
   const token = webappToken();
-  if (!url || !token) return report({ at: Date.now(), ok: false, error: "no webapp URL or token" });
+  if (!url || !token) return report({ at: Date.now(), ok: false, error: "not signed in to the webapp" });
   try {
     stampConfig();
     const hosts = state.config.hosts.map(hostInfo);
-    const res = await fetch(`${url}/api/sync/meta`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(buildRequest(state.config, hosts)),
-    });
-    let data: unknown = null;
-    try {
-      data = await res.json();
-    } catch {
-      /* no JSON */
-    }
-    if (!res.ok) {
-      const err = (data as { error?: unknown } | null)?.error;
-      throw new Error(typeof err === "string" ? err : `HTTP ${res.status}`);
-    }
+    const res = await api.webappRequest(
+      url,
+      "/api/sync/meta",
+      token,
+      JSON.stringify(buildRequest(state.config, hosts)),
+    );
+    const data = parseBody(res.body);
+    // the sign-in was revoked (signed out in the webapp, password changed, user deleted): forget it
+    if (res.status === 401) setSignIn("", "");
+    if (res.status !== 200) throw new Error(answerError(res.status, data));
     if (!isSyncResponse(data)) throw new Error("unexpected answer from the webapp");
+    const user = (data as { user?: unknown }).user;
+    if (typeof user === "string" && user) localStorage.setItem(USER_KEY, user);
     // changes made while the request was on its way are stamped first, so the answer cannot hide them
     stampConfig();
     const applied = applyResponse(state.config, data);

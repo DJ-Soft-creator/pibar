@@ -664,6 +664,9 @@ export const api = {
   improveText: (text: string, prompt: string) => invoke<string>("improve_text", { text, prompt }),
   /** Text → speech (mp3, base64) through the API */
   speakText: (text: string) => invoke<{ data: string; mimeType: string }>("speak_text", { text }),
+  /** POST to a desktop endpoint of the PiBar webapp through the Rust core (src-tauri/src/webapp.rs): status + body */
+  webappRequest: (base: string, path: string, token: string, body?: string) =>
+    invoke<{ status: number; body: string }>("webapp_request", { base, path, token, body: body ?? null }),
 
   /** Answer a dialog Pi asked for (extension_ui_request); Pi sends no response to it */
   piReply: (handle: number, msg: { id: string; value?: string; confirmed?: boolean; cancelled?: boolean }) =>

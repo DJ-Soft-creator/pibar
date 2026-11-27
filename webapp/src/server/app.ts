@@ -34,7 +34,8 @@ export interface AppOptions {
   appConfig?: AppConfigStore;
   /** Command router (/api/cmd/<name>); without it the route answers 404 for every command */
   commands?: Omit<CommandDeps, "store" | "requireAuth">;
-  /** API tokens and the desktop sync (/api/tokens*, /api/sync/meta); without it those routes answer 404 */
+  /** Desktop sign-in, API tokens and the desktop sync (/api/desktop/*, /api/me/tokens*, /api/tokens*, /api/sync/meta);
+   * without it those routes answer 404 */
   sync?: Omit<TokenRouteDeps, "store" | "requireAuth" | "requireAdmin">;
 }
 
@@ -72,7 +73,8 @@ function asyncRoute(fn: AsyncHandler) {
   };
 }
 
-// Only the PiBar desktop Tauri WebView may call the webapp cross-origin (the sync, /api/sync/meta).
+// Only the PiBar desktop Tauri WebView may call the webapp cross-origin (older desktops synced from the WebView; the
+// current one calls /api/desktop/* and /api/sync/meta from its Rust core, without an Origin).
 // Same-origin requests (the webapp client itself) need no CORS headers at all.
 const TAURI_ORIGINS = new Set([
   "tauri://localhost",
@@ -124,6 +126,8 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
 
   const { requireAuth, requireAdmin } = createStoreUserHelpers(store);
   const loginLimiter = createLoginRateLimiter();
+  /** A user's desktop sign-ins end with their password (changed, reset) and with the user */
+  const revokeDesktops = (userId: string) => opts.sync?.apiTokens.revokeUser(userId);
 
   function setSessionCookie(req: Request, res: Response, token: string) {
     const mode = opts.cookieSecure ?? "auto";
@@ -235,6 +239,7 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
     user.hash = hash;
     store.saveUser(user);
     store.deleteUserTokens(user.id);
+    revokeDesktops(user.id);
     const token = createToken();
     store.addToken(token, user.id);
     setSessionCookie(req, res, token);
@@ -305,8 +310,9 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       const { salt, hash } = await hashPassword(body.password);
       user.salt = salt;
       user.hash = hash;
-      // A password reset revokes all existing sessions of that user.
+      // A password reset revokes all existing sessions of that user, desktop sign-ins included.
       store.deleteUserTokens(user.id);
+      revokeDesktops(user.id);
     }
     store.saveUser(user);
     res.json(publicUser(user));
@@ -327,6 +333,8 @@ export function createApp(store: Store, opts: AppOptions): express.Express {
       return;
     }
     store.deleteUser(user.id);
+    revokeDesktops(user.id);
+    opts.sync?.metas.remove(user.id);
     res.json({ status: "ok" });
   });
 

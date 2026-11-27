@@ -1,7 +1,8 @@
-// API tokens for desktop apps (task I3, admins only): create one per desktop (the secret is shown exactly once),
-// rename, revoke. The desktop syncs session names, colours, groups and projects with it (POST /api/sync/meta,
-// src/main/configExchange.ts). REST: /api/tokens* (webapp/src/server/routes/tokens.ts).
-import { copyText, errMsg, h, openModal, toast } from "@shared/dom";
+// "Desktop apps" (More → Account, every user): the PiBar desktop apps signed in with the own account. A desktop signs
+// in with name and password (Settings → Webapp) and gets a token of this user; here it can be renamed or signed out
+// (revoked). The desktop syncs the user's own session names, colours, groups and projects with it
+// (src/main/configExchange.ts). REST: /api/me/tokens* (webapp/src/server/routes/tokens.ts).
+import { errMsg, h, openModal, toast } from "@shared/dom";
 import { relTime } from "@shared/format";
 import { t } from "@shared/i18n";
 import { rest } from "../rest";
@@ -18,60 +19,36 @@ interface ApiToken {
 }
 
 const tokenApi = {
-  list: () => rest<ApiToken[]>("GET", "/api/tokens"),
-  create: (name: string) => rest<{ token: ApiToken; secret: string }>("POST", "/api/tokens", { name }),
-  rename: (id: string, name: string) => rest<ApiToken>("PATCH", `/api/tokens/${encodeURIComponent(id)}`, { name }),
-  revoke: (id: string) => rest("DELETE", `/api/tokens/${encodeURIComponent(id)}`),
+  list: () => rest<ApiToken[]>("GET", "/api/me/tokens"),
+  rename: (id: string, name: string) => rest<ApiToken>("PATCH", `/api/me/tokens/${encodeURIComponent(id)}`, { name }),
+  revoke: (id: string) => rest("DELETE", `/api/me/tokens/${encodeURIComponent(id)}`),
 };
 
 const back = () => h("button", { class: "icon-btn", "aria-label": t("Back"), onclick: () => go("more") }, "‹");
 
-function nameInput(value: string): HTMLInputElement {
-  return h("input", { type: "text", value, maxlength: "64", autocomplete: "off", placeholder: t("e.g. MacBook") });
-}
-
-/** Ask for a name; `save` returns a promise, the dialog stays open on an error */
-function nameDialog(title: string, value: string, yes: string, save: (name: string) => Promise<unknown>) {
-  const input = nameInput(value);
+/** Ask for a new name; the dialog stays open on an error */
+function renameDialog(tok: ApiToken, reload: () => void) {
+  const input = h("input", { type: "text", value: tok.name, maxlength: "64", autocomplete: "off", placeholder: t("e.g. MacBook") });
   const submit = () => {
     if (!input.value.trim()) {
       input.focus();
       return;
     }
-    save(input.value.trim())
-      .then(() => close())
+    tokenApi
+      .rename(tok.id, input.value.trim())
+      .then(() => {
+        close();
+        reload();
+      })
       .catch((e: unknown) => toast(errMsg(e), "err"));
   };
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") submit();
   });
-  const close = openModal(title, h("div", { class: "form" }, field(t("Name"), input)), [
+  const close = openModal(t("Rename desktop app"), h("div", { class: "form" }, field(t("Name"), input)), [
     button(t("Cancel"), () => close()),
-    button(yes, submit, "primary"),
+    button(t("Save"), submit, "primary"),
   ]);
-}
-
-/** The new secret, once: copy it now, it cannot be shown again */
-function showSecret(token: ApiToken, secret: string) {
-  const copy = button(t("Copy"), () => {
-    copyText(secret)
-      .then(() => toast(t("Copied")))
-      .catch((e: unknown) => toast(errMsg(e), "err"));
-  });
-  const body = h(
-    "div",
-    { class: "form token-secret" },
-    h("p", { class: "token-warn" }, t("Copy the token now – it is shown only this once.")),
-    h("code", { class: "mono token-value", "data-testid": "token-secret" }, secret),
-    copy,
-    h(
-      "p",
-      { class: "muted small" },
-      t("In the desktop app: Settings → Webapp. Enter this address and the token there:"),
-    ),
-    h("code", { class: "mono token-url" }, location.origin),
-  );
-  const close = openModal(t("Token for {name}", { name: token.name }), body, [button(t("Done"), () => close(), "primary")]);
 }
 
 function tokenCard(tok: ApiToken, reload: () => void): HTMLElement {
@@ -80,20 +57,18 @@ function tokenCard(tok: ApiToken, reload: () => void): HTMLElement {
     "section",
     { class: "card token-card" },
     h("h2", {}, tok.name),
-    h("p", { class: "muted small" }, h("span", { class: "mono" }, `${tok.hint}…`), ` · ${t("created {when}", { when: relTime(tok.createdAt) })} · ${used}`),
+    h("p", { class: "muted small" }, `${t("signed in {when}", { when: relTime(tok.createdAt) })} · ${used}`),
     h(
       "div",
       { class: "row-actions" },
-      button(t("Rename"), () =>
-        nameDialog(t("Rename token"), tok.name, t("Save"), (name) => tokenApi.rename(tok.id, name).then(reload)),
-      ),
+      button(t("Rename"), () => renameDialog(tok, reload)),
       button(
-        t("Revoke"),
+        t("Sign out"),
         () => {
           void confirmDialog(
-            t("Revoke"),
-            t("Revoke the token {name}? The desktop app using it can no longer sync.", { name: tok.name }),
-            t("Revoke"),
+            t("Sign out"),
+            t("Sign out {name}? That desktop app stops syncing until it signs in again.", { name: tok.name }),
+            t("Sign out"),
           ).then((yes) => {
             if (yes) tokenApi.revoke(tok.id).then(reload).catch((e: unknown) => toast(errMsg(e), "err"));
           });
@@ -110,30 +85,19 @@ export async function renderTokens(root: HTMLElement) {
   try {
     list = await tokenApi.list();
   } catch (e) {
-    root.replaceChildren(header(t("Desktop app tokens"), [], back()), empty(errMsg(e)));
+    root.replaceChildren(header(t("Desktop apps"), [], back()), empty(errMsg(e)));
     return;
   }
-  const create = button(
-    t("Create token"),
-    () =>
-      nameDialog(t("New token"), "", t("Create"), (name) =>
-        tokenApi.create(name).then(({ token, secret }) => {
-          reload();
-          showSecret(token, secret);
-        }),
-      ),
-    "primary",
-  );
   root.replaceChildren(
-    header(t("Desktop app tokens"), [], back()),
+    header(t("Desktop apps"), [], back()),
     h(
       "p",
       { class: "muted token-intro" },
       t(
-        "A PiBar desktop app syncs names, colours, groups and projects of the sessions with the webapp. Create one token per desktop app.",
+        "A PiBar desktop app signed in with your account syncs your session names, colours, groups and projects. Sign in on the desktop under Settings → Webapp with this address:",
       ),
     ),
-    ...(list.length ? list.map((tok) => tokenCard(tok, reload)) : [empty(t("No tokens yet."))]),
-    h("div", { class: "page-actions" }, create),
+    h("code", { class: "mono token-url" }, location.origin),
+    ...(list.length ? list.map((tok) => tokenCard(tok, reload)) : [empty(t("No desktop app signed in yet."))]),
   );
 }

@@ -968,7 +968,6 @@ const de = {
   "Session file": "Session-Datei",
   "Pick a session in the list or start a new one.": "Wähle eine Session in der Liste oder starte eine neue.",
   "Model presets": "Modell-Presets",
-  "Desktop app tokens": "Tokens für Desktop-Apps",
   // webapp: files & git – new keys go above the end line of this section
   Commit: "Commit",
   "Commit message": "Commit-Nachricht",
@@ -1078,24 +1077,35 @@ const de = {
   // (end of webapp: sessions & organisation)
   // webapp: desktop sync & tokens – new keys go above the end line of this section
   "e.g. MacBook": "z. B. MacBook",
-  "Copy the token now – it is shown only this once.":
-    "Kopiere den Token jetzt – er wird nur dieses eine Mal angezeigt.",
-  "In the desktop app: Settings → Webapp. Enter this address and the token there:":
-    "In der Desktop-App: Einstellungen → Webapp. Trage dort diese Adresse und den Token ein:",
-  "Token for {name}": "Token für {name}",
   "last sync {when}": "letzter Abgleich {when}",
   "never used": "noch nie benutzt",
-  "created {when}": "angelegt {when}",
   Rename: "Umbenennen",
-  "Rename token": "Token umbenennen",
-  Revoke: "Widerrufen",
-  "Revoke the token {name}? The desktop app using it can no longer sync.":
-    "Token {name} widerrufen? Die Desktop-App, die ihn benutzt, kann dann nicht mehr abgleichen.",
-  "Create token": "Token erzeugen",
-  "New token": "Neuer Token",
-  "A PiBar desktop app syncs names, colours, groups and projects of the sessions with the webapp. Create one token per desktop app.":
-    "Eine PiBar-Desktop-App gleicht Namen, Farben, Gruppen und Projekte der Sessions mit der Webapp ab. Lege pro Desktop-App einen Token an.",
-  "No tokens yet.": "Noch keine Tokens.",
+  "Desktop apps": "Desktop-Apps",
+  "Rename desktop app": "Desktop-App umbenennen",
+  "signed in {when}": "angemeldet {when}",
+  "Sign out": "Abmelden",
+  "Sign out {name}? That desktop app stops syncing until it signs in again.":
+    "{name} abmelden? Diese Desktop-App gleicht erst wieder ab, wenn sie sich neu anmeldet.",
+  "A PiBar desktop app signed in with your account syncs your session names, colours, groups and projects. Sign in on the desktop under Settings → Webapp with this address:":
+    "Eine PiBar-Desktop-App, die mit deinem Konto angemeldet ist, gleicht deine Namen, Farben, Gruppen und Projekte der Sessions ab. Melde dich in der Desktop-App unter Einstellungen → Webapp mit dieser Adresse an:",
+  "No desktop app signed in yet.": "Noch keine Desktop-App angemeldet.",
+  "Signed in as {user} at {url}.": "Angemeldet als {user} bei {url}.",
+  "Signed in as {user}.": "Angemeldet als {user}.",
+  "Signed in as {user}": "Angemeldet als {user}",
+  "Not signed in.": "Nicht angemeldet.",
+  "Not signed in to the webapp.": "Nicht bei der Webapp angemeldet.",
+  "Sign in": "Anmelden",
+  "Sign in…": "Anmelden …",
+  "Change user…": "Benutzer wechseln …",
+  "Sign in to the webapp": "Bei der Webapp anmelden",
+  "Sign in to the webapp…": "Bei der Webapp anmelden …",
+  "Sign out of the webapp": "Von der Webapp abmelden",
+  "Signed out of the webapp.": "Von der Webapp abgemeldet.",
+  "Address of the mobile webapp.": "Adresse der mobilen Webapp.",
+  "Your user of the webapp. The password is not stored; this desktop gets its own sign-in, which you can end in the webapp (More → Desktop apps).":
+    "Dein Benutzer der Webapp. Das Passwort wird nicht gespeichert; dieser Desktop bekommt eine eigene Anmeldung, die du in der Webapp beenden kannst (Mehr → Desktop-Apps).",
+  "Sign in with your user of the webapp; the sync then covers your own names, colours, groups and projects.":
+    "Melde dich mit deinem Benutzer der Webapp an; abgeglichen werden dann deine eigenen Namen, Farben, Gruppen und Projekte.",
   "This session is open in the desktop app right now.": "Diese Session ist gerade in der Desktop-App offen.",
   "This session is open in the webapp right now.": "Diese Session ist gerade in der Webapp offen.",
   "Not synced yet.": "Noch nicht abgeglichen.",
@@ -1103,18 +1113,11 @@ const de = {
   "Last sync {when}: {updated} received, {removed} removed.":
     "Letzter Abgleich {when}: {updated} übernommen, {removed} entfernt.",
   "Not in the webapp: {hosts}": "Nicht in der Webapp: {hosts}",
-  "Webapp sync": "Webapp-Abgleich",
-  "Webapp sync…": "Webapp-Abgleich …",
-  "Address of the mobile webapp; empty = sync off.": "Adresse der mobilen Webapp; leer = Abgleich aus.",
-  "API token from the webapp (More → Desktop app tokens).":
-    "API-Token aus der Webapp (Mehr → Tokens für Desktop-Apps).",
-  "No webapp URL or token configured.": "Keine Webapp-URL oder kein Token eingetragen.",
   "Sync failed": "Abgleich fehlgeschlagen",
   "Sync with webapp now": "Jetzt mit der Webapp abgleichen",
   "Names, colours, groups and projects in both directions": "Namen, Farben, Gruppen und Projekte in beide Richtungen",
   "Sync with webapp automatically": "Automatisch mit der Webapp abgleichen",
   "At start, after every change and every minute": "Beim Start, nach jeder Änderung und jede Minute",
-  "API token": "API-Token",
   "Automatic sync": "Automatischer Abgleich",
   "Names, colours, pins, groups and projects of the sessions, in both directions; the newer change wins.":
     "Namen, Farben, Pins, Gruppen und Projekte der Sessions, in beide Richtungen; die neuere Änderung gewinnt.",

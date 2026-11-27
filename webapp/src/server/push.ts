@@ -1,9 +1,10 @@
 // Web push of the webapp (task J3): a notification on the phone when Pi finished an answer in a session the user had
-// open, and when a reminder of the session list is due (meta store: remindAt/remindNote of a session entry).
+// open, and when a reminder of the session list is due (the user's own meta store: remindAt/remindNote of a session
+// entry).
 //
 // - VAPID keys are generated on the first start and kept in DATA_DIR/vapid.json (owner only).
 // - Subscriptions (one per browser/device) belong to a user and live in DATA_DIR/push.json together with the
-//   reminders already notified ("<session key>" → remindAt), so a restart does not notify twice.
+//   reminders already notified ("<user id>|<session key>" → remindAt), so a restart does not notify twice.
 // - Which sessions a user "had open" is told by the client (push_watch): the open chat, refreshed while the page is
 //   visible. While a device shows that very chat, no push is sent for it (the user sees the answer anyway).
 // - Endpoints must be https on a known push service – the server POSTs to them, so no user can point it elsewhere.
@@ -13,7 +14,7 @@ import { basename, join } from "node:path";
 import webpush from "web-push";
 import { canUseHost } from "./helpers.js";
 import type { PiManager } from "./host/pi.js";
-import { keyHost, sessionKey, type MetaStore } from "./meta.js";
+import { keyHost, sessionKey, type UserMetaStores } from "./meta.js";
 import type { Store, UserRecord } from "./store.js";
 import { isRecord } from "./validation.js";
 
@@ -119,7 +120,8 @@ export interface PushOptions {
   dataDir: string;
   store: Store;
   pi?: PiManager;
-  meta?: MetaStore;
+  /** The organisation of every user (names for notifications, reminders) */
+  metas?: UserMetaStores;
   sender?: Sender;
   /** VAPID subject (mailto: or https: URL of the operator); env VAPID_SUBJECT */
   subject?: string;
@@ -155,9 +157,9 @@ export class PushService {
     }
   }
 
-  /** Listen to Pi and the meta store, check reminders regularly */
+  /** Listen to Pi and the meta stores, check reminders regularly */
   start() {
-    const { pi, meta } = this.opts;
+    const { pi, metas } = this.opts;
     if (pi) {
       this.stops.push(
         pi.addListener({
@@ -168,10 +170,10 @@ export class PushService {
         }),
       );
     }
-    if (meta) {
+    if (metas) {
       // reminders that are already overdue at the first start are not pushed (no flood after an update)
-      this.checkReminders(true);
-      this.stops.push(meta.onChange(() => void this.checkReminders()));
+      void this.checkReminders(true);
+      this.stops.push(metas.onChange(() => void this.checkReminders()));
       const timer = setInterval(() => void this.checkReminders(), REMINDER_CHECK_MS);
       timer.unref();
       this.stops.push(() => clearInterval(timer));
@@ -281,11 +283,13 @@ export class PushService {
     if (!info) return 0;
     const keys = [watchKey(info.hostId, info.sessionPath, info.cwd)];
     if (info.sessionPath) keys.push(watchKey(info.hostId, null, info.cwd));
-    const metaValue = info.sessionPath ? this.opts.meta?.state.sessions[sessionKey(info.hostId, info.sessionPath)]?.value : null;
-    const title = sessionTitle(metaValue, info.cwd);
     const now = this.now();
     let sent = 0;
     for (const user of this.liveUsers(info.hostId)) {
+      const metaValue = info.sessionPath
+        ? this.opts.metas?.of(user.id).state.sessions[sessionKey(info.hostId, info.sessionPath)]?.value
+        : null;
+      const title = sessionTitle(metaValue, info.cwd);
       const w = this.watches.get(user.id);
       const watched = keys.some((k) => {
         const at = w?.get(k);
@@ -302,28 +306,34 @@ export class PushService {
     return sent;
   }
 
-  /** Due reminders of the meta store that were not pushed yet; `silent` only marks them (first start) */
+  /**
+   * Due reminders in the users' meta stores that were not pushed yet; `silent` only marks them (first start). Only
+   * users with a subscribed device are looked at – nobody else could be told.
+   */
   async checkReminders(silent = false): Promise<number> {
-    const meta = this.opts.meta;
-    if (!meta) return 0;
+    const metas = this.opts.metas;
+    if (!metas) return 0;
     const now = this.now();
     let changed = false;
     let sent = 0;
     const live = new Set<string>();
-    for (const [key, entry] of Object.entries(meta.state.sessions)) {
-      const v = entry.value;
-      const at = v && typeof v.remindAt === "number" ? v.remindAt : null;
-      if (at === null) continue;
-      live.add(key);
-      if (at > now || this.data.notified[key] === at) continue;
-      this.data.notified[key] = at;
-      changed = true;
-      if (silent || now - at > REMINDER_LATE_MS) continue;
-      const hostId = keyHost(key);
-      const path = key.slice(hostId.length + 1);
-      const note = typeof v?.remindNote === "string" ? v.remindNote.trim() : "";
-      const title = sessionTitle(v, "");
-      for (const user of this.liveUsers(hostId)) {
+    const users = [...this.opts.store.users.values()].filter((u) => this.subscriptionsOf(u.id).length > 0);
+    for (const user of users) {
+      for (const [key, entry] of Object.entries(metas.of(user.id).state.sessions)) {
+        const v = entry.value;
+        const at = v && typeof v.remindAt === "number" ? v.remindAt : null;
+        if (at === null) continue;
+        const hostId = keyHost(key);
+        if (!canUseHost(user, hostId)) continue;
+        const mark = `${user.id}|${key}`;
+        live.add(mark);
+        if (at > now || this.data.notified[mark] === at) continue;
+        this.data.notified[mark] = at;
+        changed = true;
+        if (silent || now - at > REMINDER_LATE_MS) continue;
+        const path = key.slice(hostId.length + 1);
+        const note = typeof v?.remindNote === "string" ? v.remindNote.trim() : "";
+        const title = sessionTitle(v, "");
         sent += await this.notifyUser(user.id, (lang) => ({
           title: `${tr("reminder", lang)}${title ? `: ${title}` : ""}`,
           body: note || title || tr("session", lang),

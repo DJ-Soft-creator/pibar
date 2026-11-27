@@ -3,7 +3,7 @@
 import { CommandRegistry } from "../commands.js";
 import type { AppConfigStore } from "../appConfig.js";
 import type { PiManager } from "../host/pi.js";
-import type { MetaStore } from "../meta.js";
+import type { UserMetaStores } from "../meta.js";
 import { registerBgCommands } from "./bg.js";
 import { registerDiagCommands } from "./diag.js";
 import { registerFileCommands } from "./files.js";
@@ -28,7 +28,7 @@ export interface RegistryDeps {
   /** Running Pi processes; without it the pi_* commands are missing (tests of other areas) */
   pi?: PiManager;
   /** Organisation of the session list and shared settings; without them meta_* / app_config_get are missing */
-  meta?: MetaStore;
+  metas?: UserMetaStores;
   appConfig?: AppConfigStore;
 }
 
@@ -48,6 +48,6 @@ export function createRegistry(deps: RegistryDeps = {}): CommandRegistry {
     registerPiCommands(registry, deps.pi);
     registerBgCommands(registry, deps.pi);
   }
-  if (deps.meta && deps.appConfig) registerMetaCommands(registry, deps.meta, deps.appConfig);
+  if (deps.metas && deps.appConfig) registerMetaCommands(registry, deps.metas, deps.appConfig);
   return registry;
 }

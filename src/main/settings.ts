@@ -24,7 +24,7 @@ import { applyChatColors } from "./colors";
 import { voiceEditor } from "./voiceSettings";
 import { diagnoseDialog } from "./diagnose";
 import { autoSyncEnabled, lastSync, onSyncResult, setAutoSyncEnabled } from "./configExchange";
-import { syncResultText, syncWithFeedback, webappFields } from "./configExchangeTool";
+import { accountBlock, syncResultText, syncWithFeedback } from "./configExchangeTool";
 
 function tapOptions(): [string, string][] {
   return [
@@ -484,9 +484,10 @@ export function settingsDialog() {
     })
     .catch(() => {});
 
-  // Two-way sync with the mobile webapp (same controls as the session list's view menu); URL, token and toggle
-  // live in localStorage (configExchange.ts), not in state.config – the token never reaches the config file
-  const webapp = webappFields();
+  // Two-way sync with the mobile webapp (same controls as the session list's view menu): sign in as a webapp user;
+  // address, token and toggle live in localStorage (configExchange.ts), not in state.config – the token never
+  // reaches the config file, the password is not kept at all
+  const account = accountBlock();
   const webappSync = h("input", {
     type: "checkbox",
     checked: autoSyncEnabled(),
@@ -494,7 +495,6 @@ export function settingsDialog() {
   }) as HTMLInputElement;
   // like the menu toggle: persists at once, turning it on syncs once immediately (with the usual feedback)
   webappSync.addEventListener("change", () => {
-    webapp.apply();
     setAutoSyncEnabled(webappSync.checked);
     if (webappSync.checked) void syncWithFeedback();
   });
@@ -575,7 +575,6 @@ export function settingsDialog() {
     state.config.ui.notifyDone = notifyDone.checked;
     state.config.ui.background = background.checked;
     state.config.ui.subagentMode = subagentMode.value === "parallel" ? "parallel" : "sequential";
-    webapp.apply();
     await saveConfig();
     close();
     // A new language needs a fresh render of both windows
@@ -779,10 +778,12 @@ export function settingsDialog() {
 
   section(
     "Webapp",
-    h("div", { class: "row" }, h("label", {}, t("Webapp URL")), webapp.url),
-    h("p", { class: "hint" }, t("Address of the mobile webapp; empty = sync off.")),
-    h("div", { class: "row" }, h("label", {}, t("API token")), webapp.token),
-    h("p", { class: "hint" }, t("API token from the webapp (More → Desktop app tokens).")),
+    h("div", { class: "row" }, h("label", {}, t("Account")), account.el),
+    h(
+      "p",
+      { class: "hint" },
+      t("Sign in with your user of the webapp; the sync then covers your own names, colours, groups and projects."),
+    ),
     h(
       "div",
       { class: "row" },
@@ -797,7 +798,7 @@ export function settingsDialog() {
     h(
       "div",
       { class: "preset-actions" },
-      h("button", { class: "ghost", onclick: () => (webapp.apply(), void syncWithFeedback()) }, t("Sync now")),
+      h("button", { class: "ghost", onclick: () => void syncWithFeedback() }, t("Sync now")),
     ),
     syncStatus,
   );
@@ -834,7 +835,10 @@ export function settingsDialog() {
       h("button", { class: "ghost", onclick: () => close() }, t("Cancel")),
       h("button", { class: "primary", onclick: save }, t("Save")),
     ],
-    offSync,
+    () => {
+      offSync();
+      account.dispose();
+    },
     "settings-modal",
   );
 }

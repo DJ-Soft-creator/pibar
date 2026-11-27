@@ -10,7 +10,7 @@ import { CommandRegistry } from "../src/server/commands.js";
 import { registerMetaCommands } from "../src/server/cmd/meta.js";
 import type { HostRecord } from "../src/server/hosts.js";
 import type { UserRecord } from "../src/server/store.js";
-import { emptyState, importLegacyConfig, mapDesktopHost, mergeState, MetaStore, sessionKey } from "../src/server/meta.js";
+import { emptyState, importLegacyConfig, mapDesktopHost, mergeState, MetaStore, sessionKey, UserMetaStores } from "../src/server/meta.js";
 
 const tmp = (t: { after(fn: () => void): void }) => {
   const d = mkdtempSync(join(tmpdir(), "pibar-meta-test-"));
@@ -113,12 +113,13 @@ test("app config: validation, secrets hidden and kept, file mode 0600", (t) => {
   assert.deepEqual(keepSecrets({ apiKey: "new", apiKeySet: true }, { apiKey: "old" }), { apiKey: "new" });
 });
 
-test("meta commands: host rights on session keys and projects", async (t) => {
+test("meta commands: host rights on session keys and projects; every user has an own organisation", async (t) => {
   const dir = tmp(t);
-  const meta = new MetaStore(dir);
+  const metas = new UserMetaStores(dir);
   const reg = new CommandRegistry();
-  registerMetaCommands(reg, meta, new AppConfigStore(dir));
-  const user = { role: "user", hostIds: ["h1"] } as unknown as UserRecord;
+  registerMetaCommands(reg, metas, new AppConfigStore(dir));
+  const user = { id: "u1", role: "user", hostIds: ["h1"] } as unknown as UserRecord;
+  const other = { id: "u2", role: "user", hostIds: ["h1"] } as unknown as UserRecord;
   const ctx = { user } as never;
   const run = (name: string, args: Record<string, unknown>) => reg.get(name)?.run(ctx, args);
   await run("meta_set_session", { key: "h1|/s/a.jsonl", meta: { color: "red" } });
@@ -128,6 +129,8 @@ test("meta commands: host rights on session keys and projects", async (t) => {
   const view = (await run("meta_get", {})) as { sessionMeta: object; groups: unknown[] };
   assert.deepEqual(Object.keys(view.sessionMeta), ["h1|/s/a.jsonl"]);
   assert.equal(view.groups.length, 1);
+  const otherView = (await reg.get("meta_get")?.run({ user: other } as never, {})) as { sessionMeta: object; groups: unknown[] };
+  assert.deepEqual(otherView, { sessionMeta: {}, groups: [], projects: [] });
   const cfg = (await run("app_config_get", {})) as { presets: unknown[] };
   assert.deepEqual(cfg.presets, []);
 });

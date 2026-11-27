@@ -16,7 +16,7 @@ export type Route =
   | "admin/quick-actions"
   | "admin/colors"
   | "admin/voice"
-  | "admin/tokens";
+  | "desktops";
 
 /** The session shown in the chat tab; path null = a new session (Pi creates the file with the first message) */
 export interface ChatTarget {
@@ -38,7 +38,7 @@ const ROUTES: Route[] = [
   "admin/quick-actions",
   "admin/colors",
   "admin/voice",
-  "admin/tokens",
+  "desktops",
 ];
 
 export const state = {

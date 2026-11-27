@@ -1,7 +1,7 @@
 // Entry of the webapp client: check the login (/api/me), then the app shell – page area plus a tab bar at the
 // bottom (Sessions · Chat · Files · More) – and the WebSocket. Routes live in the URL hash (state.ts).
 import "./style.css";
-import { h } from "@shared/dom";
+import { h, wireCardToggle } from "@shared/dom";
 import { t } from "@shared/i18n";
 import { account, hosts, onUnauthorized } from "./rest";
 import { connectSocket, type SocketHandle } from "./socket";
@@ -96,14 +96,14 @@ function renderPage() {
       if (isAdmin()) void renderAdminConfig(page, route);
       else go("more");
       break;
-    case "admin/tokens":
-      if (isAdmin()) void renderTokens(page);
-      else go("more");
+    case "desktops":
+      void renderTokens(page);
       break;
   }
 }
 
 function shell() {
+  wireCardToggle();
   page = h("div", { class: "page" });
   tabs = h("nav", { class: "tabbar", "aria-label": "Navigation" });
   offline = h("div", { class: "offline", hidden: true }, t("Connection lost – reconnecting …"));

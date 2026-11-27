@@ -1,9 +1,9 @@
 // Webapp sync entries for the session list's view menu (src/main/sessions.ts): sync now, toggle the automatic sync,
-// set webapp URL and API token. Actions: src/main/configExchangeTool.ts, the sync itself: configExchange.ts.
+// sign in to the webapp / sign out. Actions: src/main/configExchangeTool.ts, the sync itself: configExchange.ts.
 import { t } from "../shared/i18n";
 import type { MenuItem } from "./menu";
-import { autoSyncEnabled } from "./configExchange";
-import { syncWithFeedback, toggleAutoSync, webappUrlDialog } from "./configExchangeTool";
+import { autoSyncEnabled, signedIn, webappUser } from "./configExchange";
+import { signInDialog, signOutWithFeedback, syncWithFeedback, toggleAutoSync } from "./configExchangeTool";
 
 /** Menu entries; the session list redraws itself when a sync brings changes (wireConfigAutoSync) */
 export function configExchangeItems(_refresh?: () => void): MenuItem[] {
@@ -19,6 +19,12 @@ export function configExchangeItems(_refresh?: () => void): MenuItem[] {
       selected: autoSyncEnabled(),
       onSelect: toggleAutoSync,
     },
-    { label: t("Webapp sync…"), onSelect: webappUrlDialog },
+    signedIn()
+      ? {
+          label: t("Sign out of the webapp"),
+          desc: t("Signed in as {user}", { user: webappUser() }),
+          onSelect: () => void signOutWithFeedback(),
+        }
+      : { label: t("Sign in to the webapp…"), onSelect: signInDialog },
   ];
 }

@@ -85,6 +85,7 @@ export function renderMore(root: HTMLElement, onLogout: () => void, rerender: ()
       "div",
       { class: "stack" },
       button(t("Change password"), passwordDialog),
+      button(t("Desktop apps"), () => go("desktops")),
       button(t("Log out"), () => {
         account
           .logout()
@@ -119,7 +120,6 @@ export function renderMore(root: HTMLElement, onLogout: () => void, rerender: ()
             button(t("Quick actions"), () => go("admin/quick-actions")),
             button(t("Chat colours"), () => go("admin/colors")),
             button(t("Voice"), () => go("admin/voice")),
-            button(t("Desktop app tokens"), () => go("admin/tokens")),
           ),
         ),
       ]
